@@ -45,7 +45,11 @@ export async function getJson(path: string, options: RequestOptions = {}): Promi
   let timedOut = false;
 
   const forwardAbort = () => controller.abort();
-  options.signal?.addEventListener("abort", forwardAbort, { once: true });
+  if (options.signal?.aborted) {
+    controller.abort();
+  } else {
+    options.signal?.addEventListener("abort", forwardAbort, { once: true });
+  }
   const timeout = window.setTimeout(() => {
     timedOut = true;
     controller.abort();
