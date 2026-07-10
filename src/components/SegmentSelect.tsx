@@ -18,10 +18,16 @@ function publicErrorMessage(code: string): string {
   return "Não foi possível carregar os segmentos. Verifique a conexão com a API e tente novamente.";
 }
 
-export function SegmentSelect() {
+interface SegmentSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  invalid?: boolean;
+  describedBy?: string;
+}
+
+export function SegmentSelect({ value, onChange, invalid, describedBy }: SegmentSelectProps) {
   const [state, setState] = useState<CatalogState>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
-  const [selectedSegment, setSelectedSegment] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -78,8 +84,10 @@ export function SegmentSelect() {
     <select
       id="segment"
       name="segment"
-      value={selectedSegment}
-      onChange={(event) => setSelectedSegment(event.target.value)}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      aria-invalid={invalid || undefined}
+      aria-describedby={describedBy}
     >
       <option value="">Selecione um segmento</option>
       {state.items.map((segment) => (

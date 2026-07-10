@@ -66,17 +66,52 @@ npm run lint
 npm run build
 ```
 
-## Endpoints consumidos nesta etapa
+## Discovery
+
+A tela principal possui dois modos explícitos:
+
+- **Por segmento** — exige segmento e aceita UF, código TOM, porte, capital
+  mínimo e capital máximo como filtros opcionais;
+- **Por região** — exige ao menos UF, código TOM, código IBGE ou nome do
+  município. O segmento pode ser usado como filtro adicional, mas não valida
+  sozinho uma busca regional.
+
+O formulário valida apenas condições obviamente inválidas, como ausência do
+filtro obrigatório, decimal malformado e capital mínimo maior que o máximo. O
+backend continua sendo a autoridade sobre normalização e regras de domínio.
+
+Os resultados são exibidos na ordem retornada pela API, em uma tabela com
+scroll horizontal em telas estreitas. CNPJ, CNAE, TOM, IBGE, porte e capital
+permanecem texto. Valores ausentes aparecem como `—`, e o status comercial
+`UNKNOWN`/`none` é apresentado explicitamente como desconhecido e provisório.
+
+### Paginação
+
+A busca começa com 50 registros por página e permite selecionar 25, 50 ou
+100. A navegação usa somente `limit`, `offset`, `returned` e `has_more` do
+backend. Não é executado `COUNT` e a interface não mostra um total geral
+inventado.
+
+Filtros editados após uma pesquisa não alteram silenciosamente a paginação ou
+o retry: ambos repetem o snapshot dos critérios efetivamente submetidos. Uma
+nova busca sempre começa em `offset=0`.
+
+## Endpoints consumidos
 
 - `GET /health/live` — indicador de processo HTTP vivo;
 - `GET /api/v1/catalog/segments` — seletor de segmentos.
+- `GET /api/v1/discovery/segments/{segment_id}/establishments` — busca por
+  segmento;
+- `GET /api/v1/discovery/regions/establishments` — busca por região.
 
 ## Escopo atual
 
-A primeira tela entrega o shell desktop-first do Sentinel: sidebar, cabeçalho
-com liveness, card “Buscar empresas”, catálogo de segmentos e estados de
-carregamento/erro. O botão **Buscar** permanece desabilitado de propósito.
+A tela entrega o shell desktop-first do Sentinel, busca funcional por segmento
+ou região, estados de validação/carregamento/erro, retry manual e tabela
+paginada. Requisições anteriores são canceladas ao iniciar uma nova busca,
+trocar o modo ou desmontar a tela; respostas obsoletas são ignoradas.
 
-Ficam para as próximas etapas: filtros regionais, buscas por segmento ou
-região, tabela de empresas, detalhes, listas, mapa, autenticação, exportação e
-qualquer estado global ou cache avançado.
+Ficam para as próximas etapas: detalhes de empresa, painel lateral, mapa,
+raio, empresas semelhantes, raiz/filiais, grupos comerciais, feedback,
+exportação, listas salvas, autenticação, ordenação client-side, busca fuzzy e
+filtros persistidos na URL.

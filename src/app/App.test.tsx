@@ -35,7 +35,7 @@ describe("Sentinel Web foundation", () => {
     expect(screen.getByRole("button", { name: /Empresas/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Listas/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Administração/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Buscar" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Buscar" })).toBeEnabled();
     await waitFor(() => expect(screen.getByText("API: Online")).toBeInTheDocument());
   });
 
@@ -72,7 +72,7 @@ describe("Sentinel Web foundation", () => {
 
   it("populates the select and preserves the segment id as a string", async () => {
     render(<App />);
-    const select = await screen.findByLabelText("Segmento");
+    const select = await screen.findByLabelText(/Segmento/);
     expect(select).toHaveValue("");
     expect(screen.getByRole("option", { name: "Metal-mecânica" })).toHaveValue("metal-mecanica");
     fireEvent.change(select, { target: { value: "metal-mecanica" } });
@@ -83,7 +83,7 @@ describe("Sentinel Web foundation", () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) => Promise.resolve(input.toString().includes("/health/live") ? jsonResponse(liveness) : jsonResponse({ items: [] })));
     render(<App />);
     expect(await screen.findByText("Nenhum segmento disponível.")).toBeInTheDocument();
-    expect(screen.getByLabelText("Segmento")).toBeDisabled();
+    expect(screen.getByLabelText(/Segmento/)).toBeDisabled();
   });
 
   it("shows a public database-unavailable catalog error and retries manually", async () => {
@@ -107,7 +107,7 @@ describe("Sentinel Web foundation", () => {
 
   it("does not call a Discovery search endpoint", async () => {
     render(<App />);
-    await screen.findByLabelText("Segmento");
+    await screen.findByLabelText(/Segmento/);
     const urls = fetchMock.mock.calls.map(([input]) => input.toString());
     expect(urls).toEqual(expect.arrayContaining(["/health/live", "/api/v1/catalog/segments"]));
     expect(urls.some((url) => url.includes("/api/v1/discovery/"))).toBe(false);
