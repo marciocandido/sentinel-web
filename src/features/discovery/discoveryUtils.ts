@@ -106,3 +106,7 @@ export function matchLabel(establishment: DiscoveryEstablishment): string {
   if (establishment.matched_by_cnae_secundario) return "CNAE secundário";
   return "—";
 }
+
+export function detailValue(value: string | null): string {
+  return value === null || value === "" ? "—" : value;
+}

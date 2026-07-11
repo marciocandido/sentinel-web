@@ -2,6 +2,7 @@ import type { DiscoveryViewState } from "./discoveryTypes";
 import { publicSearchError } from "./discoveryUtils";
 import { DiscoveryPagination } from "./DiscoveryPagination";
 import { DiscoveryTable } from "./DiscoveryTable";
+import type { DiscoveryEstablishment } from "../../types/api";
 
 interface DiscoveryResultsProps {
   state: DiscoveryViewState;
@@ -9,6 +10,7 @@ interface DiscoveryResultsProps {
   onPrevious: () => void;
   onNext: () => void;
   onLimitChange: (limit: number) => void;
+  onSelectEstablishment: (establishment: DiscoveryEstablishment) => void;
 }
 
 export function DiscoveryResults({
@@ -17,6 +19,7 @@ export function DiscoveryResults({
   onPrevious,
   onNext,
   onLimitChange,
+  onSelectEstablishment,
 }: DiscoveryResultsProps) {
   return (
     <section
@@ -41,7 +44,9 @@ export function DiscoveryResults({
       )}
       {state.kind === "success" && (
         <>
-          {state.page.items.length > 0 && <DiscoveryTable items={state.page.items} />}
+          {state.page.items.length > 0 && (
+            <DiscoveryTable items={state.page.items} onSelectEstablishment={onSelectEstablishment} />
+          )}
           <DiscoveryPagination
             pagination={state.page.pagination}
             disabled={false}

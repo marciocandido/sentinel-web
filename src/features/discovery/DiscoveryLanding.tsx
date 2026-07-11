@@ -15,6 +15,8 @@ import {
   type ValidationErrors,
 } from "./discoveryTypes";
 import { createSnapshot, validateSearch } from "./discoveryUtils";
+import type { DiscoveryEstablishment } from "../../types/api";
+import { DiscoveryDetailsDrawer } from "./DiscoveryDetailsDrawer";
 
 export function DiscoveryLanding() {
   const [mode, setMode] = useState<SearchMode>("segment");
@@ -22,12 +24,15 @@ export function DiscoveryLanding() {
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [state, setState] = useState<DiscoveryViewState>({ kind: "initial" });
   const [limit, setLimit] = useState(50);
+  const [selectedEstablishment, setSelectedEstablishment] = useState<DiscoveryEstablishment | null>(null);
+  const [detailsTrigger, setDetailsTrigger] = useState<HTMLElement | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
   const submittedRef = useRef<DiscoverySearchSnapshot | null>(null);
   const lastRequestRef = useRef<{ snapshot: DiscoverySearchSnapshot; limit: number; offset: number } | null>(null);
 
   const execute = useCallback(async (snapshot: DiscoverySearchSnapshot, requestLimit: number, offset: number) => {
+    setSelectedEstablishment(null);
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -78,6 +83,7 @@ export function DiscoveryLanding() {
     controllerRef.current = null;
     submittedRef.current = null;
     lastRequestRef.current = null;
+    setSelectedEstablishment(null);
     setMode(nextMode);
     setErrors({});
     setState({ kind: "initial" });
@@ -119,36 +125,61 @@ export function DiscoveryLanding() {
     if (submittedRef.current) void execute(submittedRef.current, nextLimit, 0);
   };
 
+  const openDetails = (establishment: DiscoveryEstablishment) => {
+    if (document.activeElement instanceof HTMLElement) {
+      setDetailsTrigger(document.activeElement);
+    }
+    setSelectedEstablishment(establishment);
+  };
+
+  const closeDetails = useCallback(() => {
+    setSelectedEstablishment(null);
+  }, []);
+
   return (
     <section className="discovery" aria-labelledby="discovery-title">
-      <div className="page-intro">
-        <p className="eyebrow">Discovery</p>
-        <h1 id="discovery-title">Buscar empresas</h1>
-        <p>Pesquise a base do Sentinel por segmento ou por critérios regionais.</p>
-      </div>
-
-      <article className="search-card" aria-labelledby="search-card-title">
-        <div>
-          <h2 id="search-card-title">Critérios da busca</h2>
-          <p className="muted">Informe apenas filtros suportados pelo modo selecionado.</p>
+      <div
+        className="discovery-content"
+        inert={selectedEstablishment ? true : undefined}
+        aria-hidden={selectedEstablishment ? true : undefined}
+      >
+        <div className="page-intro">
+          <p className="eyebrow">Discovery</p>
+          <h1 id="discovery-title">Buscar empresas</h1>
+          <p>Pesquise a base do Sentinel por segmento ou por critérios regionais.</p>
         </div>
-        <DiscoverySearchForm
-          mode={mode}
-          values={values}
-          errors={errors}
-          searching={state.kind === "loading"}
-          onModeChange={changeMode}
-          onValueChange={changeValue}
-          onSubmit={submit}
+
+        <article className="search-card" aria-labelledby="search-card-title">
+          <div>
+            <h2 id="search-card-title">Critérios da busca</h2>
+            <p className="muted">Informe apenas filtros suportados pelo modo selecionado.</p>
+          </div>
+          <DiscoverySearchForm
+            mode={mode}
+            values={values}
+            errors={errors}
+            searching={state.kind === "loading"}
+            onModeChange={changeMode}
+            onValueChange={changeValue}
+            onSubmit={submit}
+          />
+        </article>
+        <DiscoveryResults
+          state={state}
+          onRetry={retry}
+          onPrevious={previous}
+          onNext={next}
+          onLimitChange={changeLimit}
+          onSelectEstablishment={openDetails}
         />
-      </article>
-      <DiscoveryResults
-        state={state}
-        onRetry={retry}
-        onPrevious={previous}
-        onNext={next}
-        onLimitChange={changeLimit}
-      />
+      </div>
+      {selectedEstablishment && (
+        <DiscoveryDetailsDrawer
+          establishment={selectedEstablishment}
+          onClose={closeDetails}
+          returnFocusTo={detailsTrigger}
+        />
+      )}
     </section>
   );
 }
