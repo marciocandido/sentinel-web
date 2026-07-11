@@ -77,6 +77,12 @@ Em produção, o bundle é gerado com `VITE_SENTINEL_API_URL` vazio: chamadas a
 `SENTINEL_API_UPSTREAM` no runtime (padrão `http://api:8000`) e faz o proxy
 interno; nenhuma URL pública ou `127.0.0.1:8000` é embutida no bundle.
 
+O proxy cria ou preserva `X-Request-ID` em cada resposta e o encaminha à API,
+permitindo correlacionar uma requisição entre os logs do web e do backend. Os
+logs de acesso são humanos, não incluem valores de query, cookies ou cabeçalhos
+de autorização e podem ser configurados no runtime. Veja as variáveis e os
+exemplos de leitura em [docs/deployment/01-web-container.md](docs/deployment/01-web-container.md).
+
 ## Discovery
 
 A tela principal possui dois modos explícitos:

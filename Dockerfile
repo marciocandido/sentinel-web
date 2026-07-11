@@ -22,8 +22,9 @@ FROM nginxinc/nginx-unprivileged:1.28.0-alpine@sha256:c97ff0bf7cbae369953c6da123
 
 ENV SENTINEL_API_UPSTREAM="http://api:8000"
 
-COPY docker/nginx.conf /etc/nginx/nginx.conf
+COPY docker/nginx.conf /etc/nginx/templates/nginx.conf.template
 COPY docker/default.conf.template /etc/nginx/templates/default.conf.template
+COPY docker/logging.conf.template /etc/nginx/templates/logging.conf.template
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/sentinel-web-entrypoint
 COPY --from=build /app/dist /usr/share/nginx/html
 

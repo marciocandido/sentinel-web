@@ -8,5 +8,8 @@ export default defineConfig({
     setupFiles: "./src/test/setup.ts",
     globals: true,
     css: true,
+    env: {
+      VITE_SENTINEL_API_URL: "",
+    },
   },
 });

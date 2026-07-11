@@ -1,0 +1,30 @@
+map $http_x_request_id $sentinel_request_id {
+  default $request_id;
+  "~^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$" $http_x_request_id;
+}
+
+map $status $sentinel_log_level {
+  default INFO;
+  ~^4 WARNING;
+  ~^5 ERROR;
+}
+
+map $uri $sentinel_access_log_enabled {
+  default ${SENTINEL_WEB_ACCESS_LOG};
+  /healthz ${SENTINEL_WEB_LOG_HEALTH};
+  /health/live ${SENTINEL_WEB_LOG_HEALTH};
+  /health/ready ${SENTINEL_WEB_LOG_HEALTH};
+}
+
+log_format sentinel_human '$time_iso8601 | $sentinel_log_level | web.request | requisição concluída\n'
+                          'request_id: $sentinel_request_id\n'
+                          'client: $remote_addr\n'
+                          'method: $request_method\n'
+                          'path: $uri\n'
+                          'status: $status\n'
+                          'upstream_status: $upstream_status\n'
+                          'duration_seconds: $request_time\n'
+                          'upstream_seconds: $upstream_response_time\n'
+                          'bytes: $body_bytes_sent\n\n';
+
+access_log /dev/stdout sentinel_human if=$sentinel_access_log_enabled;
