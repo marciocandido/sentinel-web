@@ -1,7 +1,7 @@
 type IconName = "discovery" | "companies" | "lists" | "admin";
 
 function NavigationIcon({ name }: { name: IconName }) {
-  const common = { width: 20, height: 20, viewBox: "0 0 24 24", "aria-hidden": true };
+  const common = { width: 18, height: 18, viewBox: "0 0 24 24", "aria-hidden": true };
 
   if (name === "discovery") {
     return <svg {...common}><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>;
