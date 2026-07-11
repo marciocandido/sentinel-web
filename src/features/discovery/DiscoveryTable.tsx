@@ -10,7 +10,12 @@ function location(establishment: DiscoveryEstablishment): string {
   return parts.length ? parts.join(" / ") : "—";
 }
 
-export function DiscoveryTable({ items }: { items: DiscoveryEstablishment[] }) {
+interface DiscoveryTableProps {
+  items: DiscoveryEstablishment[];
+  onSelectEstablishment: (establishment: DiscoveryEstablishment) => void;
+}
+
+export function DiscoveryTable({ items, onSelectEstablishment }: DiscoveryTableProps) {
   return (
     <div className="table-scroll">
       <table className="results-table">
@@ -26,6 +31,7 @@ export function DiscoveryTable({ items }: { items: DiscoveryEstablishment[] }) {
             <th scope="col">Correspondência</th>
             <th scope="col">Precisão geográfica</th>
             <th scope="col">Status comercial</th>
+            <th scope="col">Ações</th>
           </tr>
         </thead>
         <tbody>
@@ -45,6 +51,15 @@ export function DiscoveryTable({ items }: { items: DiscoveryEstablishment[] }) {
               <td>
                 <span className="status-unknown">Desconhecido (provisório)</span>
                 <span className="cell-secondary">Sem fonte comercial</span>
+              </td>
+              <td>
+                <button
+                  className="table-action"
+                  type="button"
+                  onClick={() => onSelectEstablishment(establishment)}
+                >
+                  Ver detalhes
+                </button>
               </td>
             </tr>
           ))}

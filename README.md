@@ -96,6 +96,26 @@ Filtros editados após uma pesquisa não alteram silenciosamente a paginação o
 o retry: ambos repetem o snapshot dos critérios efetivamente submetidos. Uma
 nova busca sempre começa em `offset=0`.
 
+### Detalhes do resultado
+
+Cada linha da tabela possui a ação **Ver detalhes**, que abre um painel lateral
+com os dados do `DiscoveryEstablishment` já retornado pela busca. Abrir, copiar
+ou fechar o painel não realiza nova chamada à API.
+
+O painel exibe:
+
+- razão social, nome fantasia, CNPJ completo e raiz;
+- município, UF, códigos TOM e IBGE, precisão e disponibilidade geográfica;
+- CNAE principal, porte, capital social e correspondência da busca;
+- status comercial explicitamente desconhecido e sem fonte integrada.
+
+A ação **Copiar CNPJ** envia ao clipboard exatamente o `cnpj_full` recebido,
+preservando zeros à esquerda e caracteres alfanuméricos, sem máscara ou
+conversão numérica.
+
+Este painel representa somente os detalhes disponíveis no resultado atual. Ele
+não é uma ficha completa da empresa e não consulta endpoint de detalhe.
+
 ## Endpoints consumidos
 
 - `GET /health/live` — indicador de processo HTTP vivo;
@@ -111,7 +131,7 @@ ou região, estados de validação/carregamento/erro, retry manual e tabela
 paginada. Requisições anteriores são canceladas ao iniciar uma nova busca,
 trocar o modo ou desmontar a tela; respostas obsoletas são ignoradas.
 
-Ficam para as próximas etapas: detalhes de empresa, painel lateral, mapa,
-raio, empresas semelhantes, raiz/filiais, grupos comerciais, feedback,
-exportação, listas salvas, autenticação, ordenação client-side, busca fuzzy e
-filtros persistidos na URL.
+Ficam para as próximas etapas: ficha completa, endereço, contatos, CNAEs
+secundários detalhados, QSA, mapa, raio, empresas semelhantes, raiz/filiais,
+grupos comerciais, feedback, exportação, listas salvas, autenticação,
+ordenação client-side, busca fuzzy e filtros persistidos na URL.
