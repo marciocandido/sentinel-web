@@ -66,6 +66,17 @@ npm run lint
 npm run build
 ```
 
+## Imagem de produção
+
+O frontend pode ser publicado como uma imagem Nginx não-root que serve somente
+o build Vite e encaminha a API pela mesma origem. Consulte o guia completo em
+[docs/deployment/01-web-container.md](docs/deployment/01-web-container.md).
+
+Em produção, o bundle é gerado com `VITE_SENTINEL_API_URL` vazio: chamadas a
+`/health/live` e `/api/v1/...` permanecem relativas. O Nginx recebe
+`SENTINEL_API_UPSTREAM` no runtime (padrão `http://api:8000`) e faz o proxy
+interno; nenhuma URL pública ou `127.0.0.1:8000` é embutida no bundle.
+
 ## Discovery
 
 A tela principal possui dois modos explícitos:
