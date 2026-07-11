@@ -109,3 +109,28 @@ Node/npm, bundle same-origin, configuração inválida e execução read-only.
 
 A composição com API e PostgreSQL será definida posteriormente na issue
 `marciocandido/sentinel#113`; este repositório não cria Docker Compose.
+
+## Logs e correlação
+
+O Nginx aceita `X-Request-ID` somente no formato
+`^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$`. Um ID válido é preservado; ausente ou
+inválido usa o `$request_id` nativo (32 caracteres hexadecimais). O mesmo ID é
+enviado ao upstream, devolvido ao navegador e registrado no access log.
+
+O formato humano usa `$uri`, portanto não registra query values, body,
+`Authorization`, `Cookie`, referer ou user-agent. Veja a mesma correlação:
+
+```sh
+docker logs --tail 200 <container-web>
+docker logs --tail 200 <container-api>
+```
+
+| Variável | Padrão | Valores |
+| --- | --- | --- |
+| `SENTINEL_WEB_LOG_LEVEL` | `info` | `info`, `notice`, `warn`, `error`, `crit` |
+| `SENTINEL_WEB_ACCESS_LOG` | `true` | `true/false`, `1/0`, `yes/no` |
+| `SENTINEL_WEB_LOG_FORMAT` | `human` | somente `human` |
+| `SENTINEL_WEB_LOG_HEALTH` | `false` | inclui health quando ativo |
+
+Valores inválidos encerram com código 64. Desligar access log não desliga error
+log nem o healthcheck local.
