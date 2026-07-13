@@ -72,8 +72,9 @@ export function createSnapshot(
       capitalMax: trimmed.capitalMax,
     };
   }
+  if (mode !== "region") throw new Error("Radius search uses a dedicated snapshot.");
   return {
-    mode,
+    mode: "region",
     segmentId: trimmed.segmentId,
     uf: trimmed.uf,
     codigoTom: trimmed.codigoTom,

@@ -3,6 +3,9 @@ import type {
   DiscoveryEstablishmentPage,
   SimilarCompany,
   SimilarCompanyPage,
+  RadiusSearchEstablishment,
+  RadiusSearchOrigin,
+  RadiusSearchPage,
 } from "../types/api";
 
 export function establishment(
@@ -28,6 +31,18 @@ export function establishment(
     commercial_status_source: "none",
     ...overrides,
   };
+}
+
+export function radiusSearchOrigin(overrides: Partial<RadiusSearchOrigin> = {}): RadiusSearchOrigin {
+  return { kind: "MUNICIPALITY", cnpj_full: null, codigo_tom: "7107", codigo_ibge: "3550308", municipio_nome: "SAO PAULO", uf: "SP", latitude: -23.55, longitude: -46.63, location_precision: "MUNICIPIO", ...overrides };
+}
+
+export function radiusSearchEstablishment(overrides: Partial<RadiusSearchEstablishment> = {}): RadiusSearchEstablishment {
+  return { ...establishment(), latitude: -23.54, longitude: -46.62, distance_km: 3.25, location_precision: "MUNICIPIO", has_geo: true, ...overrides };
+}
+
+export function radiusSearchPage(items: RadiusSearchEstablishment[] = [radiusSearchEstablishment()], pagination: Partial<RadiusSearchPage["pagination"]> = {}, origin: RadiusSearchOrigin = radiusSearchOrigin()): RadiusSearchPage {
+  return { origin, items, pagination: { limit: 50, offset: 0, returned: items.length, has_more: false, ...pagination } };
 }
 
 export function discoveryPage(

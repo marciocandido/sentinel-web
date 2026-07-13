@@ -3,10 +3,12 @@ import {
   isLivenessResponse,
   isSegmentCatalogResponse,
   isSimilarCompanyPage,
+  isRadiusSearchPage,
   type DiscoveryEstablishmentPage,
   type LivenessResponse,
   type SegmentCatalogResponse,
   type SimilarCompanyPage,
+  type RadiusSearchPage,
 } from "../types/api";
 import { getJson, SentinelApiError, type RequestOptions } from "./apiClient";
 
@@ -33,6 +35,22 @@ export interface RegionSearchParams {
 
 export interface SimilarCompaniesParams {
   cnpjFull: string;
+  limit: number;
+  offset: number;
+}
+
+export type RadiusSearchSnapshotOrigin =
+  | { kind: "municipality"; municipioNome: string; uf: string }
+  | { kind: "cnpj"; cnpj: string }
+  | { kind: "tom"; codigoTom: string }
+  | { kind: "ibge"; codigoIbge: string }
+  | { kind: "coordinates"; lat: number; lon: number };
+
+export interface RadiusSearchParams {
+  origin: RadiusSearchSnapshotOrigin;
+  radiusKm: number;
+  segmentId?: string;
+  resultUf?: string;
   limit: number;
   offset: number;
 }
@@ -113,6 +131,31 @@ export async function searchSimilarCompanies(
     options,
   );
   if (!isSimilarCompanyPage(response)) {
+    throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  }
+  return response;
+}
+
+export async function searchEstablishmentsByRadius(
+  params: RadiusSearchParams,
+  options?: RequestOptions,
+): Promise<RadiusSearchPage> {
+  const query = paginationQuery(params.limit, params.offset);
+  query.set("radius_km", String(params.radiusKm));
+  if (params.origin.kind === "municipality") {
+    query.set("origin_municipio_nome", params.origin.municipioNome);
+    query.set("origin_uf", params.origin.uf);
+  } else if (params.origin.kind === "cnpj") query.set("origin_cnpj", params.origin.cnpj);
+  else if (params.origin.kind === "tom") query.set("origin_codigo_tom", params.origin.codigoTom);
+  else if (params.origin.kind === "ibge") query.set("origin_codigo_ibge", params.origin.codigoIbge);
+  else {
+    query.set("origin_lat", String(params.origin.lat));
+    query.set("origin_lon", String(params.origin.lon));
+  }
+  setIfPresent(query, "segment_id", params.segmentId);
+  setIfPresent(query, "uf", params.resultUf);
+  const response = await getJson(`/api/v1/discovery/radius/establishments?${query}`, options);
+  if (!isRadiusSearchPage(response)) {
     throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
   }
   return response;

@@ -11,7 +11,6 @@ interface DiscoverySearchFormProps {
   values: DiscoveryFormValues;
   errors: ValidationErrors;
   searching: boolean;
-  onModeChange: (mode: SearchMode) => void;
   onValueChange: (field: keyof DiscoveryFormValues, value: string) => void;
   onSubmit: () => void;
 }
@@ -26,7 +25,6 @@ export function DiscoverySearchForm({
   values,
   errors,
   searching,
-  onModeChange,
   onValueChange,
   onSubmit,
 }: DiscoverySearchFormProps) {
@@ -37,30 +35,6 @@ export function DiscoverySearchForm({
 
   return (
     <form className="discovery-form" aria-label="Formulário de busca" onSubmit={submit} noValidate>
-      <fieldset className="mode-switcher">
-        <legend>Modo de busca</legend>
-        <label>
-          <input
-            type="radio"
-            name="search-mode"
-            value="segment"
-            checked={mode === "segment"}
-            onChange={() => onModeChange("segment")}
-          />
-          <span>Por segmento</span>
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="search-mode"
-            value="region"
-            checked={mode === "region"}
-            onChange={() => onModeChange("region")}
-          />
-          <span>Por região</span>
-        </label>
-      </fieldset>
-
       <div className="form-grid">
         <div className="field-group">
           <label htmlFor="segment">

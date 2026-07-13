@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { discoveryPage, establishment } from "../test/fixtures";
+import { discoveryPage, establishment, radiusSearchPage } from "../test/fixtures";
 import {
   searchEstablishmentsByRegion,
   searchEstablishmentsBySegment,
+  searchEstablishmentsByRadius,
 } from "./sentinelApi";
 
 const fetchMock = vi.fn();
@@ -106,5 +107,18 @@ describe("Sentinel Discovery API", () => {
     await expect(searchEstablishmentsByRegion({ uf: "SP", limit: 50, offset: 0 })).rejects.toMatchObject({
       code: "invalid_response",
     });
+  });
+
+  it("builds a radius request without coercing textual identifiers", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(radiusSearchPage()));
+    await searchEstablishmentsByRadius({ origin: { kind: "tom", codigoTom: "0012" }, radiusKm: 5, resultUf: "SP", limit: 25, offset: 50 });
+    const url = new URL(fetchMock.mock.calls[0][0], "http://local");
+    expect(url.pathname).toBe("/api/v1/discovery/radius/establishments");
+    expect(Object.fromEntries(url.searchParams)).toEqual({ limit: "25", offset: "50", radius_km: "5", origin_codigo_tom: "0012", uf: "SP" });
+  });
+
+  it("rejects a malformed radius HTTP 200 response", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ origin: {}, items: [], pagination: {} }));
+    await expect(searchEstablishmentsByRadius({ origin: { kind: "cnpj", cnpj: "00ABC" }, radiusKm: 1, limit: 50, offset: 0 })).rejects.toMatchObject({ code: "invalid_response" });
   });
 });

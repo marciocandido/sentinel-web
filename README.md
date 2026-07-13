@@ -15,6 +15,7 @@ comercial: ele consome os contratos públicos do backend.
 - CSS comum, sem framework visual;
 - ESLint;
 - Vitest, React Testing Library, jest-dom e jsdom.
+- Leaflet 1.9 para a visualização cartográfica complementar.
 
 ## Pré-requisitos
 
@@ -33,6 +34,8 @@ separadas:
 
 ```env
 VITE_SENTINEL_API_URL=http://127.0.0.1:8000
+VITE_SENTINEL_MAP_TILE_URL=https://tile.openstreetmap.org/{z}/{x}/{y}.png
+VITE_SENTINEL_MAP_ATTRIBUTION=© OpenStreetMap contributors
 ```
 
 Se `VITE_SENTINEL_API_URL` estiver ausente ou vazia, o frontend usa URLs
@@ -85,13 +88,27 @@ exemplos de leitura em [docs/deployment/01-web-container.md](docs/deployment/01-
 
 ## Discovery
 
-A tela principal possui dois modos explícitos:
+A tela principal possui três modos explícitos:
 
 - **Por segmento** — exige segmento e aceita UF, código TOM, porte, capital
   mínimo e capital máximo como filtros opcionais;
 - **Por região** — exige ao menos UF, código TOM, código IBGE ou nome do
   município. O segmento pode ser usado como filtro adicional, mas não valida
   sozinho uma busca regional.
+- **Por raio** — aceita origem por município + UF, CNPJ, TOM, IBGE ou
+  coordenadas, além de raio obrigatório, segmento e UF dos resultados opcionais.
+  A UF da origem identifica o município; a UF dos resultados filtra a resposta.
+
+O modo por raio consome `GET /api/v1/discovery/radius/establishments` e exibe a
+origem resolvida, tabela e mapa Leaflet. Coordenadas, distância, filtros e ordem
+vêm exclusivamente da API. Posições com precisão `MUNICIPIO` são centroides
+municipais, não endereços exatos, e o mapa é complemento da tabela acessível.
+
+Os tiles podem ser configurados pelas variáveis `VITE_SENTINEL_MAP_TILE_URL` e
+`VITE_SENTINEL_MAP_ATTRIBUTION`; a atribuição é obrigatória e permanece visível.
+O padrão usa tiles raster do OpenStreetMap. Não há Google Maps, API paga,
+geocodificação, prefetch, download offline ou cache manual de tiles. Uma falha
+do mapa-base não remove os resultados textuais.
 
 O formulário valida apenas condições obviamente inválidas, como ausência do
 filtro obrigatório, decimal malformado e capital mínimo maior que o máximo. O
@@ -158,16 +175,18 @@ não é uma ficha completa da empresa e não consulta endpoint de detalhe.
 - `GET /api/v1/discovery/regions/establishments` — busca por região.
 - `GET /api/v1/discovery/establishments/{cnpj_full}/similar` — empresas
   semelhantes, com `limit=25` e paginação por `offset`, sem total geral.
+- `GET /api/v1/discovery/radius/establishments` — busca por raio com origem
+  resolvida, tabela, mapa e paginação sem total geral.
 
 ## Escopo atual
 
 A tela entrega o shell desktop-first do Sentinel, busca funcional por segmento
-ou região, estados de validação/carregamento/erro, retry manual e tabela
+por segmento, região ou raio, estados de validação/carregamento/erro, retry manual e tabela
 paginada. Requisições anteriores são canceladas ao iniciar uma nova busca,
 trocar o modo ou desmontar a tela; respostas obsoletas são ignoradas.
 
 Ficam para as próximas etapas: ficha completa, endereço, contatos, CNAEs
-secundários detalhados, QSA, mapa, filtros de raio/UF/TOM/segmento para
-semelhantes, raiz/filiais, grupos comerciais, feedback, exportação, listas
+secundários detalhados, QSA, filtros de raio/UF/TOM/segmento para semelhantes,
+raiz/filiais, grupos comerciais, feedback, exportação, listas
 salvas, autenticação, ordenação client-side, busca fuzzy e filtros persistidos
 na URL.

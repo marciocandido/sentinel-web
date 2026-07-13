@@ -1,6 +1,6 @@
 import type { DiscoveryEstablishmentPage } from "../../types/api";
 
-export type SearchMode = "segment" | "region";
+export type SearchMode = "segment" | "region" | "radius";
 
 export interface DiscoveryFormValues {
   segmentId: string;
