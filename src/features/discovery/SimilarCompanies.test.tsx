@@ -122,6 +122,25 @@ describe("similar company contract guards", () => {
 });
 
 describe("similar companies drawer flow", () => {
+  it("keeps focus inside the dialog when switching between details and similar companies", async () => {
+    await openDetails();
+    const dialog = screen.getByRole("dialog");
+    expect(screen.getByRole("button", { name: "Fechar detalhes" })).toHaveFocus();
+
+    const openSimilarButton = screen.getByRole("button", { name: "Ver semelhantes" });
+    openSimilarButton.focus();
+    fireEvent.click(openSimilarButton);
+
+    const backButton = screen.getByRole("button", { name: "Voltar aos detalhes" });
+    await waitFor(() => expect(backButton).toHaveFocus());
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+
+    fireEvent.click(backButton);
+    const restoredOpenSimilarButton = screen.getByRole("button", { name: "Ver semelhantes" });
+    await waitFor(() => expect(restoredOpenSimilarButton).toHaveFocus());
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+  });
+
   it("does not request similar companies on details open and requests the encoded textual CNPJ on demand", async () => {
     await openDetails();
     expect(similarUrls()).toHaveLength(0);

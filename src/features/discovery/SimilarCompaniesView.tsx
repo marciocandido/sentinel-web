@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import type { SimilarCompanyPage } from "../../types/api";
 import { publicSimilarError, similarityReasonLabel, similarValue } from "./similarityUtils";
 
@@ -9,6 +10,7 @@ export type SimilarCompaniesState =
 
 interface SimilarCompaniesViewProps {
   state: SimilarCompaniesState;
+  backButtonRef: Ref<HTMLButtonElement>;
   onBack: () => void;
   onRetry: () => void;
   onPrevious: () => void;
@@ -19,6 +21,7 @@ const distanceFormatter = new Intl.NumberFormat("pt-BR", { maximumFractionDigits
 
 export function SimilarCompaniesView({
   state,
+  backButtonRef,
   onBack,
   onRetry,
   onPrevious,
@@ -29,7 +32,12 @@ export function SimilarCompaniesView({
 
   return (
     <div className="similar-view">
-      <button className="secondary-button similar-back" type="button" onClick={onBack}>
+      <button
+        ref={backButtonRef}
+        className="secondary-button similar-back"
+        type="button"
+        onClick={onBack}
+      >
         Voltar aos detalhes
       </button>
 

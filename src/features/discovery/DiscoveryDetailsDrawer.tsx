@@ -27,9 +27,12 @@ export function DiscoveryDetailsDrawer({
 }: DiscoveryDetailsDrawerProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const similarActionButtonRef = useRef<HTMLButtonElement>(null);
+  const backButtonRef = useRef<HTMLButtonElement>(null);
   const [returnFocusTarget] = useState(returnFocusTo);
   const [clipboardFeedback, setClipboardFeedback] = useState<ClipboardFeedback | null>(null);
   const [view, setView] = useState<"details" | "similar">("details");
+  const previousViewRef = useRef(view);
   const [similarState, setSimilarState] = useState<SimilarCompaniesState>({ kind: "idle" });
   const similarControllerRef = useRef<AbortController | null>(null);
   const similarRequestIdRef = useRef(0);
@@ -86,6 +89,18 @@ export function DiscoveryDetailsDrawer({
   }, [closeDrawer, returnFocusTarget]);
 
   useEffect(() => () => abortSimilarRequest(), [abortSimilarRequest]);
+
+  useEffect(() => {
+    const previousView = previousViewRef.current;
+    if (previousView === view) return;
+
+    previousViewRef.current = view;
+    if (view === "similar") {
+      backButtonRef.current?.focus();
+    } else {
+      similarActionButtonRef.current?.focus();
+    }
+  }, [view]);
 
   const executeSimilarSearch = useCallback(async (offset: number) => {
     abortSimilarRequest();
@@ -189,6 +204,7 @@ export function DiscoveryDetailsDrawer({
           {view === "similar" ? (
             <SimilarCompaniesView
               state={similarState}
+              backButtonRef={backButtonRef}
               onBack={backToDetails}
               onRetry={retrySimilar}
               onPrevious={previousSimilar}
@@ -249,7 +265,12 @@ export function DiscoveryDetailsDrawer({
           </div>
           <div className="details-footer__actions">
             {view === "details" && (
-              <button className="secondary-button" type="button" onClick={openSimilar}>
+              <button
+                ref={similarActionButtonRef}
+                className="secondary-button"
+                type="button"
+                onClick={openSimilar}
+              >
                 Ver semelhantes
               </button>
             )}
