@@ -35,7 +35,7 @@ separadas:
 ```env
 VITE_SENTINEL_API_URL=http://127.0.0.1:8000
 VITE_SENTINEL_MAP_TILE_URL=https://tile.openstreetmap.org/{z}/{x}/{y}.png
-VITE_SENTINEL_MAP_ATTRIBUTION=© OpenStreetMap contributors
+VITE_SENTINEL_MAP_ATTRIBUTION='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 ```
 
 Se `VITE_SENTINEL_API_URL` estiver ausente ou vazia, o frontend usa URLs
