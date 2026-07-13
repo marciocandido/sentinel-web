@@ -4,6 +4,7 @@ import {
   searchEstablishmentsByRadius,
   searchEstablishmentsByRegion,
   searchEstablishmentsBySegment,
+  searchRootBranches,
 } from "../../services/sentinelApi";
 import type { DiscoveryEstablishment } from "../../types/api";
 import { DiscoveryDetailsDrawer } from "./DiscoveryDetailsDrawer";
@@ -12,6 +13,8 @@ import { DiscoveryResults } from "./DiscoveryResults";
 import { DiscoverySearchForm } from "./DiscoverySearchForm";
 import { RadiusResults } from "./RadiusResults";
 import { RadiusSearchForm } from "./RadiusSearchForm";
+import { RootBranchesResults } from "./RootBranchesResults";
+import { RootBranchesSearchForm } from "./RootBranchesSearchForm";
 import {
   EMPTY_FORM,
   type DiscoveryFormValues,
@@ -29,6 +32,17 @@ import {
   type RadiusViewState,
 } from "./radiusTypes";
 import { createRadiusSnapshot, validateRadius } from "./radiusUtils";
+import {
+  EMPTY_ROOT_BRANCHES_FORM,
+  type RootBranchesFormValues,
+  type RootBranchesSearchSnapshot,
+  type RootBranchesValidationErrors,
+  type RootBranchesViewState,
+} from "./rootBranchesTypes";
+import {
+  createRootBranchesSnapshot,
+  validateRootBranches,
+} from "./rootBranchesUtils";
 
 type LastRequest =
   | {
@@ -42,6 +56,12 @@ type LastRequest =
       snapshot: RadiusSearchSnapshot;
       limit: number;
       offset: number;
+    }
+  | {
+      kind: "root";
+      snapshot: RootBranchesSearchSnapshot;
+      limit: number;
+      offset: number;
     };
 
 export function DiscoveryLanding() {
@@ -49,13 +69,19 @@ export function DiscoveryLanding() {
   const [values, setValues] = useState<DiscoveryFormValues>(EMPTY_FORM);
   const [radiusValues, setRadiusValues] =
     useState<RadiusFormValues>(EMPTY_RADIUS_FORM);
+  const [rootBranchesValues, setRootBranchesValues] =
+    useState<RootBranchesFormValues>(EMPTY_ROOT_BRANCHES_FORM);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [radiusErrors, setRadiusErrors] =
     useState<RadiusValidationErrors>({});
+  const [rootBranchesErrors, setRootBranchesErrors] =
+    useState<RootBranchesValidationErrors>({});
   const [state, setState] = useState<DiscoveryViewState>({ kind: "initial" });
   const [radiusState, setRadiusState] = useState<RadiusViewState>({
     kind: "initial",
   });
+  const [rootBranchesState, setRootBranchesState] =
+    useState<RootBranchesViewState>({ kind: "initial" });
   const [limit, setLimit] = useState(50);
   const [selected, setSelected] =
     useState<DiscoveryEstablishment | null>(null);
@@ -65,7 +91,11 @@ export function DiscoveryLanding() {
   const requestIdRef = useRef(0);
   const submittedRef = useRef<DiscoverySearchSnapshot | null>(null);
   const radiusSubmittedRef = useRef<RadiusSearchSnapshot | null>(null);
+  const rootBranchesSubmittedRef =
+    useRef<RootBranchesSearchSnapshot | null>(null);
   const lastRef = useRef<LastRequest | null>(null);
+  const rootResultsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const rootFocusPendingRef = useRef(false);
 
   const beginRequest = () => {
     setSelected(null);
@@ -165,6 +195,41 @@ export function DiscoveryLanding() {
     }
   };
 
+  const executeRootBranches = async (
+    snapshot: RootBranchesSearchSnapshot,
+    requestLimit: number,
+    offset: number,
+  ) => {
+    const { controller, requestId } = beginRequest();
+    lastRef.current = {
+      kind: "root",
+      snapshot,
+      limit: requestLimit,
+      offset,
+    };
+    setRootBranchesState({ kind: "loading" });
+    try {
+      const page = await searchRootBranches(
+        {
+          identifier: snapshot.identifier,
+          limit: requestLimit,
+          offset,
+        },
+        { signal: controller.signal },
+      );
+      if (requestId === requestIdRef.current && !controller.signal.aborted) {
+        setRootBranchesState({ kind: "success", page, snapshot });
+      }
+    } catch (error) {
+      if (requestId !== requestIdRef.current || controller.signal.aborted) return;
+      const code =
+        error instanceof SentinelApiError ? error.code : "network_error";
+      if (code !== "request_aborted") {
+        setRootBranchesState({ kind: "error", code });
+      }
+    }
+  };
+
   useEffect(
     () => () => {
       requestIdRef.current += 1;
@@ -173,6 +238,12 @@ export function DiscoveryLanding() {
     [],
   );
 
+  useEffect(() => {
+    if (mode !== "root" || !rootFocusPendingRef.current) return;
+    rootFocusPendingRef.current = false;
+    rootResultsHeadingRef.current?.focus();
+  }, [mode, rootBranchesState.kind]);
+
   const changeMode = (next: SearchMode) => {
     if (next === mode) return;
     requestIdRef.current += 1;
@@ -180,13 +251,16 @@ export function DiscoveryLanding() {
     controllerRef.current = null;
     submittedRef.current = null;
     radiusSubmittedRef.current = null;
+    rootBranchesSubmittedRef.current = null;
     lastRef.current = null;
     setSelected(null);
     setMode(next);
     setErrors({});
     setRadiusErrors({});
+    setRootBranchesErrors({});
     setState({ kind: "initial" });
     setRadiusState({ kind: "initial" });
+    setRootBranchesState({ kind: "initial" });
   };
 
   const submit = () => {
@@ -207,11 +281,26 @@ export function DiscoveryLanding() {
     void executeRadius(snapshot, limit, 0);
   };
 
+  const submitRootBranches = () => {
+    const validation = validateRootBranches(rootBranchesValues);
+    setRootBranchesErrors(validation);
+    if (Object.keys(validation).length) return;
+    const snapshot = createRootBranchesSnapshot(rootBranchesValues);
+    rootBranchesSubmittedRef.current = snapshot;
+    void executeRootBranches(snapshot, limit, 0);
+  };
+
   const retry = () => {
     const request = lastRef.current;
     if (!request) return;
     if (request.kind === "radius") {
       void executeRadius(request.snapshot, request.limit, request.offset);
+    } else if (request.kind === "root") {
+      void executeRootBranches(
+        request.snapshot,
+        request.limit,
+        request.offset,
+      );
     } else {
       void executeStandard(request.snapshot, request.limit, request.offset);
     }
@@ -219,6 +308,18 @@ export function DiscoveryLanding() {
 
   const paginate = (direction: -1 | 1) => {
     if (
+      mode === "root" &&
+      rootBranchesState.kind === "success" &&
+      rootBranchesSubmittedRef.current
+    ) {
+      const pagination = rootBranchesState.page.pagination;
+      if (direction === 1 && !pagination.has_more) return;
+      void executeRootBranches(
+        rootBranchesSubmittedRef.current,
+        pagination.limit,
+        Math.max(0, pagination.offset + direction * pagination.limit),
+      );
+    } else if (
       mode === "radius" &&
       radiusState.kind === "success" &&
       radiusSubmittedRef.current
@@ -243,7 +344,9 @@ export function DiscoveryLanding() {
 
   const changeLimit = (next: number) => {
     setLimit(next);
-    if (mode === "radius" && radiusSubmittedRef.current) {
+    if (mode === "root" && rootBranchesSubmittedRef.current) {
+      void executeRootBranches(rootBranchesSubmittedRef.current, next, 0);
+    } else if (mode === "radius" && radiusSubmittedRef.current) {
       void executeRadius(radiusSubmittedRef.current, next, 0);
     } else if (submittedRef.current) {
       void executeStandard(submittedRef.current, next, 0);
@@ -257,6 +360,33 @@ export function DiscoveryLanding() {
     setSelected(item);
   };
 
+  const openRootBranchesFromDrawer = (
+    establishment: DiscoveryEstablishment,
+  ) => {
+    requestIdRef.current += 1;
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    submittedRef.current = null;
+    radiusSubmittedRef.current = null;
+    lastRef.current = null;
+    setSelected(null);
+    setMode("root");
+    setErrors({});
+    setRadiusErrors({});
+    setRootBranchesErrors({});
+    setState({ kind: "initial" });
+    setRadiusState({ kind: "initial" });
+    const values: RootBranchesFormValues = {
+      identifierKind: "cnpj",
+      identifierValue: establishment.cnpj_full,
+    };
+    const snapshot = createRootBranchesSnapshot(values);
+    setRootBranchesValues(values);
+    rootBranchesSubmittedRef.current = snapshot;
+    rootFocusPendingRef.current = true;
+    void executeRootBranches(snapshot, limit, 0);
+  };
+
   return (
     <section className="discovery" aria-labelledby="discovery-title">
       <div
@@ -267,7 +397,10 @@ export function DiscoveryLanding() {
         <div className="page-intro">
           <p className="eyebrow">Discovery</p>
           <h1 id="discovery-title">Buscar empresas</h1>
-          <p>Pesquise por segmento, região ou raio geográfico.</p>
+          <p>
+            Pesquise por segmento, região, raio geográfico ou estabelecimentos
+            conhecidos de uma raiz.
+          </p>
         </div>
         <article className="search-card" aria-labelledby="search-card-title">
           <div>
@@ -296,6 +429,23 @@ export function DiscoveryLanding() {
               }}
               onSubmit={submitRadius}
             />
+          ) : mode === "root" ? (
+            <RootBranchesSearchForm
+              values={rootBranchesValues}
+              errors={rootBranchesErrors}
+              searching={rootBranchesState.kind === "loading"}
+              onChange={(field, value) => {
+                setRootBranchesValues((current) => ({
+                  ...current,
+                  [field]: value,
+                }));
+                setRootBranchesErrors((current) => ({
+                  ...current,
+                  identifierValue: undefined,
+                }));
+              }}
+              onSubmit={submitRootBranches}
+            />
           ) : (
             <DiscoverySearchForm
               mode={mode}
@@ -323,6 +473,16 @@ export function DiscoveryLanding() {
             onLimitChange={changeLimit}
             onSelect={openDetails}
           />
+        ) : mode === "root" ? (
+          <RootBranchesResults
+            state={rootBranchesState}
+            focusRef={rootResultsHeadingRef}
+            onRetry={retry}
+            onPrevious={() => paginate(-1)}
+            onNext={() => paginate(1)}
+            onLimitChange={changeLimit}
+            onSelect={openDetails}
+          />
         ) : (
           <DiscoveryResults
             state={state}
@@ -339,6 +499,7 @@ export function DiscoveryLanding() {
           key={selected.cnpj_full}
           establishment={selected}
           onClose={() => setSelected(null)}
+          onOpenRootBranches={openRootBranchesFromDrawer}
           returnFocusTo={detailsTrigger}
         />
       )}

@@ -4,11 +4,13 @@ import {
   isSegmentCatalogResponse,
   isSimilarCompanyPage,
   isRadiusSearchPage,
+  isRootBranchesPage,
   type DiscoveryEstablishmentPage,
   type LivenessResponse,
   type SegmentCatalogResponse,
   type SimilarCompanyPage,
   type RadiusSearchPage,
+  type RootBranchesPage,
 } from "../types/api";
 import { getJson, SentinelApiError, type RequestOptions } from "./apiClient";
 
@@ -51,6 +53,16 @@ export interface RadiusSearchParams {
   radiusKm: number;
   segmentId?: string;
   resultUf?: string;
+  limit: number;
+  offset: number;
+}
+
+export type RootBranchesIdentifier =
+  | { kind: "cnpj"; cnpj: string }
+  | { kind: "root"; cnpjRoot: string };
+
+export interface RootBranchesSearchParams {
+  identifier: RootBranchesIdentifier;
   limit: number;
   offset: number;
 }
@@ -156,6 +168,26 @@ export async function searchEstablishmentsByRadius(
   setIfPresent(query, "uf", params.resultUf);
   const response = await getJson(`/api/v1/discovery/radius/establishments?${query}`, options);
   if (!isRadiusSearchPage(response)) {
+    throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  }
+  return response;
+}
+
+export async function searchRootBranches(
+  params: RootBranchesSearchParams,
+  options?: RequestOptions,
+): Promise<RootBranchesPage> {
+  const query = paginationQuery(params.limit, params.offset);
+  if (params.identifier.kind === "cnpj") {
+    query.set("cnpj", params.identifier.cnpj);
+  } else {
+    query.set("cnpj_root", params.identifier.cnpjRoot);
+  }
+  const response = await getJson(
+    `/api/v1/discovery/root-branches?${query}`,
+    options,
+  );
+  if (!isRootBranchesPage(response)) {
     throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
   }
   return response;

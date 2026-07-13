@@ -123,6 +123,32 @@ export interface RadiusSearchPage {
   pagination: PaginationMeta;
 }
 
+export interface RootBranchesContext {
+  cnpj_root: string;
+  reference_cnpj_full: string | null;
+  data_scope: "BASE_UTIL";
+}
+
+export type EstablishmentRole = "MATRIZ" | "FILIAL" | "UNKNOWN";
+
+export interface RootBranchEstablishment extends DiscoveryEstablishment {
+  cnpj_order: string;
+  cnpj_dv: string;
+  matriz_filial: string;
+  establishment_role: EstablishmentRole;
+  situacao_cadastral: string;
+  data_inicio_atividade: string | null;
+  is_erp_customer: false;
+  is_unattended_branch: false;
+  branch_group: "unknown";
+}
+
+export interface RootBranchesPage {
+  root: RootBranchesContext;
+  items: RootBranchEstablishment[];
+  pagination: PaginationMeta;
+}
+
 const SIMILARITY_REASONS: readonly SimilarityReason[] = [
   "same_cnae_principal",
   "same_segment",
@@ -298,6 +324,47 @@ export function isRadiusSearchPage(value: unknown): value is RadiusSearchPage {
     isRadiusSearchOrigin(value.origin) &&
     Array.isArray(value.items) &&
     value.items.every(isRadiusSearchEstablishment) &&
+    isPaginationMeta(value.pagination)
+  );
+}
+
+export function isRootBranchesContext(
+  value: unknown,
+): value is RootBranchesContext {
+  return (
+    isRecord(value) &&
+    typeof value.cnpj_root === "string" &&
+    isNullableString(value.reference_cnpj_full) &&
+    value.data_scope === "BASE_UTIL"
+  );
+}
+
+export function isRootBranchEstablishment(
+  value: unknown,
+): value is RootBranchEstablishment {
+  const row = value as Record<string, unknown>;
+  return (
+    isDiscoveryEstablishment(value) &&
+    typeof row.cnpj_order === "string" &&
+    typeof row.cnpj_dv === "string" &&
+    typeof row.matriz_filial === "string" &&
+    (row.establishment_role === "MATRIZ" ||
+      row.establishment_role === "FILIAL" ||
+      row.establishment_role === "UNKNOWN") &&
+    typeof row.situacao_cadastral === "string" &&
+    isNullableString(row.data_inicio_atividade) &&
+    row.is_erp_customer === false &&
+    row.is_unattended_branch === false &&
+    row.branch_group === "unknown"
+  );
+}
+
+export function isRootBranchesPage(value: unknown): value is RootBranchesPage {
+  return (
+    isRecord(value) &&
+    isRootBranchesContext(value.root) &&
+    Array.isArray(value.items) &&
+    value.items.every(isRootBranchEstablishment) &&
     isPaginationMeta(value.pagination)
   );
 }

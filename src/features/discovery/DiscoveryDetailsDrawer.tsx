@@ -9,6 +9,7 @@ import { SimilarCompaniesView, type SimilarCompaniesState } from "./SimilarCompa
 interface DiscoveryDetailsDrawerProps {
   establishment: DiscoveryEstablishment;
   onClose: () => void;
+  onOpenRootBranches: (establishment: DiscoveryEstablishment) => void;
   returnFocusTo: HTMLElement | null;
 }
 
@@ -23,6 +24,7 @@ const SIMILAR_COMPANIES_LIMIT = 25;
 export function DiscoveryDetailsDrawer({
   establishment,
   onClose,
+  onOpenRootBranches,
   returnFocusTo,
 }: DiscoveryDetailsDrawerProps) {
   const dialogRef = useRef<HTMLElement>(null);
@@ -135,6 +137,11 @@ export function DiscoveryDetailsDrawer({
     abortSimilarRequest();
     setSimilarState({ kind: "idle" });
     setView("details");
+  };
+
+  const openRootBranches = () => {
+    abortSimilarRequest();
+    onOpenRootBranches(establishment);
   };
 
   const retrySimilar = () => {
@@ -274,6 +281,13 @@ export function DiscoveryDetailsDrawer({
                 Ver semelhantes
               </button>
             )}
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={openRootBranches}
+            >
+              Ver raiz e filiais
+            </button>
             <button className="primary-button" type="button" onClick={() => void copyCnpj()}>
               Copiar CNPJ
             </button>
