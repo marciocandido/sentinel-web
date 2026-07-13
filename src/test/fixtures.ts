@@ -9,7 +9,113 @@ import type {
   RootBranchEstablishment,
   RootBranchesContext,
   RootBranchesPage,
+  CommercialGroupContext,
+  CommercialGroupKnownEstablishment,
+  CommercialGroupPage,
+  CommercialGroupUnknownRoot,
 } from "../types/api";
+
+export function commercialGroupContext(
+  overrides: Partial<CommercialGroupContext> = {},
+): CommercialGroupContext {
+  return {
+    group_id: "grupo-metal",
+    name: "Grupo Metal",
+    membership_scope: "REGISTERED",
+    establishment_data_scope: "BASE_UTIL",
+    ...overrides,
+  };
+}
+
+export function commercialGroupKnownEstablishment(
+  overrides: Partial<CommercialGroupKnownEstablishment> = {},
+): CommercialGroupKnownEstablishment {
+  return {
+    ...establishment({
+      cnpj_full: "00123456000195",
+      cnpj_root: "00123456",
+      codigo_tom: "0001",
+      codigo_ibge: "0550308",
+      cnae_principal: "0123456",
+      capital_social: "0005000.50",
+    }),
+    group_id: "grupo-metal",
+    cnpj_root: "00123456",
+    relation_type: "registered",
+    relation_source: "manual",
+    confidence: "0.8200",
+    establishment_known: true,
+    cnpj_order: "0001",
+    cnpj_dv: "95",
+    matriz_filial: "1",
+    establishment_role: "MATRIZ",
+    situacao_cadastral: "02",
+    data_inicio_atividade: "2019-01-01",
+    commercial_status: "UNKNOWN",
+    commercial_status_source: "none",
+    is_erp_customer: false,
+    is_unattended_branch: false,
+    branch_group: "unknown",
+    ...overrides,
+  };
+}
+
+export function commercialGroupUnknownRoot(
+  overrides: Partial<CommercialGroupUnknownRoot> = {},
+): CommercialGroupUnknownRoot {
+  return {
+    group_id: "grupo-metal",
+    cnpj_root: "00987654",
+    relation_type: "registered",
+    relation_source: "manual",
+    confidence: "0.8200",
+    establishment_known: false,
+    cnpj_full: null,
+    cnpj_order: null,
+    cnpj_dv: null,
+    razao_social: null,
+    nome_fantasia: null,
+    matriz_filial: null,
+    establishment_role: null,
+    uf: null,
+    municipio_nome: null,
+    codigo_tom: null,
+    codigo_ibge: null,
+    cnae_principal: null,
+    matched_by_cnae_principal: false,
+    matched_by_cnae_secundario: false,
+    situacao_cadastral: null,
+    data_inicio_atividade: null,
+    porte_codigo: null,
+    capital_social: null,
+    location_precision: null,
+    has_geo: false,
+    commercial_status: "UNKNOWN",
+    commercial_status_source: "none",
+    is_erp_customer: false,
+    is_unattended_branch: false,
+    branch_group: "unknown",
+    ...overrides,
+  };
+}
+
+export function commercialGroupPage(
+  items = [commercialGroupKnownEstablishment(), commercialGroupUnknownRoot()],
+  pagination: Partial<CommercialGroupPage["pagination"]> = {},
+  group: CommercialGroupContext = commercialGroupContext(),
+): CommercialGroupPage {
+  return {
+    group,
+    items,
+    pagination: {
+      limit: 50,
+      offset: 0,
+      returned: items.length,
+      has_more: false,
+      ...pagination,
+    },
+  };
+}
 
 export function establishment(
   overrides: Partial<DiscoveryEstablishment> = {},

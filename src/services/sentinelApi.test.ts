@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   discoveryPage,
   establishment,
+  commercialGroupPage,
   radiusSearchPage,
   rootBranchesPage,
 } from "../test/fixtures";
@@ -9,6 +10,7 @@ import {
   searchEstablishmentsByRegion,
   searchEstablishmentsBySegment,
   searchEstablishmentsByRadius,
+  searchCommercialGroup,
   searchRootBranches,
 } from "./sentinelApi";
 
@@ -169,6 +171,33 @@ describe("Sentinel Discovery API", () => {
         limit: 50,
         offset: 0,
       }),
+    ).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it("builds the commercial-group route with encoded text and pagination", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(commercialGroupPage()));
+    await searchCommercialGroup({
+      groupId: "grupo metal/01 & A",
+      limit: 25,
+      offset: 50,
+    });
+
+    const url = new URL(fetchMock.mock.calls[0][0], "http://local");
+    expect(url.pathname).toBe("/api/v1/discovery/commercial-groups");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      limit: "25",
+      offset: "50",
+      group_id: "grupo metal/01 & A",
+    });
+    expect(url.search).toContain("%2F");
+  });
+
+  it("rejects a malformed commercial-group HTTP 200 response", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ group: {}, items: [], pagination: {} }),
+    );
+    await expect(
+      searchCommercialGroup({ groupId: "grupo-metal", limit: 50, offset: 0 }),
     ).rejects.toMatchObject({ code: "invalid_response" });
   });
 });

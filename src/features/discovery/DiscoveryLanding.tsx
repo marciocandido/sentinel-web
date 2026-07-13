@@ -4,9 +4,12 @@ import {
   searchEstablishmentsByRadius,
   searchEstablishmentsByRegion,
   searchEstablishmentsBySegment,
+  searchCommercialGroup,
   searchRootBranches,
 } from "../../services/sentinelApi";
 import type { DiscoveryEstablishment } from "../../types/api";
+import { CommercialGroupResults } from "./CommercialGroupResults";
+import { CommercialGroupSearchForm } from "./CommercialGroupSearchForm";
 import { DiscoveryDetailsDrawer } from "./DiscoveryDetailsDrawer";
 import { DiscoveryModeSwitcher } from "./DiscoveryModeSwitcher";
 import { DiscoveryResults } from "./DiscoveryResults";
@@ -43,6 +46,17 @@ import {
   createRootBranchesSnapshot,
   validateRootBranches,
 } from "./rootBranchesUtils";
+import {
+  EMPTY_COMMERCIAL_GROUP_FORM,
+  type CommercialGroupFormValues,
+  type CommercialGroupSearchSnapshot,
+  type CommercialGroupValidationErrors,
+  type CommercialGroupViewState,
+} from "./commercialGroupTypes";
+import {
+  createCommercialGroupSnapshot,
+  validateCommercialGroup,
+} from "./commercialGroupUtils";
 
 type LastRequest =
   | {
@@ -62,6 +76,12 @@ type LastRequest =
       snapshot: RootBranchesSearchSnapshot;
       limit: number;
       offset: number;
+    }
+  | {
+      kind: "group";
+      snapshot: CommercialGroupSearchSnapshot;
+      limit: number;
+      offset: number;
     };
 
 export function DiscoveryLanding() {
@@ -71,17 +91,23 @@ export function DiscoveryLanding() {
     useState<RadiusFormValues>(EMPTY_RADIUS_FORM);
   const [rootBranchesValues, setRootBranchesValues] =
     useState<RootBranchesFormValues>(EMPTY_ROOT_BRANCHES_FORM);
+  const [commercialGroupValues, setCommercialGroupValues] =
+    useState<CommercialGroupFormValues>(EMPTY_COMMERCIAL_GROUP_FORM);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [radiusErrors, setRadiusErrors] =
     useState<RadiusValidationErrors>({});
   const [rootBranchesErrors, setRootBranchesErrors] =
     useState<RootBranchesValidationErrors>({});
+  const [commercialGroupErrors, setCommercialGroupErrors] =
+    useState<CommercialGroupValidationErrors>({});
   const [state, setState] = useState<DiscoveryViewState>({ kind: "initial" });
   const [radiusState, setRadiusState] = useState<RadiusViewState>({
     kind: "initial",
   });
   const [rootBranchesState, setRootBranchesState] =
     useState<RootBranchesViewState>({ kind: "initial" });
+  const [commercialGroupState, setCommercialGroupState] =
+    useState<CommercialGroupViewState>({ kind: "initial" });
   const [limit, setLimit] = useState(50);
   const [selected, setSelected] =
     useState<DiscoveryEstablishment | null>(null);
@@ -93,9 +119,12 @@ export function DiscoveryLanding() {
   const radiusSubmittedRef = useRef<RadiusSearchSnapshot | null>(null);
   const rootBranchesSubmittedRef =
     useRef<RootBranchesSearchSnapshot | null>(null);
+  const commercialGroupSubmittedRef =
+    useRef<CommercialGroupSearchSnapshot | null>(null);
   const lastRef = useRef<LastRequest | null>(null);
   const rootResultsHeadingRef = useRef<HTMLHeadingElement>(null);
   const rootFocusPendingRef = useRef(false);
+  const commercialGroupResultsHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const beginRequest = () => {
     setSelected(null);
@@ -230,6 +259,41 @@ export function DiscoveryLanding() {
     }
   };
 
+  const executeCommercialGroup = async (
+    snapshot: CommercialGroupSearchSnapshot,
+    requestLimit: number,
+    offset: number,
+  ) => {
+    const { controller, requestId } = beginRequest();
+    lastRef.current = {
+      kind: "group",
+      snapshot,
+      limit: requestLimit,
+      offset,
+    };
+    setCommercialGroupState({ kind: "loading" });
+    try {
+      const page = await searchCommercialGroup(
+        {
+          groupId: snapshot.groupId,
+          limit: requestLimit,
+          offset,
+        },
+        { signal: controller.signal },
+      );
+      if (requestId === requestIdRef.current && !controller.signal.aborted) {
+        setCommercialGroupState({ kind: "success", page, snapshot });
+      }
+    } catch (error) {
+      if (requestId !== requestIdRef.current || controller.signal.aborted) return;
+      const code =
+        error instanceof SentinelApiError ? error.code : "network_error";
+      if (code !== "request_aborted") {
+        setCommercialGroupState({ kind: "error", code });
+      }
+    }
+  };
+
   useEffect(
     () => () => {
       requestIdRef.current += 1;
@@ -252,15 +316,18 @@ export function DiscoveryLanding() {
     submittedRef.current = null;
     radiusSubmittedRef.current = null;
     rootBranchesSubmittedRef.current = null;
+    commercialGroupSubmittedRef.current = null;
     lastRef.current = null;
     setSelected(null);
     setMode(next);
     setErrors({});
     setRadiusErrors({});
     setRootBranchesErrors({});
+    setCommercialGroupErrors({});
     setState({ kind: "initial" });
     setRadiusState({ kind: "initial" });
     setRootBranchesState({ kind: "initial" });
+    setCommercialGroupState({ kind: "initial" });
   };
 
   const submit = () => {
@@ -290,6 +357,15 @@ export function DiscoveryLanding() {
     void executeRootBranches(snapshot, limit, 0);
   };
 
+  const submitCommercialGroup = () => {
+    const validation = validateCommercialGroup(commercialGroupValues);
+    setCommercialGroupErrors(validation);
+    if (Object.keys(validation).length) return;
+    const snapshot = createCommercialGroupSnapshot(commercialGroupValues);
+    commercialGroupSubmittedRef.current = snapshot;
+    void executeCommercialGroup(snapshot, limit, 0);
+  };
+
   const retry = () => {
     const request = lastRef.current;
     if (!request) return;
@@ -301,6 +377,12 @@ export function DiscoveryLanding() {
         request.limit,
         request.offset,
       );
+    } else if (request.kind === "group") {
+      void executeCommercialGroup(
+        request.snapshot,
+        request.limit,
+        request.offset,
+      );
     } else {
       void executeStandard(request.snapshot, request.limit, request.offset);
     }
@@ -308,6 +390,18 @@ export function DiscoveryLanding() {
 
   const paginate = (direction: -1 | 1) => {
     if (
+      mode === "group" &&
+      commercialGroupState.kind === "success" &&
+      commercialGroupSubmittedRef.current
+    ) {
+      const pagination = commercialGroupState.page.pagination;
+      if (direction === 1 && !pagination.has_more) return;
+      void executeCommercialGroup(
+        commercialGroupSubmittedRef.current,
+        pagination.limit,
+        Math.max(0, pagination.offset + direction * pagination.limit),
+      );
+    } else if (
       mode === "root" &&
       rootBranchesState.kind === "success" &&
       rootBranchesSubmittedRef.current
@@ -344,7 +438,9 @@ export function DiscoveryLanding() {
 
   const changeLimit = (next: number) => {
     setLimit(next);
-    if (mode === "root" && rootBranchesSubmittedRef.current) {
+    if (mode === "group" && commercialGroupSubmittedRef.current) {
+      void executeCommercialGroup(commercialGroupSubmittedRef.current, next, 0);
+    } else if (mode === "root" && rootBranchesSubmittedRef.current) {
       void executeRootBranches(rootBranchesSubmittedRef.current, next, 0);
     } else if (mode === "radius" && radiusSubmittedRef.current) {
       void executeRadius(radiusSubmittedRef.current, next, 0);
@@ -368,14 +464,17 @@ export function DiscoveryLanding() {
     controllerRef.current = null;
     submittedRef.current = null;
     radiusSubmittedRef.current = null;
+    commercialGroupSubmittedRef.current = null;
     lastRef.current = null;
     setSelected(null);
     setMode("root");
     setErrors({});
     setRadiusErrors({});
     setRootBranchesErrors({});
+    setCommercialGroupErrors({});
     setState({ kind: "initial" });
     setRadiusState({ kind: "initial" });
+    setCommercialGroupState({ kind: "initial" });
     const values: RootBranchesFormValues = {
       identifierKind: "cnpj",
       identifierValue: establishment.cnpj_full,
@@ -398,8 +497,8 @@ export function DiscoveryLanding() {
           <p className="eyebrow">Discovery</p>
           <h1 id="discovery-title">Buscar empresas</h1>
           <p>
-            Pesquise por segmento, região, raio geográfico ou estabelecimentos
-            conhecidos de uma raiz.
+            Pesquise por segmento, região, raio geográfico, raiz ou grupo
+            comercial registrado.
           </p>
         </div>
         <article className="search-card" aria-labelledby="search-card-title">
@@ -412,7 +511,24 @@ export function DiscoveryLanding() {
           <div className="discovery-form">
             <DiscoveryModeSwitcher mode={mode} onChange={changeMode} />
           </div>
-          {mode === "radius" ? (
+          {mode === "group" ? (
+            <CommercialGroupSearchForm
+              values={commercialGroupValues}
+              errors={commercialGroupErrors}
+              searching={commercialGroupState.kind === "loading"}
+              onChange={(field, value) => {
+                setCommercialGroupValues((current) => ({
+                  ...current,
+                  [field]: value,
+                }));
+                setCommercialGroupErrors((current) => ({
+                  ...current,
+                  [field]: undefined,
+                }));
+              }}
+              onSubmit={submitCommercialGroup}
+            />
+          ) : mode === "radius" ? (
             <RadiusSearchForm
               values={radiusValues}
               errors={radiusErrors}
@@ -464,7 +580,17 @@ export function DiscoveryLanding() {
             />
           )}
         </article>
-        {mode === "radius" ? (
+        {mode === "group" ? (
+          <CommercialGroupResults
+            state={commercialGroupState}
+            focusRef={commercialGroupResultsHeadingRef}
+            onRetry={retry}
+            onPrevious={() => paginate(-1)}
+            onNext={() => paginate(1)}
+            onLimitChange={changeLimit}
+            onSelect={openDetails}
+          />
+        ) : mode === "radius" ? (
           <RadiusResults
             state={radiusState}
             onRetry={retry}

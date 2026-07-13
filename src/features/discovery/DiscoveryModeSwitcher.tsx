@@ -10,6 +10,7 @@ const MODES: ReadonlyArray<readonly [SearchMode, string]> = [
   ["region", "Por região"],
   ["radius", "Por raio"],
   ["root", "Por raiz/filiais"],
+  ["group", "Por grupo"],
 ];
 
 export function DiscoveryModeSwitcher({
