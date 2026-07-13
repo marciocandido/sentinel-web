@@ -149,6 +149,74 @@ export interface RootBranchesPage {
   pagination: PaginationMeta;
 }
 
+export interface CommercialGroupContext {
+  group_id: string;
+  name: string | null;
+  membership_scope: "REGISTERED";
+  establishment_data_scope: "BASE_UTIL";
+}
+
+interface CommercialGroupAssociationBase {
+  group_id: string;
+  cnpj_root: string;
+  relation_type: string;
+  relation_source: string;
+  confidence: string | null;
+  commercial_status: "UNKNOWN";
+  commercial_status_source: "none";
+  is_erp_customer: false;
+  is_unattended_branch: false;
+  branch_group: "unknown";
+}
+
+export interface CommercialGroupKnownEstablishment
+  extends CommercialGroupAssociationBase,
+    DiscoveryEstablishment {
+  establishment_known: true;
+  cnpj_full: string;
+  cnpj_order: string;
+  cnpj_dv: string;
+  matriz_filial: string;
+  establishment_role: EstablishmentRole;
+  situacao_cadastral: string | null;
+  data_inicio_atividade: string | null;
+}
+
+export interface CommercialGroupUnknownRoot
+  extends CommercialGroupAssociationBase {
+  establishment_known: false;
+  cnpj_full: null;
+  cnpj_order: null;
+  cnpj_dv: null;
+  razao_social: null;
+  nome_fantasia: null;
+  matriz_filial: null;
+  establishment_role: null;
+  uf: null;
+  municipio_nome: null;
+  codigo_tom: null;
+  codigo_ibge: null;
+  cnae_principal: null;
+  matched_by_cnae_principal: false;
+  matched_by_cnae_secundario: false;
+  situacao_cadastral: null;
+  data_inicio_atividade: null;
+  porte_codigo: null;
+  capital_social: null;
+  location_precision: null;
+  has_geo: false;
+}
+
+export type CommercialGroupItem =
+  | CommercialGroupKnownEstablishment
+  | CommercialGroupUnknownRoot;
+
+export interface CommercialGroupPage {
+  group: CommercialGroupContext;
+  items: CommercialGroupItem[];
+  pagination: PaginationMeta;
+}
+
 const SIMILARITY_REASONS: readonly SimilarityReason[] = [
   "same_cnae_principal",
   "same_segment",
@@ -365,6 +433,115 @@ export function isRootBranchesPage(value: unknown): value is RootBranchesPage {
     isRootBranchesContext(value.root) &&
     Array.isArray(value.items) &&
     value.items.every(isRootBranchEstablishment) &&
+    isPaginationMeta(value.pagination)
+  );
+}
+
+export function isCommercialGroupContext(
+  value: unknown,
+): value is CommercialGroupContext {
+  return (
+    isRecord(value) &&
+    typeof value.group_id === "string" &&
+    isNullableString(value.name) &&
+    value.membership_scope === "REGISTERED" &&
+    value.establishment_data_scope === "BASE_UTIL"
+  );
+}
+
+function isCommercialGroupConfidence(value: unknown): value is string | null {
+  if (value === null) return true;
+  if (typeof value !== "string" || value.trim() === "") return false;
+  const decimal = value.trim();
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(decimal)) return false;
+  const parsed = Number(decimal);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1;
+}
+
+function isCommercialGroupAssociation(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.group_id === "string" &&
+    typeof value.cnpj_root === "string" &&
+    typeof value.relation_type === "string" &&
+    value.relation_type.trim() !== "" &&
+    typeof value.relation_source === "string" &&
+    value.relation_source.trim() !== "" &&
+    isCommercialGroupConfidence(value.confidence) &&
+    value.commercial_status === "UNKNOWN" &&
+    value.commercial_status_source === "none" &&
+    value.is_erp_customer === false &&
+    value.is_unattended_branch === false &&
+    value.branch_group === "unknown"
+  );
+}
+
+export function isCommercialGroupKnownEstablishment(
+  value: unknown,
+): value is CommercialGroupKnownEstablishment {
+  const row = value as Record<string, unknown>;
+  return (
+    isCommercialGroupAssociation(value) &&
+    isDiscoveryEstablishment(value) &&
+    row.establishment_known === true &&
+    typeof row.cnpj_order === "string" &&
+    typeof row.cnpj_dv === "string" &&
+    typeof row.matriz_filial === "string" &&
+    (row.establishment_role === "MATRIZ" ||
+      row.establishment_role === "FILIAL" ||
+      row.establishment_role === "UNKNOWN") &&
+    isNullableString(row.situacao_cadastral) &&
+    isNullableString(row.data_inicio_atividade)
+  );
+}
+
+export function isCommercialGroupUnknownRoot(
+  value: unknown,
+): value is CommercialGroupUnknownRoot {
+  const row = value as Record<string, unknown>;
+  return (
+    isCommercialGroupAssociation(value) &&
+    row.establishment_known === false &&
+    row.cnpj_full === null &&
+    row.cnpj_order === null &&
+    row.cnpj_dv === null &&
+    row.razao_social === null &&
+    row.nome_fantasia === null &&
+    row.matriz_filial === null &&
+    row.establishment_role === null &&
+    row.uf === null &&
+    row.municipio_nome === null &&
+    row.codigo_tom === null &&
+    row.codigo_ibge === null &&
+    row.cnae_principal === null &&
+    row.matched_by_cnae_principal === false &&
+    row.matched_by_cnae_secundario === false &&
+    row.situacao_cadastral === null &&
+    row.data_inicio_atividade === null &&
+    row.porte_codigo === null &&
+    row.capital_social === null &&
+    row.location_precision === null &&
+    row.has_geo === false
+  );
+}
+
+export function isCommercialGroupItem(
+  value: unknown,
+): value is CommercialGroupItem {
+  return (
+    isCommercialGroupKnownEstablishment(value) ||
+    isCommercialGroupUnknownRoot(value)
+  );
+}
+
+export function isCommercialGroupPage(
+  value: unknown,
+): value is CommercialGroupPage {
+  return (
+    isRecord(value) &&
+    isCommercialGroupContext(value.group) &&
+    Array.isArray(value.items) &&
+    value.items.every(isCommercialGroupItem) &&
     isPaginationMeta(value.pagination)
   );
 }

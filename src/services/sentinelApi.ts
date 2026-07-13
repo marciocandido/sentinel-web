@@ -5,6 +5,8 @@ import {
   isSimilarCompanyPage,
   isRadiusSearchPage,
   isRootBranchesPage,
+  isCommercialGroupPage,
+  type CommercialGroupPage,
   type DiscoveryEstablishmentPage,
   type LivenessResponse,
   type SegmentCatalogResponse,
@@ -63,6 +65,12 @@ export type RootBranchesIdentifier =
 
 export interface RootBranchesSearchParams {
   identifier: RootBranchesIdentifier;
+  limit: number;
+  offset: number;
+}
+
+export interface CommercialGroupSearchParams {
+  groupId: string;
   limit: number;
   offset: number;
 }
@@ -188,6 +196,22 @@ export async function searchRootBranches(
     options,
   );
   if (!isRootBranchesPage(response)) {
+    throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  }
+  return response;
+}
+
+export async function searchCommercialGroup(
+  params: CommercialGroupSearchParams,
+  options?: RequestOptions,
+): Promise<CommercialGroupPage> {
+  const query = paginationQuery(params.limit, params.offset);
+  query.set("group_id", params.groupId);
+  const response = await getJson(
+    `/api/v1/discovery/commercial-groups?${query}`,
+    options,
+  );
+  if (!isCommercialGroupPage(response)) {
     throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
   }
   return response;
