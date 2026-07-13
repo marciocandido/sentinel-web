@@ -6,6 +6,9 @@ import type {
   RadiusSearchEstablishment,
   RadiusSearchOrigin,
   RadiusSearchPage,
+  RootBranchEstablishment,
+  RootBranchesContext,
+  RootBranchesPage,
 } from "../types/api";
 
 export function establishment(
@@ -43,6 +46,61 @@ export function radiusSearchEstablishment(overrides: Partial<RadiusSearchEstabli
 
 export function radiusSearchPage(items: RadiusSearchEstablishment[] = [radiusSearchEstablishment()], pagination: Partial<RadiusSearchPage["pagination"]> = {}, origin: RadiusSearchOrigin = radiusSearchOrigin()): RadiusSearchPage {
   return { origin, items, pagination: { limit: 50, offset: 0, returned: items.length, has_more: false, ...pagination } };
+}
+
+export function rootBranchesContext(
+  overrides: Partial<RootBranchesContext> = {},
+): RootBranchesContext {
+  return {
+    cnpj_root: "00123456",
+    reference_cnpj_full: "00123456000195",
+    data_scope: "BASE_UTIL",
+    ...overrides,
+  };
+}
+
+export function rootBranchEstablishment(
+  overrides: Partial<RootBranchEstablishment> = {},
+): RootBranchEstablishment {
+  return {
+    ...establishment({
+      cnpj_full: "00123456000195",
+      cnpj_root: "00123456",
+      codigo_tom: "0001",
+      codigo_ibge: "0550308",
+      cnae_principal: "0123456",
+      porte_codigo: "03",
+      capital_social: "0005000.50",
+    }),
+    cnpj_order: "0001",
+    cnpj_dv: "95",
+    matriz_filial: "1",
+    establishment_role: "MATRIZ",
+    situacao_cadastral: "02",
+    data_inicio_atividade: "2019-01-01",
+    is_erp_customer: false,
+    is_unattended_branch: false,
+    branch_group: "unknown",
+    ...overrides,
+  };
+}
+
+export function rootBranchesPage(
+  items: RootBranchEstablishment[] = [rootBranchEstablishment()],
+  pagination: Partial<RootBranchesPage["pagination"]> = {},
+  root: RootBranchesContext = rootBranchesContext(),
+): RootBranchesPage {
+  return {
+    root,
+    items,
+    pagination: {
+      limit: 50,
+      offset: 0,
+      returned: items.length,
+      has_more: false,
+      ...pagination,
+    },
+  };
 }
 
 export function discoveryPage(

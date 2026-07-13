@@ -1,9 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { discoveryPage, establishment, radiusSearchPage } from "../test/fixtures";
+import {
+  discoveryPage,
+  establishment,
+  radiusSearchPage,
+  rootBranchesPage,
+} from "../test/fixtures";
 import {
   searchEstablishmentsByRegion,
   searchEstablishmentsBySegment,
   searchEstablishmentsByRadius,
+  searchRootBranches,
 } from "./sentinelApi";
 
 const fetchMock = vi.fn();
@@ -120,5 +126,49 @@ describe("Sentinel Discovery API", () => {
   it("rejects a malformed radius HTTP 200 response", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ origin: {}, items: [], pagination: {} }));
     await expect(searchEstablishmentsByRadius({ origin: { kind: "cnpj", cnpj: "00ABC" }, radiusKm: 1, limit: 50, offset: 0 })).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it("builds the root-branches route with exactly one textual identifier", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(rootBranchesPage()));
+    await searchRootBranches({
+      identifier: { kind: "cnpj", cnpj: "00.ABC/234 0001-55" },
+      limit: 25,
+      offset: 50,
+    });
+    await searchRootBranches({
+      identifier: { kind: "root", cnpjRoot: "00123456" },
+      limit: 100,
+      offset: 0,
+    });
+
+    const cnpjUrl = new URL(fetchMock.mock.calls[0][0], "http://local");
+    const rootUrl = new URL(fetchMock.mock.calls[1][0], "http://local");
+    expect(cnpjUrl.pathname).toBe("/api/v1/discovery/root-branches");
+    expect(Object.fromEntries(cnpjUrl.searchParams)).toEqual({
+      limit: "25",
+      offset: "50",
+      cnpj: "00.ABC/234 0001-55",
+    });
+    expect(cnpjUrl.search).toContain("%2F");
+    expect(cnpjUrl.searchParams.has("cnpj_root")).toBe(false);
+    expect(Object.fromEntries(rootUrl.searchParams)).toEqual({
+      limit: "100",
+      offset: "0",
+      cnpj_root: "00123456",
+    });
+    expect(rootUrl.searchParams.has("cnpj")).toBe(false);
+  });
+
+  it("rejects a malformed root-branches HTTP 200 response", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ root: {}, items: [], pagination: {} }),
+    );
+    await expect(
+      searchRootBranches({
+        identifier: { kind: "root", cnpjRoot: "00123456" },
+        limit: 50,
+        offset: 0,
+      }),
+    ).rejects.toMatchObject({ code: "invalid_response" });
   });
 });

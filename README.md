@@ -88,7 +88,7 @@ exemplos de leitura em [docs/deployment/01-web-container.md](docs/deployment/01-
 
 ## Discovery
 
-A tela principal possui três modos explícitos:
+A tela principal possui quatro modos explícitos:
 
 - **Por segmento** — exige segmento e aceita UF, código TOM, porte, capital
   mínimo e capital máximo como filtros opcionais;
@@ -98,6 +98,8 @@ A tela principal possui três modos explícitos:
 - **Por raio** — aceita origem por município + UF, CNPJ, TOM, IBGE ou
   coordenadas, além de raio obrigatório, segmento e UF dos resultados opcionais.
   A UF da origem identifica o município; a UF dos resultados filtra a resposta.
+- **Por raiz/filiais** — consulta por CNPJ completo ou raiz e apresenta somente
+  os estabelecimentos conhecidos na base útil do Sentinel.
 
 O modo por raio consome `GET /api/v1/discovery/radius/establishments` e exibe a
 origem resolvida, tabela e mapa Leaflet. Coordenadas, distância, filtros e ordem
@@ -163,6 +165,23 @@ O frontend não calcula similaridade, score, percentual, probabilidade ou
 razões. Também não usa IA, embeddings ou fuzzy matching. Filtros de UF, TOM,
 segmento e raio permanecem fora desta primeira interface de semelhantes.
 
+A ação **Ver raiz e filiais** usa o CNPJ completo da referência para trocar ao
+quarto modo e executar o mesmo fluxo principal, sem tabela ou consulta paralela
+dentro do drawer. O endpoint consumido é
+`GET /api/v1/discovery/root-branches`, sempre com exatamente `cnpj` ou
+`cnpj_root`, além de `limit` e `offset`.
+
+Os resultados mostram a raiz resolvida, o CNPJ de referência quando aplicável,
+o papel `MATRIZ`/`FILIAL`/`UNKNOWN` já calculado pela API e o escopo explícito
+`data_scope=BASE_UTIL`. A situação cadastral da Receita permanece texto e é
+apresentada separadamente da situação comercial desconhecida e provisória.
+
+`BASE_UTIL` representa um recorte filtrado, não a Receita completa. A interface
+usa a expressão “estabelecimentos conhecidos na base útil” e avisa que podem
+estar ausentes inativos, unidades fora dos segmentos úteis e filiais não
+presentes no recorte carregado. Não há ERP, mapa para esta vertical, consulta à
+Receita completa ou endpoint de escrita.
+
 Este painel representa somente os detalhes disponíveis no resultado atual. Ele
 não é uma ficha completa da empresa e não consulta endpoint de detalhe.
 
@@ -177,16 +196,19 @@ não é uma ficha completa da empresa e não consulta endpoint de detalhe.
   semelhantes, com `limit=25` e paginação por `offset`, sem total geral.
 - `GET /api/v1/discovery/radius/establishments` — busca por raio com origem
   resolvida, tabela, mapa e paginação sem total geral.
+- `GET /api/v1/discovery/root-branches` — estabelecimentos conhecidos por CNPJ
+  completo ou raiz, com contexto `BASE_UTIL` e paginação sem total geral.
 
 ## Escopo atual
 
-A tela entrega o shell desktop-first do Sentinel, busca funcional por segmento
-por segmento, região ou raio, estados de validação/carregamento/erro, retry manual e tabela
-paginada. Requisições anteriores são canceladas ao iniciar uma nova busca,
-trocar o modo ou desmontar a tela; respostas obsoletas são ignoradas.
+A tela entrega o shell desktop-first do Sentinel, busca funcional por segmento,
+região, raio ou raiz/filiais conhecidas, estados de
+validação/carregamento/erro, retry manual e tabela paginada. Requisições
+anteriores são canceladas ao iniciar uma nova busca, trocar o modo ou desmontar
+a tela; respostas obsoletas são ignoradas.
 
 Ficam para as próximas etapas: ficha completa, endereço, contatos, CNAEs
 secundários detalhados, QSA, filtros de raio/UF/TOM/segmento para semelhantes,
-raiz/filiais, grupos comerciais, feedback, exportação, listas
+grupos comerciais, feedback, exportação, listas
 salvas, autenticação, ordenação client-side, busca fuzzy e filtros persistidos
 na URL.
