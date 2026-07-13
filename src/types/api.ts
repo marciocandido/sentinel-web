@@ -95,6 +95,34 @@ export interface SimilarCompanyPage {
   pagination: PaginationMeta;
 }
 
+export type RadiusSearchOriginKind = "COORDINATE" | "CNPJ" | "MUNICIPALITY";
+
+export interface RadiusSearchOrigin {
+  kind: RadiusSearchOriginKind;
+  cnpj_full: string | null;
+  codigo_tom: string | null;
+  codigo_ibge: string | null;
+  municipio_nome: string | null;
+  uf: string | null;
+  latitude: number;
+  longitude: number;
+  location_precision: string;
+}
+
+export interface RadiusSearchEstablishment extends DiscoveryEstablishment {
+  latitude: number;
+  longitude: number;
+  distance_km: number;
+  location_precision: string;
+  has_geo: true;
+}
+
+export interface RadiusSearchPage {
+  origin: RadiusSearchOrigin;
+  items: RadiusSearchEstablishment[];
+  pagination: PaginationMeta;
+}
+
 const SIMILARITY_REASONS: readonly SimilarityReason[] = [
   "same_cnae_principal",
   "same_segment",
@@ -227,6 +255,49 @@ export function isSimilarCompanyPage(value: unknown): value is SimilarCompanyPag
     isRecord(value) &&
     Array.isArray(value.items) &&
     value.items.every(isSimilarCompany) &&
+    isPaginationMeta(value.pagination)
+  );
+}
+
+function isCoordinate(value: unknown, minimum: number, maximum: number): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= minimum && value <= maximum;
+}
+
+export function isRadiusSearchOrigin(value: unknown): value is RadiusSearchOrigin {
+  return (
+    isRecord(value) &&
+    (value.kind === "COORDINATE" || value.kind === "CNPJ" || value.kind === "MUNICIPALITY") &&
+    isNullableString(value.cnpj_full) &&
+    isNullableString(value.codigo_tom) &&
+    isNullableString(value.codigo_ibge) &&
+    isNullableString(value.municipio_nome) &&
+    isNullableString(value.uf) &&
+    isCoordinate(value.latitude, -90, 90) &&
+    isCoordinate(value.longitude, -180, 180) &&
+    typeof value.location_precision === "string"
+  );
+}
+
+export function isRadiusSearchEstablishment(value: unknown): value is RadiusSearchEstablishment {
+  const row = value as Record<string, unknown>;
+  return (
+    isDiscoveryEstablishment(value) &&
+    isCoordinate(row.latitude, -90, 90) &&
+    isCoordinate(row.longitude, -180, 180) &&
+    typeof row.distance_km === "number" &&
+    Number.isFinite(row.distance_km) &&
+    row.distance_km >= 0 &&
+    value.location_precision !== null &&
+    value.has_geo === true
+  );
+}
+
+export function isRadiusSearchPage(value: unknown): value is RadiusSearchPage {
+  return (
+    isRecord(value) &&
+    isRadiusSearchOrigin(value.origin) &&
+    Array.isArray(value.items) &&
+    value.items.every(isRadiusSearchEstablishment) &&
     isPaginationMeta(value.pagination)
   );
 }
