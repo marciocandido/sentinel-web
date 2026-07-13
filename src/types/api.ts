@@ -53,6 +53,58 @@ export interface DiscoveryEstablishmentPage {
   pagination: PaginationMeta;
 }
 
+export type SimilarityReason =
+  | "same_cnae_principal"
+  | "same_segment"
+  | "same_uf"
+  | "same_municipio"
+  | "porte_equal_or_higher"
+  | "capital_band"
+  | "within_radius";
+
+export interface SimilarCompany {
+  reference_cnpj_root: string;
+  cnpj_full: string;
+  cnpj_root: string;
+  razao_social: string | null;
+  nome_fantasia: string | null;
+  uf: string | null;
+  municipio_nome: string | null;
+  codigo_tom: string | null;
+  codigo_ibge: string | null;
+  cnae_principal: string | null;
+  porte_codigo: string | null;
+  capital_social: string | null;
+  location_precision: string | null;
+  has_geo: boolean;
+  distance_km: number | null;
+  matched_same_cnae_principal: boolean;
+  matched_same_segment: boolean;
+  matched_same_uf: boolean;
+  matched_same_municipio: boolean;
+  matched_porte_equal_or_higher: boolean;
+  matched_capital_band: boolean;
+  similarity_rank: number;
+  similarity_reasons: SimilarityReason[];
+  commercial_status: "UNKNOWN";
+  commercial_status_source: "none";
+}
+
+export interface SimilarCompanyPage {
+  items: SimilarCompany[];
+  pagination: PaginationMeta;
+}
+
+const SIMILARITY_REASONS: readonly SimilarityReason[] = [
+  "same_cnae_principal",
+  "same_segment",
+  "same_uf",
+  "same_municipio",
+  "porte_equal_or_higher",
+  "capital_band",
+  "within_radius",
+];
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -125,6 +177,56 @@ export function isDiscoveryEstablishmentPage(value: unknown): value is Discovery
     isRecord(value) &&
     Array.isArray(value.items) &&
     value.items.every(isDiscoveryEstablishment) &&
+    isPaginationMeta(value.pagination)
+  );
+}
+
+export function isSimilarityReason(value: unknown): value is SimilarityReason {
+  return typeof value === "string" && SIMILARITY_REASONS.includes(value as SimilarityReason);
+}
+
+export function isSimilarCompany(value: unknown): value is SimilarCompany {
+  return (
+    isRecord(value) &&
+    typeof value.reference_cnpj_root === "string" &&
+    typeof value.cnpj_full === "string" &&
+    typeof value.cnpj_root === "string" &&
+    isNullableString(value.razao_social) &&
+    isNullableString(value.nome_fantasia) &&
+    isNullableString(value.uf) &&
+    isNullableString(value.municipio_nome) &&
+    isNullableString(value.codigo_tom) &&
+    isNullableString(value.codigo_ibge) &&
+    isNullableString(value.cnae_principal) &&
+    isNullableString(value.porte_codigo) &&
+    isNullableString(value.capital_social) &&
+    isNullableString(value.location_precision) &&
+    typeof value.has_geo === "boolean" &&
+    (value.distance_km === null ||
+      (typeof value.distance_km === "number" &&
+        Number.isFinite(value.distance_km) &&
+        value.distance_km >= 0)) &&
+    typeof value.matched_same_cnae_principal === "boolean" &&
+    typeof value.matched_same_segment === "boolean" &&
+    typeof value.matched_same_uf === "boolean" &&
+    typeof value.matched_same_municipio === "boolean" &&
+    typeof value.matched_porte_equal_or_higher === "boolean" &&
+    typeof value.matched_capital_band === "boolean" &&
+    Number.isInteger(value.similarity_rank) &&
+    (value.similarity_rank as number) >= 1 &&
+    (value.similarity_rank as number) <= 5 &&
+    Array.isArray(value.similarity_reasons) &&
+    value.similarity_reasons.every(isSimilarityReason) &&
+    value.commercial_status === "UNKNOWN" &&
+    value.commercial_status_source === "none"
+  );
+}
+
+export function isSimilarCompanyPage(value: unknown): value is SimilarCompanyPage {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.items) &&
+    value.items.every(isSimilarCompany) &&
     isPaginationMeta(value.pagination)
   );
 }

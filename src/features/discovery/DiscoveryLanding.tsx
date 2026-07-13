@@ -175,6 +175,7 @@ export function DiscoveryLanding() {
       </div>
       {selectedEstablishment && (
         <DiscoveryDetailsDrawer
+          key={selectedEstablishment.cnpj_full}
           establishment={selectedEstablishment}
           onClose={closeDetails}
           returnFocusTo={detailsTrigger}
