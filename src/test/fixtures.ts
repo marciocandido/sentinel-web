@@ -1,4 +1,9 @@
-import type { DiscoveryEstablishment, DiscoveryEstablishmentPage } from "../types/api";
+import type {
+  DiscoveryEstablishment,
+  DiscoveryEstablishmentPage,
+  SimilarCompany,
+  SimilarCompanyPage,
+} from "../types/api";
 
 export function establishment(
   overrides: Partial<DiscoveryEstablishment> = {},
@@ -33,6 +38,60 @@ export function discoveryPage(
     items,
     pagination: {
       limit: 50,
+      offset: 0,
+      returned: items.length,
+      has_more: false,
+      ...pagination,
+    },
+  };
+}
+
+export function similarCompany(overrides: Partial<SimilarCompany> = {}): SimilarCompany {
+  return {
+    reference_cnpj_root: "00123456",
+    cnpj_full: "00987654000110",
+    cnpj_root: "00987654",
+    razao_social: "EMPRESA SEMELHANTE LTDA",
+    nome_fantasia: "SEMELHANTE",
+    uf: "SP",
+    municipio_nome: "SAO PAULO",
+    codigo_tom: "7107",
+    codigo_ibge: "3550308",
+    cnae_principal: "2511000",
+    porte_codigo: "03",
+    capital_social: "500000.00",
+    location_precision: "MUNICIPIO",
+    has_geo: true,
+    distance_km: null,
+    matched_same_cnae_principal: true,
+    matched_same_segment: true,
+    matched_same_uf: true,
+    matched_same_municipio: true,
+    matched_porte_equal_or_higher: true,
+    matched_capital_band: true,
+    similarity_rank: 1,
+    similarity_reasons: [
+      "same_cnae_principal",
+      "same_segment",
+      "same_uf",
+      "same_municipio",
+      "porte_equal_or_higher",
+      "capital_band",
+    ],
+    commercial_status: "UNKNOWN",
+    commercial_status_source: "none",
+    ...overrides,
+  };
+}
+
+export function similarCompanyPage(
+  items: SimilarCompany[] = [similarCompany()],
+  pagination: Partial<SimilarCompanyPage["pagination"]> = {},
+): SimilarCompanyPage {
+  return {
+    items,
+    pagination: {
+      limit: 25,
       offset: 0,
       returned: items.length,
       has_more: false,

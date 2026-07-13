@@ -130,6 +130,22 @@ A ação **Copiar CNPJ** envia ao clipboard exatamente o `cnpj_full` recebido,
 preservando zeros à esquerda e caracteres alfanuméricos, sem máscara ou
 conversão numérica.
 
+A ação **Ver semelhantes** consulta, somente após o clique, o endpoint
+`GET /api/v1/discovery/establishments/{cnpj_full}/similar`. Os resultados
+aparecem no mesmo painel lateral e mantêm o estabelecimento original como
+referência. **Voltar aos detalhes** não fecha o painel; nesta primeira versão,
+abrir semelhantes novamente reinicia a consulta em `offset=0`.
+
+A paginação de semelhantes usa limite fixo de 25 itens, sem total geral. O
+frontend preserva a ordem da API e apresenta o rank determinístico de 1 a 5 e
+as razões auditáveis exatamente na ordem recebida. O CNPJ permanece textual,
+inclusive com zeros à esquerda ou caracteres alfanuméricos, e o status
+comercial continua provisório (`UNKNOWN`/`none`).
+
+O frontend não calcula similaridade, score, percentual, probabilidade ou
+razões. Também não usa IA, embeddings ou fuzzy matching. Filtros de UF, TOM,
+segmento e raio permanecem fora desta primeira interface de semelhantes.
+
 Este painel representa somente os detalhes disponíveis no resultado atual. Ele
 não é uma ficha completa da empresa e não consulta endpoint de detalhe.
 
@@ -140,6 +156,8 @@ não é uma ficha completa da empresa e não consulta endpoint de detalhe.
 - `GET /api/v1/discovery/segments/{segment_id}/establishments` — busca por
   segmento;
 - `GET /api/v1/discovery/regions/establishments` — busca por região.
+- `GET /api/v1/discovery/establishments/{cnpj_full}/similar` — empresas
+  semelhantes, com `limit=25` e paginação por `offset`, sem total geral.
 
 ## Escopo atual
 
@@ -149,6 +167,7 @@ paginada. Requisições anteriores são canceladas ao iniciar uma nova busca,
 trocar o modo ou desmontar a tela; respostas obsoletas são ignoradas.
 
 Ficam para as próximas etapas: ficha completa, endereço, contatos, CNAEs
-secundários detalhados, QSA, mapa, raio, empresas semelhantes, raiz/filiais,
-grupos comerciais, feedback, exportação, listas salvas, autenticação,
-ordenação client-side, busca fuzzy e filtros persistidos na URL.
+secundários detalhados, QSA, mapa, filtros de raio/UF/TOM/segmento para
+semelhantes, raiz/filiais, grupos comerciais, feedback, exportação, listas
+salvas, autenticação, ordenação client-side, busca fuzzy e filtros persistidos
+na URL.

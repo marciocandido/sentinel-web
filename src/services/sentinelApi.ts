@@ -2,9 +2,11 @@ import {
   isDiscoveryEstablishmentPage,
   isLivenessResponse,
   isSegmentCatalogResponse,
+  isSimilarCompanyPage,
   type DiscoveryEstablishmentPage,
   type LivenessResponse,
   type SegmentCatalogResponse,
+  type SimilarCompanyPage,
 } from "../types/api";
 import { getJson, SentinelApiError, type RequestOptions } from "./apiClient";
 
@@ -25,6 +27,12 @@ export interface RegionSearchParams {
   codigoIbge?: string;
   municipioNome?: string;
   segmentId?: string;
+  limit: number;
+  offset: number;
+}
+
+export interface SimilarCompaniesParams {
+  cnpjFull: string;
   limit: number;
   offset: number;
 }
@@ -93,4 +101,19 @@ export async function searchEstablishmentsByRegion(
   setIfPresent(query, "segment_id", params.segmentId);
   const response = await getJson(`/api/v1/discovery/regions/establishments?${query}`, options);
   return assertDiscoveryPage(response);
+}
+
+export async function searchSimilarCompanies(
+  params: SimilarCompaniesParams,
+  options?: RequestOptions,
+): Promise<SimilarCompanyPage> {
+  const query = paginationQuery(params.limit, params.offset);
+  const response = await getJson(
+    `/api/v1/discovery/establishments/${encodeURIComponent(params.cnpjFull)}/similar?${query}`,
+    options,
+  );
+  if (!isSimilarCompanyPage(response)) {
+    throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  }
+  return response;
 }
