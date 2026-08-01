@@ -5,6 +5,7 @@ import {
   searchEstablishmentsByRegion,
   searchEstablishmentsBySegment,
   searchCommercialGroup,
+  searchNeighboringEstablishments,
   searchRootBranches,
 } from "../../services/sentinelApi";
 import type { DiscoveryEstablishment } from "../../types/api";
@@ -16,6 +17,8 @@ import { DiscoveryResults } from "./DiscoveryResults";
 import { DiscoverySearchForm } from "./DiscoverySearchForm";
 import { RadiusResults } from "./RadiusResults";
 import { RadiusSearchForm } from "./RadiusSearchForm";
+import { NeighborsResults } from "./NeighborsResults";
+import { NeighborsSearchForm } from "./NeighborsSearchForm";
 import { RootBranchesResults } from "./RootBranchesResults";
 import { RootBranchesSearchForm } from "./RootBranchesSearchForm";
 import {
@@ -35,6 +38,14 @@ import {
   type RadiusViewState,
 } from "./radiusTypes";
 import { createRadiusSnapshot, validateRadius } from "./radiusUtils";
+import {
+  EMPTY_NEIGHBORS_FORM,
+  type NeighborsFormValues,
+  type NeighborsSearchSnapshot,
+  type NeighborsValidationErrors,
+  type NeighborsViewState,
+} from "./neighborsTypes";
+import { createNeighborsSnapshot, validateNeighbors } from "./neighborsUtils";
 import {
   EMPTY_ROOT_BRANCHES_FORM,
   type RootBranchesFormValues,
@@ -72,6 +83,12 @@ type LastRequest =
       offset: number;
     }
   | {
+      kind: "neighbors";
+      snapshot: NeighborsSearchSnapshot;
+      limit: number;
+      offset: number;
+    }
+  | {
       kind: "root";
       snapshot: RootBranchesSearchSnapshot;
       limit: number;
@@ -89,6 +106,8 @@ export function DiscoveryLanding() {
   const [values, setValues] = useState<DiscoveryFormValues>(EMPTY_FORM);
   const [radiusValues, setRadiusValues] =
     useState<RadiusFormValues>(EMPTY_RADIUS_FORM);
+  const [neighborsValues, setNeighborsValues] =
+    useState<NeighborsFormValues>(EMPTY_NEIGHBORS_FORM);
   const [rootBranchesValues, setRootBranchesValues] =
     useState<RootBranchesFormValues>(EMPTY_ROOT_BRANCHES_FORM);
   const [commercialGroupValues, setCommercialGroupValues] =
@@ -96,6 +115,8 @@ export function DiscoveryLanding() {
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [radiusErrors, setRadiusErrors] =
     useState<RadiusValidationErrors>({});
+  const [neighborsErrors, setNeighborsErrors] =
+    useState<NeighborsValidationErrors>({});
   const [rootBranchesErrors, setRootBranchesErrors] =
     useState<RootBranchesValidationErrors>({});
   const [commercialGroupErrors, setCommercialGroupErrors] =
@@ -104,6 +125,7 @@ export function DiscoveryLanding() {
   const [radiusState, setRadiusState] = useState<RadiusViewState>({
     kind: "initial",
   });
+  const [neighborsState, setNeighborsState] = useState<NeighborsViewState>({ kind: "initial" });
   const [rootBranchesState, setRootBranchesState] =
     useState<RootBranchesViewState>({ kind: "initial" });
   const [commercialGroupState, setCommercialGroupState] =
@@ -117,6 +139,7 @@ export function DiscoveryLanding() {
   const requestIdRef = useRef(0);
   const submittedRef = useRef<DiscoverySearchSnapshot | null>(null);
   const radiusSubmittedRef = useRef<RadiusSearchSnapshot | null>(null);
+  const neighborsSubmittedRef = useRef<NeighborsSearchSnapshot | null>(null);
   const rootBranchesSubmittedRef =
     useRef<RootBranchesSearchSnapshot | null>(null);
   const commercialGroupSubmittedRef =
@@ -224,6 +247,29 @@ export function DiscoveryLanding() {
     }
   };
 
+  const executeNeighbors = async (
+    snapshot: NeighborsSearchSnapshot,
+    requestLimit: number,
+    offset: number,
+  ) => {
+    const { controller, requestId } = beginRequest();
+    lastRef.current = { kind: "neighbors", snapshot, limit: requestLimit, offset };
+    setNeighborsState({ kind: "loading" });
+    try {
+      const page = await searchNeighboringEstablishments(
+        { cnpjFull: snapshot.cnpj, radiusKm: snapshot.radiusKm, segmentId: snapshot.segmentId, resultUf: snapshot.resultUf, limit: requestLimit, offset },
+        { signal: controller.signal },
+      );
+      if (requestId === requestIdRef.current && !controller.signal.aborted) {
+        setNeighborsState({ kind: "success", page, snapshot });
+      }
+    } catch (error) {
+      if (requestId !== requestIdRef.current || controller.signal.aborted) return;
+      const code = error instanceof SentinelApiError ? error.code : "network_error";
+      if (code !== "request_aborted") setNeighborsState({ kind: "error", code });
+    }
+  };
+
   const executeRootBranches = async (
     snapshot: RootBranchesSearchSnapshot,
     requestLimit: number,
@@ -315,6 +361,7 @@ export function DiscoveryLanding() {
     controllerRef.current = null;
     submittedRef.current = null;
     radiusSubmittedRef.current = null;
+    neighborsSubmittedRef.current = null;
     rootBranchesSubmittedRef.current = null;
     commercialGroupSubmittedRef.current = null;
     lastRef.current = null;
@@ -322,10 +369,12 @@ export function DiscoveryLanding() {
     setMode(next);
     setErrors({});
     setRadiusErrors({});
+    setNeighborsErrors({});
     setRootBranchesErrors({});
     setCommercialGroupErrors({});
     setState({ kind: "initial" });
     setRadiusState({ kind: "initial" });
+    setNeighborsState({ kind: "initial" });
     setRootBranchesState({ kind: "initial" });
     setCommercialGroupState({ kind: "initial" });
   };
@@ -346,6 +395,15 @@ export function DiscoveryLanding() {
     const snapshot = createRadiusSnapshot(radiusValues);
     radiusSubmittedRef.current = snapshot;
     void executeRadius(snapshot, limit, 0);
+  };
+
+  const submitNeighbors = () => {
+    const validation = validateNeighbors(neighborsValues);
+    setNeighborsErrors(validation);
+    if (Object.keys(validation).length) return;
+    const snapshot = createNeighborsSnapshot(neighborsValues);
+    neighborsSubmittedRef.current = snapshot;
+    void executeNeighbors(snapshot, limit, 0);
   };
 
   const submitRootBranches = () => {
@@ -369,7 +427,9 @@ export function DiscoveryLanding() {
   const retry = () => {
     const request = lastRef.current;
     if (!request) return;
-    if (request.kind === "radius") {
+    if (request.kind === "neighbors") {
+      void executeNeighbors(request.snapshot, request.limit, request.offset);
+    } else if (request.kind === "radius") {
       void executeRadius(request.snapshot, request.limit, request.offset);
     } else if (request.kind === "root") {
       void executeRootBranches(
@@ -390,6 +450,14 @@ export function DiscoveryLanding() {
 
   const paginate = (direction: -1 | 1) => {
     if (
+      mode === "neighbors" &&
+      neighborsState.kind === "success" &&
+      neighborsSubmittedRef.current
+    ) {
+      const pagination = neighborsState.page.pagination;
+      if (direction === 1 && !pagination.has_more) return;
+      void executeNeighbors(neighborsSubmittedRef.current, pagination.limit, Math.max(0, pagination.offset + direction * pagination.limit));
+    } else if (
       mode === "group" &&
       commercialGroupState.kind === "success" &&
       commercialGroupSubmittedRef.current
@@ -438,7 +506,9 @@ export function DiscoveryLanding() {
 
   const changeLimit = (next: number) => {
     setLimit(next);
-    if (mode === "group" && commercialGroupSubmittedRef.current) {
+    if (mode === "neighbors" && neighborsSubmittedRef.current) {
+      void executeNeighbors(neighborsSubmittedRef.current, next, 0);
+    } else if (mode === "group" && commercialGroupSubmittedRef.current) {
       void executeCommercialGroup(commercialGroupSubmittedRef.current, next, 0);
     } else if (mode === "root" && rootBranchesSubmittedRef.current) {
       void executeRootBranches(rootBranchesSubmittedRef.current, next, 0);
@@ -464,16 +534,19 @@ export function DiscoveryLanding() {
     controllerRef.current = null;
     submittedRef.current = null;
     radiusSubmittedRef.current = null;
+    neighborsSubmittedRef.current = null;
     commercialGroupSubmittedRef.current = null;
     lastRef.current = null;
     setSelected(null);
     setMode("root");
     setErrors({});
     setRadiusErrors({});
+    setNeighborsErrors({});
     setRootBranchesErrors({});
     setCommercialGroupErrors({});
     setState({ kind: "initial" });
     setRadiusState({ kind: "initial" });
+    setNeighborsState({ kind: "initial" });
     setCommercialGroupState({ kind: "initial" });
     const values: RootBranchesFormValues = {
       identifierKind: "cnpj",
@@ -497,7 +570,7 @@ export function DiscoveryLanding() {
           <p className="eyebrow">Discovery</p>
           <h1 id="discovery-title">Buscar empresas</h1>
           <p>
-            Pesquise por segmento, região, raio geográfico, raiz ou grupo
+            Pesquise por segmento, região, raio geográfico, vizinhos, raiz ou grupo
             comercial registrado.
           </p>
         </div>
@@ -511,7 +584,18 @@ export function DiscoveryLanding() {
           <div className="discovery-form">
             <DiscoveryModeSwitcher mode={mode} onChange={changeMode} />
           </div>
-          {mode === "group" ? (
+          {mode === "neighbors" ? (
+            <NeighborsSearchForm
+              values={neighborsValues}
+              errors={neighborsErrors}
+              searching={neighborsState.kind === "loading"}
+              onChange={(field, value) => {
+                setNeighborsValues((current) => ({ ...current, [field]: value }));
+                setNeighborsErrors((current) => ({ ...current, [field]: undefined }));
+              }}
+              onSubmit={submitNeighbors}
+            />
+          ) : mode === "group" ? (
             <CommercialGroupSearchForm
               values={commercialGroupValues}
               errors={commercialGroupErrors}
@@ -580,7 +664,15 @@ export function DiscoveryLanding() {
             />
           )}
         </article>
-        {mode === "group" ? (
+        {mode === "neighbors" ? (
+          <NeighborsResults
+            state={neighborsState}
+            onRetry={retry}
+            onPrevious={() => paginate(-1)}
+            onNext={() => paginate(1)}
+            onLimitChange={changeLimit}
+          />
+        ) : mode === "group" ? (
           <CommercialGroupResults
             state={commercialGroupState}
             focusRef={commercialGroupResultsHeadingRef}

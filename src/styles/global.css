@@ -176,6 +176,7 @@ select:disabled { cursor: not-allowed; background: #eef2f6; color: #64748b; }
 .radius-map { width: 100%; height: clamp(300px, 42vh, 440px); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; z-index: 0; }
 .map-warning { margin: 0 0 7px; padding: 8px; border-left: 3px solid #b7791f; background: #fffbeb; color: #7a4d00; font-size: .78rem; }
 .radius-table { min-width: 1500px; }
+.neighbors-table { min-width: 1250px; }
 .root-context { margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
 .commercial-group-context { margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
 .root-context h3 { margin: 0 0 9px; font-size: .9rem; }

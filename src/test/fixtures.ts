@@ -6,6 +6,8 @@ import type {
   RadiusSearchEstablishment,
   RadiusSearchOrigin,
   RadiusSearchPage,
+  NeighborEstablishment,
+  NeighborSearchPage,
   RootBranchEstablishment,
   RootBranchesContext,
   RootBranchesPage,
@@ -151,6 +153,14 @@ export function radiusSearchEstablishment(overrides: Partial<RadiusSearchEstabli
 }
 
 export function radiusSearchPage(items: RadiusSearchEstablishment[] = [radiusSearchEstablishment()], pagination: Partial<RadiusSearchPage["pagination"]> = {}, origin: RadiusSearchOrigin = radiusSearchOrigin()): RadiusSearchPage {
+  return { origin, items, pagination: { limit: 50, offset: 0, returned: items.length, has_more: false, ...pagination } };
+}
+
+export function neighborEstablishment(overrides: Partial<NeighborEstablishment> = {}): NeighborEstablishment {
+  return { cnpj_full: "00ABC234000155", cnpj_root: "00ABC234", razao_social: "VIZINHA LTDA", nome_fantasia: null, uf: "SP", municipio_nome: "SAO PAULO", codigo_tom: "7107", codigo_ibge: "3550308", latitude: -23.54, longitude: -46.62, distance_km: 3.25, location_precision: "MUNICIPIO", has_geo: true, cnae_principal: "2511000", matched_by_cnae_principal: true, matched_by_cnae_secundario: false, commercial_status: "UNKNOWN", commercial_status_source: "none", ...overrides };
+}
+
+export function neighborSearchPage(items: NeighborEstablishment[] = [neighborEstablishment()], pagination: Partial<NeighborSearchPage["pagination"]> = {}, origin: RadiusSearchOrigin = radiusSearchOrigin({ kind: "CNPJ", cnpj_full: "00ABC234000155" })): NeighborSearchPage {
   return { origin, items, pagination: { limit: 50, offset: 0, returned: items.length, has_more: false, ...pagination } };
 }
 

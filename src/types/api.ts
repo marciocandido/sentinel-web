@@ -123,6 +123,33 @@ export interface RadiusSearchPage {
   pagination: PaginationMeta;
 }
 
+export interface NeighborEstablishment {
+  cnpj_full: string;
+  cnpj_root: string;
+  razao_social: string | null;
+  nome_fantasia: string | null;
+  uf: string | null;
+  municipio_nome: string | null;
+  codigo_tom: string | null;
+  codigo_ibge: string | null;
+  latitude: number;
+  longitude: number;
+  distance_km: number;
+  location_precision: string;
+  has_geo: boolean;
+  cnae_principal: string | null;
+  matched_by_cnae_principal: boolean;
+  matched_by_cnae_secundario: boolean;
+  commercial_status: "UNKNOWN";
+  commercial_status_source: "none";
+}
+
+export interface NeighborSearchPage {
+  origin: RadiusSearchOrigin;
+  items: NeighborEstablishment[];
+  pagination: PaginationMeta;
+}
+
 export interface RootBranchesContext {
   cnpj_root: string;
   reference_cnpj_full: string | null;
@@ -392,6 +419,45 @@ export function isRadiusSearchPage(value: unknown): value is RadiusSearchPage {
     isRadiusSearchOrigin(value.origin) &&
     Array.isArray(value.items) &&
     value.items.every(isRadiusSearchEstablishment) &&
+    isPaginationMeta(value.pagination)
+  );
+}
+
+export function isNeighborEstablishment(value: unknown): value is NeighborEstablishment {
+  const row = value as Record<string, unknown>;
+  return (
+    isRecord(value) &&
+    typeof row.cnpj_full === "string" &&
+    typeof row.cnpj_root === "string" &&
+    isNullableString(row.razao_social) &&
+    isNullableString(row.nome_fantasia) &&
+    isNullableString(row.uf) &&
+    isNullableString(row.municipio_nome) &&
+    isNullableString(row.codigo_tom) &&
+    isNullableString(row.codigo_ibge) &&
+    isNullableString(row.cnae_principal) &&
+    isCoordinate(row.latitude, -90, 90) &&
+    isCoordinate(row.longitude, -180, 180) &&
+    typeof row.distance_km === "number" &&
+    Number.isFinite(row.distance_km) &&
+    row.distance_km >= 0 &&
+    typeof row.location_precision === "string" &&
+    typeof row.has_geo === "boolean" &&
+    typeof row.matched_by_cnae_principal === "boolean" &&
+    typeof row.matched_by_cnae_secundario === "boolean" &&
+    row.commercial_status === "UNKNOWN" &&
+    row.commercial_status_source === "none"
+  );
+}
+
+export function isNeighborSearchPage(value: unknown): value is NeighborSearchPage {
+  return (
+    isRecord(value) &&
+    isRadiusSearchOrigin(value.origin) &&
+    value.origin.kind === "CNPJ" &&
+    typeof value.origin.cnpj_full === "string" &&
+    Array.isArray(value.items) &&
+    value.items.every(isNeighborEstablishment) &&
     isPaginationMeta(value.pagination)
   );
 }

@@ -4,6 +4,7 @@ import {
   isSegmentCatalogResponse,
   isSimilarCompanyPage,
   isRadiusSearchPage,
+  isNeighborSearchPage,
   isRootBranchesPage,
   isCommercialGroupPage,
   type CommercialGroupPage,
@@ -12,6 +13,7 @@ import {
   type SegmentCatalogResponse,
   type SimilarCompanyPage,
   type RadiusSearchPage,
+  type NeighborSearchPage,
   type RootBranchesPage,
 } from "../types/api";
 import { getJson, SentinelApiError, type RequestOptions } from "./apiClient";
@@ -52,6 +54,15 @@ export type RadiusSearchSnapshotOrigin =
 
 export interface RadiusSearchParams {
   origin: RadiusSearchSnapshotOrigin;
+  radiusKm: number;
+  segmentId?: string;
+  resultUf?: string;
+  limit: number;
+  offset: number;
+}
+
+export interface NeighborSearchParams {
+  cnpjFull: string;
   radiusKm: number;
   segmentId?: string;
   resultUf?: string;
@@ -176,6 +187,24 @@ export async function searchEstablishmentsByRadius(
   setIfPresent(query, "uf", params.resultUf);
   const response = await getJson(`/api/v1/discovery/radius/establishments?${query}`, options);
   if (!isRadiusSearchPage(response)) {
+    throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  }
+  return response;
+}
+
+export async function searchNeighboringEstablishments(
+  params: NeighborSearchParams,
+  options?: RequestOptions,
+): Promise<NeighborSearchPage> {
+  const query = paginationQuery(params.limit, params.offset);
+  query.set("radius_km", String(params.radiusKm));
+  setIfPresent(query, "segment_id", params.segmentId);
+  setIfPresent(query, "uf", params.resultUf);
+  const response = await getJson(
+    `/api/v1/discovery/establishments/${encodeURIComponent(params.cnpjFull)}/neighbors?${query}`,
+    options,
+  );
+  if (!isNeighborSearchPage(response)) {
     throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
   }
   return response;

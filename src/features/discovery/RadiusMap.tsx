@@ -6,7 +6,7 @@ import {
 } from "./radiusMapAdapter";
 import { radiusMapOptions } from "./radiusMapConfig";
 
-export function RadiusMap({ data }: { data: RadiusMapData }) {
+export function RadiusMap({ data, accessibleName = "Mapa da busca por raio" }: { data: RadiusMapData; accessibleName?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<RadiusMapController | null>(null);
   const [tileFailed, setTileFailed] = useState(false);
@@ -43,7 +43,7 @@ export function RadiusMap({ data }: { data: RadiusMapData }) {
         ref={containerRef}
         className="radius-map"
         role="region"
-        aria-label="Mapa da busca por raio"
+        aria-label={accessibleName}
       />
     </div>
   );

@@ -88,7 +88,7 @@ exemplos de leitura em [docs/deployment/01-web-container.md](docs/deployment/01-
 
 ## Discovery
 
-A tela principal possui cinco modos explícitos:
+A tela principal possui seis modos explícitos:
 
 - **Por segmento** — exige segmento e aceita UF, código TOM, porte, capital
   mínimo e capital máximo como filtros opcionais;
@@ -102,6 +102,8 @@ A tela principal possui cinco modos explícitos:
   os estabelecimentos conhecidos na base útil do Sentinel.
 - **Por grupo** — consulta exclusivamente pelo `group_id` textual de um grupo
   previamente registrado.
+- **Por vizinhos** — consulta por CNPJ de referência, raio e filtros opcionais,
+  exibindo a origem resolvida, tabela e mapa complementar.
 
 O modo por raio consome `GET /api/v1/discovery/radius/establishments` e exibe a
 origem resolvida, tabela e mapa Leaflet. Coordenadas, distância, filtros e ordem
@@ -216,6 +218,9 @@ não é uma ficha completa da empresa e não consulta endpoint de detalhe.
   completo ou raiz, com contexto `BASE_UTIL` e paginação sem total geral.
 - `GET /api/v1/discovery/commercial-groups` — raízes registradas por
   `group_id`, com escopos `REGISTERED`/`BASE_UTIL` e paginação sem total geral.
+- `GET /api/v1/discovery/establishments/{cnpj_full}/neighbors` — vizinhos de
+  um CNPJ de referência, com status comercial provisório `UNKNOWN`/`none`, sem
+  `neighbor_group`.
 
 ## Escopo atual
 
