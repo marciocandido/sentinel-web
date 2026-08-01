@@ -9,6 +9,7 @@ const MODES: ReadonlyArray<readonly [SearchMode, string]> = [
   ["segment", "Por segmento"],
   ["region", "Por região"],
   ["radius", "Por raio"],
+  ["neighbors", "Por vizinhos"],
   ["root", "Por raiz/filiais"],
   ["group", "Por grupo"],
 ];

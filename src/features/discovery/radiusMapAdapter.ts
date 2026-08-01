@@ -1,13 +1,21 @@
 import L from "leaflet";
 import type {
-  RadiusSearchEstablishment,
   RadiusSearchOrigin,
 } from "../../types/api";
+
+export interface DistanceMapItem {
+  latitude: number;
+  longitude: number;
+  razao_social: string | null;
+  nome_fantasia: string | null;
+  cnpj_full: string;
+  distance_km: number;
+}
 
 export interface RadiusMapData {
   origin: RadiusSearchOrigin;
   radiusKm: number;
-  items: RadiusSearchEstablishment[];
+  items: DistanceMapItem[];
 }
 
 export interface RadiusMapController {

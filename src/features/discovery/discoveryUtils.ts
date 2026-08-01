@@ -99,7 +99,7 @@ export function publicSearchError(code: string): string {
   return "Não foi possível concluir a busca. Verifique a conexão com a API e tente novamente.";
 }
 
-export function matchLabel(establishment: DiscoveryEstablishment): string {
+export function matchLabel(establishment: Pick<DiscoveryEstablishment, "matched_by_cnae_principal" | "matched_by_cnae_secundario">): string {
   if (establishment.matched_by_cnae_principal && establishment.matched_by_cnae_secundario) {
     return "Principal e secundário";
   }

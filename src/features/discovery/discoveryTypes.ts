@@ -4,6 +4,7 @@ export type SearchMode =
   | "segment"
   | "region"
   | "radius"
+  | "neighbors"
   | "root"
   | "group";
 
