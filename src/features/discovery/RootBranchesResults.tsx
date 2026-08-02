@@ -7,6 +7,7 @@ import {
   publicRootBranchesError,
   rootBranchValue,
 } from "./rootBranchesUtils";
+import { feedbackReferenceOrNull } from "./feedbackUtils";
 
 interface RootBranchesResultsProps {
   state: RootBranchesViewState;
@@ -93,7 +94,7 @@ export function RootBranchesResults({
               Nenhum estabelecimento conhecido foi encontrado nesta página.
             </p>
           ) : (
-            <RootBranchesTable items={state.page.items} onSelect={onSelect} feedbackSource={{ kind: "ROOT_BRANCHES", reference: state.page.root.cnpj_root }} />
+            <RootBranchesTable items={state.page.items} onSelect={onSelect} feedbackSource={{ kind: "ROOT_BRANCHES", reference: feedbackReferenceOrNull(state.page.root.cnpj_root) }} />
           )}
           <DiscoveryPagination
             pagination={state.page.pagination}

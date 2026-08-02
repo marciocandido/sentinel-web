@@ -252,4 +252,14 @@ describe("Sentinel feedback API", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ event: { cnpj_full: event.cnpj_full }, idempotent_replay: false }, 201));
     await expect(createFeedbackEvent({ cnpjFull: event.cnpj_full, action: "USEFUL", idempotencyKey: "feedback-uuid" })).rejects.toMatchObject({ code: "invalid_response" });
   });
+
+  it("rejects history responses with incompatible source references", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      cnpj_full: event.cnpj_full,
+      actor_id: event.actor_id,
+      items: [{ ...event, source: { kind: "COMMERCIAL_GROUP", reference: "Grupo Metal" } }],
+      pagination: { limit: 20, offset: 0, returned: 1, has_more: false },
+    }));
+    await expect(listFeedbackEvents({ cnpjFull: event.cnpj_full, limit: 20, offset: 0 })).rejects.toMatchObject({ code: "invalid_response" });
+  });
 });

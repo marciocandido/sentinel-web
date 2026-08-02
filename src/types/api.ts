@@ -336,6 +336,15 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
+function isFeedbackReference(value: unknown): value is string | null {
+  return value === null || (
+    typeof value === "string" &&
+    value.length >= 1 &&
+    value.length <= 128 &&
+    /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(value)
+  );
+}
+
 function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]) {
   return Object.keys(value).every((key) => keys.includes(key));
 }
@@ -363,7 +372,7 @@ export function isFeedbackSource(value: unknown): value is FeedbackSource {
   return isRecord(value) &&
     hasOnlyKeys(value, ["kind", "reference"]) &&
     isFeedbackSourceKind(value.kind) &&
-    isNullableString(value.reference);
+    isFeedbackReference(value.reference);
 }
 
 export function isFeedbackEvent(value: unknown): value is FeedbackEvent {

@@ -1,15 +1,21 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createRef } from "react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FeedbackEvent, FeedbackSource } from "../../types/api";
 import { establishment } from "../../test/fixtures";
 import {
   commercialGroupKnownEstablishment,
   commercialGroupUnknownRoot,
+  commercialGroupContext,
+  commercialGroupPage,
+  discoveryPage,
   neighborEstablishment,
   radiusSearchEstablishment,
   rootBranchEstablishment,
 } from "../../test/fixtures";
 import { CommercialGroupTable } from "./CommercialGroupTable";
+import { CommercialGroupResults } from "./CommercialGroupResults";
+import { DiscoveryResults } from "./DiscoveryResults";
 import { DiscoveryTable } from "./DiscoveryTable";
 import { NeighborsTable } from "./NeighborsTable";
 import { RadiusTable } from "./RadiusTable";
@@ -52,6 +58,68 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("FeedbackPanel in discovery tables", () => {
+  it("omits incompatible group and segment references from POST bodies", async () => {
+    const groupPage = commercialGroupPage(
+      [commercialGroupKnownEstablishment()],
+      {},
+      commercialGroupContext({ group_id: "Grupo Metal" }),
+    );
+    render(
+      <CommercialGroupResults
+        state={{ kind: "success", page: groupPage, snapshot: { groupId: "Grupo Metal" } }}
+        focusRef={createRef()}
+        onRetry={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onLimitChange={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Feedback" }));
+    await screen.findByText("Ainda não há feedback registrado para este estabelecimento.");
+    fireEvent.click(screen.getByRole("button", { name: "Útil" }));
+    await screen.findByText("Feedback registrado com sucesso.");
+    const groupPost = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+    expect(JSON.parse(groupPost?.[1].body as string)).toEqual({
+      action: "USEFUL",
+      source: { kind: "COMMERCIAL_GROUP", reference: null },
+    });
+
+    cleanup();
+    fetchMock.mockClear();
+    render(
+      <DiscoveryResults
+        state={{
+          kind: "success",
+          page: discoveryPage([establishment()]),
+          snapshot: {
+            mode: "segment",
+            segmentId: "Grupo Metal",
+            uf: "",
+            codigoTom: "",
+            porteCodigo: "",
+            capitalMin: "",
+            capitalMax: "",
+          },
+        }}
+        onRetry={vi.fn()}
+        onPrevious={vi.fn()}
+        onNext={vi.fn()}
+        onLimitChange={vi.fn()}
+        onSelectEstablishment={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Feedback" }).at(-1)!);
+    await screen.findByText("Ainda não há feedback registrado para este estabelecimento.");
+    fireEvent.click(screen.getAllByRole("button", { name: "Útil" }).at(-1)!);
+    await screen.findByText("Feedback registrado com sucesso.");
+    const segmentPost = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+    expect(JSON.parse(segmentPost?.[1].body as string)).toEqual({
+      action: "USEFUL",
+      source: { kind: "SEGMENT", reference: null },
+    });
+  });
+
   it("exposes feedback for radius, neighbors, root branches and known commercial-group establishments only", () => {
     render(<>
       <RadiusTable items={[radiusSearchEstablishment()]} onSelect={vi.fn()} feedbackSource={{ kind: "RADIUS", reference: null }} />
@@ -74,7 +142,7 @@ describe("FeedbackPanel in discovery tables", () => {
     const panel = await screen.findByRole("region", { name: "Feedback comercial de PRIMEIRA" });
     expect(buttons[0]).toHaveAttribute("aria-expanded", "true");
     expect(panel).toHaveAttribute("id", expect.stringContaining("feedback-00123456000195"));
-    expect(screen.getByText("Ator provisório: local-operator")).toBeInTheDocument();
+    expect(await screen.findByText("Ator provisório: local-operator")).toBeInTheDocument();
     fireEvent.click(buttons[1]);
     await waitFor(() => expect(screen.queryByRole("region", { name: "Feedback comercial de PRIMEIRA" })).not.toBeInTheDocument());
     expect(await screen.findByRole("region", { name: "Feedback comercial de SEGUNDA" })).toBeInTheDocument();

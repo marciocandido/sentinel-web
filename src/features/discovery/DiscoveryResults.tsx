@@ -3,6 +3,7 @@ import { publicSearchError } from "./discoveryUtils";
 import { DiscoveryPagination } from "./DiscoveryPagination";
 import { DiscoveryTable } from "./DiscoveryTable";
 import type { DiscoveryEstablishment } from "../../types/api";
+import { feedbackReferenceOrNull } from "./feedbackUtils";
 
 interface DiscoveryResultsProps {
   state: DiscoveryViewState;
@@ -49,7 +50,7 @@ export function DiscoveryResults({
             items={state.page.items}
             onSelectEstablishment={onSelectEstablishment}
             feedbackSource={state.snapshot.mode === "segment"
-              ? { kind: "SEGMENT", reference: state.snapshot.segmentId }
+              ? { kind: "SEGMENT", reference: feedbackReferenceOrNull(state.snapshot.segmentId) }
               : { kind: "REGION", reference: null }}
           />
           )}

@@ -1,6 +1,25 @@
 import type { FeedbackEvent } from "../../types/api";
 import { FEEDBACK_ACTION_LABELS } from "./feedbackTypes";
 
+const FEEDBACK_REFERENCE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/;
+
+export function feedbackReferenceOrNull(
+  value: string | null | undefined,
+): string | null {
+  if (typeof value !== "string") return null;
+
+  const reference = value.trim();
+  if (
+    reference.length === 0 ||
+    reference.length > 128 ||
+    !FEEDBACK_REFERENCE_PATTERN.test(reference)
+  ) {
+    return null;
+  }
+
+  return reference;
+}
+
 export function publicFeedbackError(code: string): string {
   const messages: Record<string, string> = {
     invalid_request: "Não foi possível registrar o feedback informado.",
