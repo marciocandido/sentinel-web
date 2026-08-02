@@ -43,7 +43,7 @@ export type ValidationErrors = Partial<Record<keyof DiscoveryFormValues | "regio
 export type DiscoveryViewState =
   | { kind: "initial" }
   | { kind: "loading" }
-  | { kind: "success"; page: DiscoveryEstablishmentPage }
+  | { kind: "success"; page: DiscoveryEstablishmentPage; snapshot: DiscoverySearchSnapshot }
   | { kind: "error"; code: string };
 
 export const EMPTY_FORM: DiscoveryFormValues = {

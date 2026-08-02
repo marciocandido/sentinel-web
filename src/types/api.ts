@@ -48,6 +48,50 @@ export interface PaginationMeta {
   has_more: boolean;
 }
 
+export type FeedbackAction =
+  | "USEFUL"
+  | "DISCARD"
+  | "ALREADY_KNOW"
+  | "BAD_CONTACT"
+  | "BECAME_VISIT"
+  | "BECAME_QUOTE"
+  | "BECAME_SALE";
+
+export type FeedbackSourceKind =
+  | "SEGMENT"
+  | "REGION"
+  | "RADIUS"
+  | "NEIGHBORS"
+  | "ROOT_BRANCHES"
+  | "COMMERCIAL_GROUP"
+  | "SIMILAR";
+
+export interface FeedbackSource {
+  kind: FeedbackSourceKind;
+  reference: string | null;
+}
+
+export interface FeedbackEvent {
+  event_id: string;
+  cnpj_full: string;
+  action: FeedbackAction;
+  actor_id: string;
+  source: FeedbackSource | null;
+  occurred_at: string;
+}
+
+export interface FeedbackCreateResponse {
+  event: FeedbackEvent;
+  idempotent_replay: boolean;
+}
+
+export interface FeedbackHistoryPage {
+  cnpj_full: string;
+  actor_id: string;
+  items: FeedbackEvent[];
+  pagination: PaginationMeta;
+}
+
 export interface DiscoveryEstablishmentPage {
   items: DiscoveryEstablishment[];
   pagination: PaginationMeta;
@@ -254,6 +298,13 @@ const SIMILARITY_REASONS: readonly SimilarityReason[] = [
   "within_radius",
 ];
 
+const FEEDBACK_ACTIONS: readonly FeedbackAction[] = [
+  "USEFUL", "DISCARD", "ALREADY_KNOW", "BAD_CONTACT", "BECAME_VISIT", "BECAME_QUOTE", "BECAME_SALE",
+];
+const FEEDBACK_SOURCE_KINDS: readonly FeedbackSourceKind[] = [
+  "SEGMENT", "REGION", "RADIUS", "NEIGHBORS", "ROOT_BRANCHES", "COMMERCIAL_GROUP", "SIMILAR",
+];
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -283,6 +334,63 @@ export function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
 
 function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]) {
+  return Object.keys(value).every((key) => keys.includes(key));
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function isIsoTimestampWithTimezone(value: unknown): value is string {
+  return typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i.test(value) &&
+    Number.isFinite(Date.parse(value));
+}
+
+export function isFeedbackAction(value: unknown): value is FeedbackAction {
+  return typeof value === "string" && FEEDBACK_ACTIONS.includes(value as FeedbackAction);
+}
+
+export function isFeedbackSourceKind(value: unknown): value is FeedbackSourceKind {
+  return typeof value === "string" && FEEDBACK_SOURCE_KINDS.includes(value as FeedbackSourceKind);
+}
+
+export function isFeedbackSource(value: unknown): value is FeedbackSource {
+  return isRecord(value) &&
+    hasOnlyKeys(value, ["kind", "reference"]) &&
+    isFeedbackSourceKind(value.kind) &&
+    isNullableString(value.reference);
+}
+
+export function isFeedbackEvent(value: unknown): value is FeedbackEvent {
+  return isRecord(value) &&
+    hasOnlyKeys(value, ["event_id", "cnpj_full", "action", "actor_id", "source", "occurred_at"]) &&
+    isUuid(value.event_id) &&
+    typeof value.cnpj_full === "string" &&
+    isFeedbackAction(value.action) &&
+    typeof value.actor_id === "string" && value.actor_id.trim().length > 0 &&
+    (value.source === null || isFeedbackSource(value.source)) &&
+    isIsoTimestampWithTimezone(value.occurred_at);
+}
+
+export function isFeedbackCreateResponse(value: unknown): value is FeedbackCreateResponse {
+  return isRecord(value) &&
+    hasOnlyKeys(value, ["event", "idempotent_replay"]) &&
+    isFeedbackEvent(value.event) &&
+    typeof value.idempotent_replay === "boolean";
+}
+
+export function isFeedbackHistoryPage(value: unknown): value is FeedbackHistoryPage {
+  return isRecord(value) &&
+    hasOnlyKeys(value, ["cnpj_full", "actor_id", "items", "pagination"]) &&
+    typeof value.cnpj_full === "string" &&
+    typeof value.actor_id === "string" && value.actor_id.trim().length > 0 &&
+    Array.isArray(value.items) && value.items.every(isFeedbackEvent) &&
+    isPaginationMeta(value.pagination);
 }
 
 export function isDiscoveryEstablishment(value: unknown): value is DiscoveryEstablishment {

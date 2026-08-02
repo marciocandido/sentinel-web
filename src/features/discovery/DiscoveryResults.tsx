@@ -45,7 +45,13 @@ export function DiscoveryResults({
       {state.kind === "success" && (
         <>
           {state.page.items.length > 0 && (
-            <DiscoveryTable items={state.page.items} onSelectEstablishment={onSelectEstablishment} />
+          <DiscoveryTable
+            items={state.page.items}
+            onSelectEstablishment={onSelectEstablishment}
+            feedbackSource={state.snapshot.mode === "segment"
+              ? { kind: "SEGMENT", reference: state.snapshot.segmentId }
+              : { kind: "REGION", reference: null }}
+          />
           )}
           <DiscoveryPagination
             pagination={state.page.pagination}

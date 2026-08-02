@@ -100,6 +100,7 @@ export function CommercialGroupResults({
             <CommercialGroupTable
               items={state.page.items}
               onSelect={onSelect}
+              feedbackSource={{ kind: "COMMERCIAL_GROUP", reference: state.page.group.group_id }}
             />
           )}
           <DiscoveryPagination

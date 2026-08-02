@@ -1,4 +1,7 @@
-import type { RootBranchEstablishment } from "../../types/api";
+import { Fragment, useState } from "react";
+import type { FeedbackSource, RootBranchEstablishment } from "../../types/api";
+import { FeedbackPanel } from "./FeedbackPanel";
+import { feedbackPanelId } from "./feedbackUtils";
 import { matchLabel } from "./discoveryUtils";
 import {
   rootBranchRoleLabel,
@@ -8,6 +11,7 @@ import {
 interface RootBranchesTableProps {
   items: RootBranchEstablishment[];
   onSelect: (item: RootBranchEstablishment) => void;
+  feedbackSource: FeedbackSource;
 }
 
 function location(item: RootBranchEstablishment): string {
@@ -17,7 +21,9 @@ function location(item: RootBranchEstablishment): string {
 export function RootBranchesTable({
   items,
   onSelect,
+  feedbackSource,
 }: RootBranchesTableProps) {
+  const [openFeedbackCnpj, setOpenFeedbackCnpj] = useState<string | null>(null);
   return (
     <div className="table-scroll">
       <table className="results-table root-branches-table">
@@ -44,7 +50,8 @@ export function RootBranchesTable({
         </thead>
         <tbody>
           {items.map((item) => (
-            <tr key={item.cnpj_full}>
+            <Fragment key={item.cnpj_full}>
+            <tr>
               <td>
                 <strong>{rootBranchRoleLabel(item.establishment_role)}</strong>
                 <span className="cell-secondary">
@@ -95,8 +102,11 @@ export function RootBranchesTable({
                 >
                   Ver detalhes
                 </button>
+                <button className="table-action" type="button" aria-expanded={openFeedbackCnpj === item.cnpj_full} aria-controls={feedbackPanelId(item.cnpj_full)} onClick={() => setOpenFeedbackCnpj((current) => current === item.cnpj_full ? null : item.cnpj_full)}>Feedback</button>
               </td>
             </tr>
+            {openFeedbackCnpj === item.cnpj_full && <tr className="feedback-row"><td colSpan={14}><FeedbackPanel cnpjFull={item.cnpj_full} companyName={rootBranchValue(item.razao_social !== null ? item.razao_social : item.nome_fantasia)} source={feedbackSource} /></td></tr>}
+            </Fragment>
           ))}
         </tbody>
       </table>

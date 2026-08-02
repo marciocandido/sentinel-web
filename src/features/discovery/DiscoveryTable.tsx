@@ -1,4 +1,7 @@
-import type { DiscoveryEstablishment } from "../../types/api";
+import { Fragment, useState } from "react";
+import type { DiscoveryEstablishment, FeedbackSource } from "../../types/api";
+import { FeedbackPanel } from "./FeedbackPanel";
+import { feedbackPanelId } from "./feedbackUtils";
 import { matchLabel } from "./discoveryUtils";
 
 function display(value: string | null): string {
@@ -13,9 +16,11 @@ function location(establishment: DiscoveryEstablishment): string {
 interface DiscoveryTableProps {
   items: DiscoveryEstablishment[];
   onSelectEstablishment: (establishment: DiscoveryEstablishment) => void;
+  feedbackSource: FeedbackSource;
 }
 
-export function DiscoveryTable({ items, onSelectEstablishment }: DiscoveryTableProps) {
+export function DiscoveryTable({ items, onSelectEstablishment, feedbackSource }: DiscoveryTableProps) {
+  const [openFeedbackCnpj, setOpenFeedbackCnpj] = useState<string | null>(null);
   return (
     <div className="table-scroll">
       <table className="results-table">
@@ -36,7 +41,8 @@ export function DiscoveryTable({ items, onSelectEstablishment }: DiscoveryTableP
         </thead>
         <tbody>
           {items.map((establishment) => (
-            <tr key={establishment.cnpj_full}>
+            <Fragment key={establishment.cnpj_full}>
+            <tr>
               <td>
                 <strong>{display(establishment.razao_social)}</strong>
                 <span className="cell-secondary">{display(establishment.nome_fantasia)}</span>
@@ -60,8 +66,29 @@ export function DiscoveryTable({ items, onSelectEstablishment }: DiscoveryTableP
                 >
                   Ver detalhes
                 </button>
+                <button
+                  className="table-action"
+                  type="button"
+                  aria-expanded={openFeedbackCnpj === establishment.cnpj_full}
+                  aria-controls={feedbackPanelId(establishment.cnpj_full)}
+                  onClick={() => setOpenFeedbackCnpj((current) => current === establishment.cnpj_full ? null : establishment.cnpj_full)}
+                >
+                  Feedback
+                </button>
               </td>
             </tr>
+            {openFeedbackCnpj === establishment.cnpj_full && (
+              <tr className="feedback-row">
+                <td colSpan={10}>
+                  <FeedbackPanel
+                    cnpjFull={establishment.cnpj_full}
+                    companyName={display(establishment.razao_social !== null ? establishment.razao_social : establishment.nome_fantasia)}
+                    source={feedbackSource}
+                  />
+                </td>
+              </tr>
+            )}
+            </Fragment>
           ))}
         </tbody>
       </table>

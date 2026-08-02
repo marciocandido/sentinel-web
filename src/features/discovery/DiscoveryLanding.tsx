@@ -199,7 +199,7 @@ export function DiscoveryLanding() {
               { signal: controller.signal },
             );
       if (requestId === requestIdRef.current && !controller.signal.aborted) {
-        setState({ kind: "success", page });
+        setState({ kind: "success", page, snapshot });
       }
     } catch (error) {
       if (requestId !== requestIdRef.current || controller.signal.aborted) return;

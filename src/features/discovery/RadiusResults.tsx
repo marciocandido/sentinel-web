@@ -91,7 +91,7 @@ export function RadiusResults({
               }}
             />
             <div className="radius-table-panel">
-              <RadiusTable items={state.page.items} onSelect={onSelect} />
+              <RadiusTable items={state.page.items} onSelect={onSelect} feedbackSource={{ kind: "RADIUS", reference: null }} />
             </div>
           </div>
           <DiscoveryPagination

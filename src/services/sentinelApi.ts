@@ -7,6 +7,8 @@ import {
   isNeighborSearchPage,
   isRootBranchesPage,
   isCommercialGroupPage,
+  isFeedbackCreateResponse,
+  isFeedbackHistoryPage,
   type CommercialGroupPage,
   type DiscoveryEstablishmentPage,
   type LivenessResponse,
@@ -15,8 +17,12 @@ import {
   type RadiusSearchPage,
   type NeighborSearchPage,
   type RootBranchesPage,
+  type FeedbackAction,
+  type FeedbackCreateResponse,
+  type FeedbackHistoryPage,
+  type FeedbackSource,
 } from "../types/api";
-import { getJson, SentinelApiError, type RequestOptions } from "./apiClient";
+import { getJson, postJson, SentinelApiError, type RequestOptions } from "./apiClient";
 
 export interface SegmentSearchParams {
   segmentId: string;
@@ -82,6 +88,19 @@ export interface RootBranchesSearchParams {
 
 export interface CommercialGroupSearchParams {
   groupId: string;
+  limit: number;
+  offset: number;
+}
+
+export interface FeedbackCreateParams {
+  cnpjFull: string;
+  action: FeedbackAction;
+  source?: FeedbackSource | null;
+  idempotencyKey: string;
+}
+
+export interface FeedbackHistoryParams {
+  cnpjFull: string;
   limit: number;
   offset: number;
 }
@@ -241,6 +260,38 @@ export async function searchCommercialGroup(
     options,
   );
   if (!isCommercialGroupPage(response)) {
+    throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  }
+  return response;
+}
+
+export async function createFeedbackEvent(
+  params: FeedbackCreateParams,
+  options?: RequestOptions,
+): Promise<FeedbackCreateResponse> {
+  const body: { action: FeedbackAction; source?: FeedbackSource | null } = { action: params.action };
+  if (params.source !== undefined) body.source = params.source;
+  const response = await postJson(
+    `/api/v1/feedback/establishments/${encodeURIComponent(params.cnpjFull)}/events`,
+    body,
+    { ...options, headers: { "Idempotency-Key": params.idempotencyKey }, acceptedStatuses: [200, 201] },
+  );
+  if (!isFeedbackCreateResponse(response)) {
+    throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  }
+  return response;
+}
+
+export async function listFeedbackEvents(
+  params: FeedbackHistoryParams,
+  options?: RequestOptions,
+): Promise<FeedbackHistoryPage> {
+  const query = paginationQuery(params.limit, params.offset);
+  const response = await getJson(
+    `/api/v1/feedback/establishments/${encodeURIComponent(params.cnpjFull)}/events?${query}`,
+    options,
+  );
+  if (!isFeedbackHistoryPage(response)) {
     throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
   }
   return response;

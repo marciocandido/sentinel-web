@@ -12,6 +12,8 @@ import {
   searchEstablishmentsByRadius,
   searchCommercialGroup,
   searchRootBranches,
+  createFeedbackEvent,
+  listFeedbackEvents,
 } from "./sentinelApi";
 
 const fetchMock = vi.fn();
@@ -199,5 +201,55 @@ describe("Sentinel Discovery API", () => {
     await expect(
       searchCommercialGroup({ groupId: "grupo-metal", limit: 50, offset: 0 }),
     ).rejects.toMatchObject({ code: "invalid_response" });
+  });
+});
+
+describe("Sentinel feedback API", () => {
+  const event = {
+    event_id: "9c3d2478-7db9-4b61-b9ea-2efdb88b14c7",
+    cnpj_full: "00ABC/234 0001-55",
+    action: "USEFUL",
+    actor_id: "local-operator",
+    source: { kind: "SEGMENT", reference: "metal-mecanica" },
+    occurred_at: "2026-08-01T18:00:00Z",
+  } as const;
+
+  it("posts only action and source with encoded CNPJ and idempotency header, accepting 201 and 200", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ event, idempotent_replay: false }, 201));
+    fetchMock.mockResolvedValueOnce(jsonResponse({ event, idempotent_replay: true }, 200));
+    await createFeedbackEvent({ cnpjFull: event.cnpj_full, action: "USEFUL", source: event.source, idempotencyKey: "feedback-uuid-1" });
+    await createFeedbackEvent({ cnpjFull: event.cnpj_full, action: "USEFUL", idempotencyKey: "feedback-uuid-2" });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/feedback/establishments/00ABC%2F234%200001-55/events");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: "POST",
+      headers: expect.objectContaining({ "Idempotency-Key": "feedback-uuid-1" }),
+      body: JSON.stringify({ action: "USEFUL", source: event.source }),
+    });
+    expect(fetchMock.mock.calls[1][1].body).toBe(JSON.stringify({ action: "USEFUL" }));
+  });
+
+  it("uses limit/offset and forwards the history AbortSignal", async () => {
+    const controller = new AbortController();
+    let resolveRequest: ((response: Response) => void) | undefined;
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveRequest = resolve; }));
+    const request = listFeedbackEvents({ cnpjFull: event.cnpj_full, limit: 20, offset: 40 }, { signal: controller.signal });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/feedback/establishments/00ABC%2F234%200001-55/events?limit=20&offset=40");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "GET", signal: expect.any(AbortSignal) });
+    controller.abort();
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(true);
+    resolveRequest?.(jsonResponse({
+      cnpj_full: event.cnpj_full,
+      actor_id: event.actor_id,
+      items: [event],
+      pagination: { limit: 20, offset: 40, returned: 1, has_more: false },
+    }));
+    await request;
+  });
+
+  it("keeps a 409 as the public typed error and rejects malformed success responses", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: { code: "idempotency_conflict", message: "private" } }, 409));
+    await expect(createFeedbackEvent({ cnpjFull: event.cnpj_full, action: "USEFUL", idempotencyKey: "feedback-uuid" })).rejects.toMatchObject({ code: "idempotency_conflict", status: 409 });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ event: { cnpj_full: event.cnpj_full }, idempotent_replay: false }, 201));
+    await expect(createFeedbackEvent({ cnpjFull: event.cnpj_full, action: "USEFUL", idempotencyKey: "feedback-uuid" })).rejects.toMatchObject({ code: "invalid_response" });
   });
 });
