@@ -19,6 +19,7 @@ export function FeedbackPanel({ cnpjFull, companyName, source }: FeedbackPanelPr
   const requestRef = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
   const submissionRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const loadHistory = useCallback(async (offset: number) => {
     controllerRef.current?.abort();
@@ -43,8 +44,10 @@ export function FeedbackPanel({ cnpjFull, companyName, source }: FeedbackPanelPr
   }, [cnpjFull]);
 
   useEffect(() => {
+    mountedRef.current = true;
     const startRequest = window.setTimeout(() => void loadHistory(0), 0);
     return () => {
+      mountedRef.current = false;
       window.clearTimeout(startRequest);
       requestRef.current += 1;
       controllerRef.current?.abort();
@@ -64,10 +67,12 @@ export function FeedbackPanel({ cnpjFull, companyName, source }: FeedbackPanelPr
         source,
         idempotencyKey: nextAttempt.idempotencyKey,
       });
+      if (!mountedRef.current) return;
       setAttempt(null);
       setSubmissionState("success");
       void loadHistory(0);
     } catch (error) {
+      if (!mountedRef.current) return;
       const code = error instanceof SentinelApiError ? error.code : "network_error";
       setSubmissionError(publicFeedbackError(code));
       setSubmissionState("error");

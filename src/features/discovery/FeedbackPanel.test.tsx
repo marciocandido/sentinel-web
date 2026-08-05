@@ -1,5 +1,5 @@
 import { createRef } from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FeedbackEvent, FeedbackSource } from "../../types/api";
 import { establishment } from "../../test/fixtures";
@@ -201,5 +201,52 @@ describe("FeedbackPanel in discovery tables", () => {
     expect(screen.getByRole("button", { name: "Descartar" })).toBeDisabled();
     resolvePost?.(response({ event, idempotent_replay: false }, 201));
     await screen.findByText("Feedback registrado com sucesso.");
+  });
+
+  it("does not refresh history after a pending POST completes on a closed panel", async () => {
+    let getCalls = 0;
+    let postCalls = 0;
+    let resolvePost: ((value: Response) => void) | undefined;
+    fetchMock.mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        postCalls += 1;
+        return new Promise<Response>((resolve) => { resolvePost = resolve; });
+      }
+      getCalls += 1;
+      return Promise.resolve(response(history(getCalls === 1 ? [] : [event])));
+    });
+    render(
+      <DiscoveryTable
+        items={[establishment({ cnpj_full: event.cnpj_full, razao_social: "PRIMEIRA" })]}
+        onSelectEstablishment={vi.fn()}
+        feedbackSource={source}
+      />,
+    );
+
+    const feedbackButton = screen.getByRole("button", { name: "Feedback" });
+    feedbackButton.focus();
+    fireEvent.click(feedbackButton);
+    await screen.findByText("Ainda não há feedback registrado para este estabelecimento.");
+    expect(getCalls).toBe(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Útil" }));
+    expect(postCalls).toBe(1);
+    expect(screen.getByRole("button", { name: "Descartar" })).toBeDisabled();
+
+    feedbackButton.focus();
+    fireEvent.click(feedbackButton);
+    expect(screen.queryByRole("region", { name: "Feedback comercial de PRIMEIRA" })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(feedbackButton);
+
+    await act(async () => {
+      resolvePost?.(response({ event, idempotent_replay: false }, 201));
+    });
+    expect(postCalls).toBe(1);
+    expect(getCalls).toBe(1);
+    expect(screen.queryByRole("region", { name: "Feedback comercial de PRIMEIRA" })).not.toBeInTheDocument();
+
+    fireEvent.click(feedbackButton);
+    await waitFor(() => expect(getCalls).toBe(2));
+    expect(await screen.findByRole("region", { name: "Feedback comercial de PRIMEIRA" })).toBeInTheDocument();
   });
 });
