@@ -8,16 +8,15 @@ export function feedbackReferenceOrNull(
 ): string | null {
   if (typeof value !== "string") return null;
 
-  const reference = value.trim();
   if (
-    reference.length === 0 ||
-    reference.length > 128 ||
-    !FEEDBACK_REFERENCE_PATTERN.test(reference)
+    value.length === 0 ||
+    value.length > 128 ||
+    !FEEDBACK_REFERENCE_PATTERN.test(value)
   ) {
     return null;
   }
 
-  return reference;
+  return value;
 }
 
 export function publicFeedbackError(code: string): string {

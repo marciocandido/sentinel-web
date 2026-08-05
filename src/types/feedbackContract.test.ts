@@ -16,10 +16,10 @@ const event = {
 };
 
 describe("feedback API guards", () => {
-  it("normalizes only compatible source references", () => {
+  it("preserves only compatible source references without normalizing them", () => {
     expect(feedbackReferenceOrNull("grupo-metal")).toBe("grupo-metal");
     expect(feedbackReferenceOrNull("grupo/metal:sp")).toBe("grupo/metal:sp");
-    expect(feedbackReferenceOrNull(" grupo-metal ")).toBe("grupo-metal");
+    expect(feedbackReferenceOrNull(" grupo-metal ")).toBeNull();
     expect(feedbackReferenceOrNull("Grupo Metal")).toBeNull();
     expect(feedbackReferenceOrNull("grupo@metal")).toBeNull();
     expect(feedbackReferenceOrNull("")).toBeNull();
