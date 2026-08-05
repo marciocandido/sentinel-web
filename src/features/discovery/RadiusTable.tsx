@@ -1,4 +1,7 @@
-import type { RadiusSearchEstablishment } from "../../types/api";
+import { Fragment, useState } from "react";
+import type { FeedbackSource, RadiusSearchEstablishment } from "../../types/api";
+import { FeedbackPanel } from "./FeedbackPanel";
+import { feedbackPanelId } from "./feedbackUtils";
 import { matchLabel } from "./discoveryUtils";
 
 const show = (value: string | null) =>
@@ -7,9 +10,11 @@ const show = (value: string | null) =>
 interface RadiusTableProps {
   items: RadiusSearchEstablishment[];
   onSelect: (item: RadiusSearchEstablishment) => void;
+  feedbackSource: FeedbackSource;
 }
 
-export function RadiusTable({ items, onSelect }: RadiusTableProps) {
+export function RadiusTable({ items, onSelect, feedbackSource }: RadiusTableProps) {
+  const [openFeedbackCnpj, setOpenFeedbackCnpj] = useState<string | null>(null);
   return (
     <div className="table-scroll">
       <table className="results-table radius-table">
@@ -31,7 +36,8 @@ export function RadiusTable({ items, onSelect }: RadiusTableProps) {
         </thead>
         <tbody>
           {items.map((item) => (
-            <tr key={item.cnpj_full}>
+            <Fragment key={item.cnpj_full}>
+            <tr>
               <td>
                 <strong>{show(item.razao_social)}</strong>
                 <span className="cell-secondary">
@@ -66,8 +72,11 @@ export function RadiusTable({ items, onSelect }: RadiusTableProps) {
                 >
                   Ver detalhes
                 </button>
+                <button className="table-action" type="button" aria-expanded={openFeedbackCnpj === item.cnpj_full} aria-controls={feedbackPanelId(item.cnpj_full)} onClick={() => setOpenFeedbackCnpj((current) => current === item.cnpj_full ? null : item.cnpj_full)}>Feedback</button>
               </td>
             </tr>
+            {openFeedbackCnpj === item.cnpj_full && <tr className="feedback-row"><td colSpan={11}><FeedbackPanel cnpjFull={item.cnpj_full} companyName={show(item.razao_social !== null ? item.razao_social : item.nome_fantasia)} source={feedbackSource} /></td></tr>}
+            </Fragment>
           ))}
         </tbody>
       </table>

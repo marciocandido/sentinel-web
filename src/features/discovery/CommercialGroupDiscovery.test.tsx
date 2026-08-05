@@ -273,6 +273,9 @@ describe("modo grupo comercial", () => {
     expect(
       within(rows[1]).queryByRole("button", { name: "Ver detalhes" }),
     ).not.toBeInTheDocument();
+    expect(
+      within(rows[1]).queryByRole("button", { name: "Feedback" }),
+    ).not.toBeInTheDocument();
     const detailButton = within(rows[2]).getByRole("button", {
       name: "Ver detalhes",
     });

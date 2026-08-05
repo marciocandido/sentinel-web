@@ -124,6 +124,22 @@ select:disabled { cursor: not-allowed; background: #eef2f6; color: #64748b; }
 .secondary-button:disabled { cursor: not-allowed; opacity: .55; }
 .table-action { min-height: 34px; padding: 0 10px; border: 1px solid #9eb2cf; border-radius: 6px; background: white; color: var(--brand-dark); font-weight: 700; white-space: nowrap; }
 .table-action:hover { border-color: var(--brand); background: var(--brand-soft); cursor: pointer; }
+.table-action + .table-action { margin-left: 6px; }
+.feedback-row > td { padding: 0 !important; background: #fbfdff; }
+.feedback-panel { padding: 16px; border-top: 2px solid var(--brand-soft); }
+.feedback-panel h3, .feedback-panel h4 { margin: 0 0 8px; font-size: .92rem; }
+.feedback-panel > p { margin: 5px 0; line-height: 1.45; }
+.feedback-disclaimer, .feedback-sale-note, .feedback-history .muted { color: var(--text-muted); font-size: .8rem; }
+.feedback-actions { margin: 14px 0; padding: 10px 0 0; border: 0; border-top: 1px solid var(--border); }
+.feedback-actions legend { padding: 0; font-weight: 700; font-size: .82rem; }
+.feedback-actions > div { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.feedback-actions .table-action { margin: 0; }
+.feedback-sale-note { margin: 9px 0 0; }
+.feedback-result { min-height: 1.3rem; color: #15623a; font-size: .82rem; }
+.feedback-result p { margin: 0; }
+.feedback-history { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.feedback-history ul { margin: 8px 0; padding-left: 19px; display: grid; gap: 7px; font-size: .8rem; line-height: 1.4; }
+.feedback-history-pagination { display: flex; gap: 7px; }
 .details-layer { position: fixed; inset: 0; z-index: 100; display: flex; justify-content: flex-end; }
 .details-overlay { position: absolute; inset: 0; background: rgb(15 23 42 / 58%); backdrop-filter: blur(1px); }
 .details-drawer { position: relative; width: min(460px, calc(100vw - 24px)); height: 100dvh; display: flex; flex-direction: column; background: var(--surface); box-shadow: -12px 0 36px rgb(15 23 42 / 24%); color: var(--text-primary); }

@@ -1,7 +1,11 @@
+import { Fragment, useState } from "react";
 import type {
   CommercialGroupItem,
   CommercialGroupKnownEstablishment,
+  FeedbackSource,
 } from "../../types/api";
+import { FeedbackPanel } from "./FeedbackPanel";
+import { feedbackPanelId } from "./feedbackUtils";
 import {
   commercialGroupRoleLabel,
   commercialGroupValue,
@@ -10,6 +14,7 @@ import {
 interface CommercialGroupTableProps {
   items: CommercialGroupItem[];
   onSelect: (item: CommercialGroupKnownEstablishment) => void;
+  feedbackSource: FeedbackSource;
 }
 
 function location(item: CommercialGroupKnownEstablishment): string {
@@ -20,7 +25,9 @@ function location(item: CommercialGroupKnownEstablishment): string {
 export function CommercialGroupTable({
   items,
   onSelect,
+  feedbackSource,
 }: CommercialGroupTableProps) {
+  const [openFeedbackCnpj, setOpenFeedbackCnpj] = useState<string | null>(null);
   return (
     <div className="table-scroll">
       <table className="results-table commercial-group-table">
@@ -47,12 +54,8 @@ export function CommercialGroupTable({
         </thead>
         <tbody>
           {items.map((item, index) => (
+            <Fragment key={[item.group_id, item.cnpj_root, item.establishment_known ? item.cnpj_full : index].join("-")}>
             <tr
-              key={[
-                item.group_id,
-                item.cnpj_root,
-                item.establishment_known ? item.cnpj_full : index,
-              ].join("-")}
             >
               <td className="cell-code">{item.cnpj_root}</td>
               <td>
@@ -120,6 +123,7 @@ export function CommercialGroupTable({
               </td>
               <td>
                 {item.establishment_known ? (
+                  <>
                   <button
                     className="table-action"
                     type="button"
@@ -127,11 +131,15 @@ export function CommercialGroupTable({
                   >
                     Ver detalhes
                   </button>
+                  <button className="table-action" type="button" aria-expanded={openFeedbackCnpj === item.cnpj_full} aria-controls={feedbackPanelId(item.cnpj_full)} onClick={() => setOpenFeedbackCnpj((current) => current === item.cnpj_full ? null : item.cnpj_full)}>Feedback</button>
+                  </>
                 ) : (
                   "—"
                 )}
               </td>
             </tr>
+            {item.establishment_known && openFeedbackCnpj === item.cnpj_full && <tr className="feedback-row"><td colSpan={14}><FeedbackPanel cnpjFull={item.cnpj_full} companyName={commercialGroupValue(item.razao_social !== null ? item.razao_social : item.nome_fantasia)} source={feedbackSource} /></td></tr>}
+            </Fragment>
           ))}
         </tbody>
       </table>

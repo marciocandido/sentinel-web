@@ -125,6 +125,17 @@ scroll horizontal em telas estreitas. CNPJ, CNAE, TOM, IBGE, porte e capital
 permanecem texto. Valores ausentes aparecem como `—`, e o status comercial
 `UNKNOWN`/`none` é apresentado explicitamente como desconhecido e provisório.
 
+### Feedback comercial
+
+As seis tabelas principais de Discovery oferecem um painel expansível de
+**Feedback** por estabelecimento conhecido. O painel registra uma das sete
+ações (Útil, Descartar, Já conheço, Contato ruim, Virou visita, Virou orçamento
+e Virou venda informado) e consulta o histórico append-only do CNPJ. Não há
+notas, edição ou exclusão; o ator retornado é provisório e `Virou venda
+(informado)` não confirma venda ou pedido no ERP. Registrar `Descartar` não
+remove resultados nem muda seu status comercial. A anti-repetição continua
+futura.
+
 ### Paginação
 
 A busca começa com 50 registros por página e permite selecionar 25, 50 ou

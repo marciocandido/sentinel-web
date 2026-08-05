@@ -7,6 +7,7 @@ import {
   commercialGroupValue,
   publicCommercialGroupError,
 } from "./commercialGroupUtils";
+import { feedbackReferenceOrNull } from "./feedbackUtils";
 
 interface CommercialGroupResultsProps {
   state: CommercialGroupViewState;
@@ -100,6 +101,7 @@ export function CommercialGroupResults({
             <CommercialGroupTable
               items={state.page.items}
               onSelect={onSelect}
+              feedbackSource={{ kind: "COMMERCIAL_GROUP", reference: feedbackReferenceOrNull(state.page.group.group_id) }}
             />
           )}
           <DiscoveryPagination
