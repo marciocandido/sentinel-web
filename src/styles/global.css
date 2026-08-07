@@ -32,6 +32,22 @@ button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-v
 .nav-item:not(:disabled):hover { background: #19365f; cursor: pointer; }
 .nav-item:disabled { color: #91a2bb; cursor: not-allowed; }
 .future-label { margin-left: auto; font-size: .75rem; color: #9bb5d9; }
+.runtime-health { margin-top: auto; padding-top: 18px; font-size: .78rem; }
+.runtime-health__summary { display: flex; align-items: center; gap: 6px; min-height: 34px; }
+.runtime-health__label { flex: 1; font-weight: 700; }
+.runtime-health__label::before { content: "●"; margin-right: 6px; color: #cbd5e1; }
+.runtime-health--success .runtime-health__label::before { color: #4ade80; }
+.runtime-health--attention .runtime-health__label::before { color: #fbbf24; }
+.runtime-health--danger .runtime-health__label::before { color: #f87171; }
+.runtime-health__toggle, .runtime-health__retry, .mobile-menu-button { border: 0; background: transparent; color: inherit; cursor: pointer; }
+.runtime-health__toggle { width: 28px; height: 28px; display: grid; place-items: center; }
+.runtime-health__details { padding: 8px; border: 1px solid rgb(217 228 244 / 25%); border-radius: 7px; background: rgb(15 30 55 / 35%); }
+.runtime-health__details p { display: grid; grid-template-columns: 18px 1fr auto; gap: 6px; align-items: center; margin: 7px 0; }
+.runtime-health__details strong { font-size: .72rem; text-align: right; }
+.runtime-health__retry { width: 100%; min-height: 32px; margin-top: 8px; border: 1px solid rgb(217 228 244 / 35%); border-radius: 6px; font-weight: 700; }
+.runtime-health__retry:disabled { opacity: .6; cursor: wait; }
+.mobile-menu-button, .mobile-menu-overlay { display: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 .app-content { flex: 1; min-width: 0; }
 .app-header { min-height: 64px; padding: 11px clamp(20px, 3vw, 40px); background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 14px; }
@@ -208,10 +224,13 @@ select:disabled { cursor: not-allowed; background: #eef2f6; color: #64748b; }
 .commercial-group-table { min-width: 1900px; }
 
 @media (max-width: 720px) {
-  .sidebar { width: 56px; flex-basis: 56px; padding: 14px 6px; }
+  .sidebar { position: fixed; z-index: 110; inset: 0 auto 0 0; width: min(300px, calc(100vw - 48px)); transform: translateX(-105%); transition: transform .18s ease; padding: 18px 12px; box-shadow: 8px 0 24px rgb(15 23 42 / 30%); }
+  .sidebar--mobile-open { transform: translateX(0); }
   .brand-mark { margin: 0 auto 18px; }
-  .nav-item { justify-content: center; padding: 0; }
-  .nav-item > span:not(.future-label), .future-label { display: none; }
+  .nav-item { justify-content: flex-start; padding: 0 9px; }
+  .nav-item > span:not(.future-label), .future-label { display: inline; }
+  .mobile-menu-overlay { display: block; position: fixed; z-index: 105; inset: 0; border: 0; background: rgb(15 23 42 / 58%); }
+  .mobile-menu-button { display: grid; place-items: center; width: 38px; height: 38px; margin-right: 2px; color: var(--brand-dark); }
   .app-header { padding-inline: 16px; }
   main { padding-inline: 16px; }
   .search-actions { align-items: flex-start; flex-direction: column; }
@@ -236,4 +255,11 @@ select:disabled { cursor: not-allowed; background: #eef2f6; color: #64748b; }
 @media (max-width: 1180px) {
   .radius-results-layout { grid-template-columns: 1fr; }
   .radius-map { height: 320px; }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root { color: #e5edf8; background: #101827; --canvas: #101827; --surface: #172235; --surface-muted: #1e2b40; --border: #34445f; --text-primary: #e5edf8; --text-muted: #aab9ce; --brand-soft: #193a68; --brand-dark: #a9ccff; --focus: #82b5ff; }
+  .app-header, .search-card, .results-section, .details-header, .details-footer, .details-drawer { background: var(--surface); }
+  input, select, .mode-switcher span, .secondary-button, .table-action, .details-close { background: #1e2b40; color: var(--text-primary); border-color: var(--border); }
+  .field-error, .results-error { background: #3a2023; color: #ffd8d5; }
 }

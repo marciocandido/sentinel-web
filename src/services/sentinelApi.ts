@@ -9,6 +9,9 @@ import {
   isCommercialGroupPage,
   isFeedbackCreateResponse,
   isFeedbackHistoryPage,
+  isRuntimeStatusResponse,
+  isBootstrapPreflightResponse,
+  isBootstrapJobResponse,
   type CommercialGroupPage,
   type DiscoveryEstablishmentPage,
   type LivenessResponse,
@@ -21,6 +24,9 @@ import {
   type FeedbackCreateResponse,
   type FeedbackHistoryPage,
   type FeedbackSource,
+  type RuntimeStatusResponse,
+  type BootstrapPreflightResponse,
+  type BootstrapJobResponse,
 } from "../types/api";
 import { getJson, postJson, SentinelApiError, type RequestOptions } from "./apiClient";
 
@@ -129,6 +135,27 @@ export async function getLiveness(options?: RequestOptions): Promise<LivenessRes
   if (!isLivenessResponse(response)) {
     throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
   }
+  return response;
+}
+
+const RUNTIME_TIMEOUT_MS = 4_000;
+
+export async function getRuntimeStatus(options?: RequestOptions): Promise<RuntimeStatusResponse> {
+  const response = await getJson("/api/v1/runtime/status", { ...options, timeoutMs: RUNTIME_TIMEOUT_MS });
+  if (!isRuntimeStatusResponse(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  return response;
+}
+
+export async function getBootstrapPreflight(competence?: string, options?: RequestOptions): Promise<BootstrapPreflightResponse> {
+  const query = competence?.trim() ? `?competence=${encodeURIComponent(competence.trim())}` : "";
+  const response = await getJson(`/api/v1/base/bootstrap/preflight${query}`, { ...options, timeoutMs: RUNTIME_TIMEOUT_MS });
+  if (!isBootstrapPreflightResponse(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  return response;
+}
+
+export async function startBootstrap(competence: string, options?: RequestOptions): Promise<BootstrapJobResponse> {
+  const response = await postJson("/api/v1/base/bootstrap", { competence }, { ...options, timeoutMs: RUNTIME_TIMEOUT_MS, acceptedStatuses: [200, 202] });
+  if (!isBootstrapJobResponse(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
   return response;
 }
 

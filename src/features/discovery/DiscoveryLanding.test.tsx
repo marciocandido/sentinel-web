@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../app/App";
 import { discoveryPage, establishment } from "../../test/fixtures";
 
-const liveness = { status: "ok", service: "sentinel-api" } as const;
+const runtime = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: "2026-07", available_competence: "2026-07", preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
 const catalog = {
   items: [
     { id: "metal-mecanica", name: "Metal-mecânica" },
@@ -26,7 +26,7 @@ function isSearch(input: RequestInfo | URL) {
 
 function defaultApi(input: RequestInfo | URL): Promise<Response> {
   const url = input.toString();
-  if (url.includes("/health/live")) return Promise.resolve(jsonResponse(liveness));
+  if (url.includes("/api/v1/runtime/status")) return Promise.resolve(jsonResponse(runtime));
   if (url.includes("/api/v1/catalog/segments")) return Promise.resolve(jsonResponse(catalog));
   const parsed = new URL(url, "http://sentinel.local");
   const limit = Number(parsed.searchParams.get("limit"));
@@ -355,7 +355,7 @@ describe("Discovery search", () => {
     expect(await screen.findByText(/Resposta inválida da API/)).toBeInTheDocument();
   });
 
-  it("never calls an endpoint outside the allowed liveness, catalog, segment and region routes", async () => {
+  it("never calls an endpoint outside the allowed runtime, catalog, segment and region routes", async () => {
     render(<App />);
     await submitSegment();
     fireEvent.click(screen.getByRole("radio", { name: "Por região" }));
@@ -364,7 +364,7 @@ describe("Discovery search", () => {
     await waitFor(() => expect(searchUrls()).toHaveLength(2));
     const urls = fetchMock.mock.calls.map(([input]) => input.toString());
     expect(urls.every((url) =>
-      url === "/health/live" ||
+      url === "/api/v1/runtime/status" ||
       url === "/api/v1/catalog/segments" ||
       url.startsWith("/api/v1/discovery/segments/") ||
       url.startsWith("/api/v1/discovery/regions/establishments"),

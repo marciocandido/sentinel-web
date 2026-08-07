@@ -61,6 +61,11 @@ banco, a liveness ainda pode ficar online e o catálogo pode retornar 503 com
 `database_unavailable`; essa é uma condição tratada pela interface, não uma
 indicação de que o catálogo esteja configurado.
 
+A sidebar consulta `GET /api/v1/runtime/status` como fonte única de saúde da
+API, banco, worker e base. O monitor usa timeout de 4 s, reduz polling quando
+o runtime está estável e pausa em abas ocultas; a configuração e o bootstrap
+guiados da base permanecem em evolução na issue #27.
+
 ## Qualidade
 
 ```bash

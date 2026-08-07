@@ -3,6 +3,45 @@ export interface LivenessResponse {
   service: "sentinel-api";
 }
 
+export type RuntimeSummary = "PENDING" | "AVAILABLE" | "INITIALIZING" | "RESTRICTED" | "UNAVAILABLE" | "STALE";
+export type RuntimeComponentState = "PENDING" | "AVAILABLE" | "INITIALIZING" | "RESTRICTED" | "UNAVAILABLE" | "STALE" | "IDLE" | "RUNNING";
+export type RuntimeBaseState = "EMPTY" | "AWAITING_OPERATOR" | "INITIALIZING" | "DOWNLOADING" | "PROCESSING" | "LOADING" | "VALIDATING" | "READY" | "FAILED" | "UNAVAILABLE";
+
+export interface RuntimeComponent {
+  state: RuntimeComponentState;
+  schema_current: boolean | null;
+  last_seen_at: string | null;
+}
+
+export interface RuntimeBase {
+  state: RuntimeBaseState | null;
+  active_competence: string | null;
+  available_competence: string | null;
+  preparing_competence: string | null;
+  action_required: string | null;
+  current_stage: string | null;
+  progress: Record<string, unknown> | null;
+  last_failure_code: string | null;
+  last_failure_message: string | null;
+}
+
+export interface RuntimeStatusResponse {
+  observed_at: string;
+  summary: RuntimeSummary;
+  components: { api: RuntimeComponent; database: RuntimeComponent; worker: RuntimeComponent };
+  base: RuntimeBase;
+}
+
+export interface BootstrapPreflightResponse {
+  source: string; competence: string; file_count: number; shard_count: number;
+  download_bytes: number | null; reusable_bytes: number; remaining_download_bytes: number | null;
+  free_bytes: number | null; workspace_estimate_bytes: number | null;
+  database_ready: boolean; schema_current: boolean; worker_available: boolean; lock_available: boolean;
+  blockers: string[]; can_start: boolean; observed_at: string;
+}
+
+export interface BootstrapJobResponse { job_id: string; competence: string; status: string; replayed: boolean; }
+
 export interface SegmentCatalogItem {
   id: string;
   name: string;
@@ -358,6 +397,41 @@ function isIsoTimestampWithTimezone(value: unknown): value is string {
   return typeof value === "string" &&
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i.test(value) &&
     Number.isFinite(Date.parse(value));
+}
+
+const RUNTIME_SUMMARIES: readonly RuntimeSummary[] = ["PENDING", "AVAILABLE", "INITIALIZING", "RESTRICTED", "UNAVAILABLE", "STALE"];
+const RUNTIME_COMPONENT_STATES: readonly RuntimeComponentState[] = ["PENDING", "AVAILABLE", "INITIALIZING", "RESTRICTED", "UNAVAILABLE", "STALE", "IDLE", "RUNNING"];
+const RUNTIME_BASE_STATES: readonly RuntimeBaseState[] = ["EMPTY", "AWAITING_OPERATOR", "INITIALIZING", "DOWNLOADING", "PROCESSING", "LOADING", "VALIDATING", "READY", "FAILED", "UNAVAILABLE"];
+
+function isNullableBoolean(value: unknown): value is boolean | null { return value === null || typeof value === "boolean"; }
+function isRuntimeComponent(value: unknown): value is RuntimeComponent {
+  return isRecord(value) && typeof value.state === "string" && RUNTIME_COMPONENT_STATES.includes(value.state as RuntimeComponentState) &&
+    isNullableBoolean(value.schema_current) && isNullableString(value.last_seen_at) &&
+    (value.last_seen_at === null || isIsoTimestampWithTimezone(value.last_seen_at));
+}
+function isRuntimeBase(value: unknown): value is RuntimeBase {
+  return isRecord(value) && (value.state === null || (typeof value.state === "string" && RUNTIME_BASE_STATES.includes(value.state as RuntimeBaseState))) &&
+    isNullableString(value.active_competence) && isNullableString(value.available_competence) && isNullableString(value.preparing_competence) &&
+    isNullableString(value.action_required) && isNullableString(value.current_stage) && isNullableString(value.last_failure_code) &&
+    isNullableString(value.last_failure_message) && (value.progress === null || (isRecord(value.progress) && !Array.isArray(value.progress)));
+}
+export function isRuntimeStatusResponse(value: unknown): value is RuntimeStatusResponse {
+  return isRecord(value) && isIsoTimestampWithTimezone(value.observed_at) && typeof value.summary === "string" &&
+    RUNTIME_SUMMARIES.includes(value.summary as RuntimeSummary) && isRecord(value.components) &&
+    isRuntimeComponent(value.components.api) && isRuntimeComponent(value.components.database) &&
+    isRuntimeComponent(value.components.worker) && isRuntimeBase(value.base);
+}
+export function isBootstrapPreflightResponse(value: unknown): value is BootstrapPreflightResponse {
+  return isRecord(value) && typeof value.source === "string" && typeof value.competence === "string" && typeof value.file_count === "number" &&
+    typeof value.shard_count === "number" && (value.download_bytes === null || typeof value.download_bytes === "number") &&
+    typeof value.reusable_bytes === "number" && (value.remaining_download_bytes === null || typeof value.remaining_download_bytes === "number") &&
+    (value.free_bytes === null || typeof value.free_bytes === "number") && (value.workspace_estimate_bytes === null || typeof value.workspace_estimate_bytes === "number") &&
+    typeof value.database_ready === "boolean" && typeof value.schema_current === "boolean" && typeof value.worker_available === "boolean" &&
+    typeof value.lock_available === "boolean" && Array.isArray(value.blockers) && value.blockers.every((item) => typeof item === "string") &&
+    typeof value.can_start === "boolean" && isIsoTimestampWithTimezone(value.observed_at);
+}
+export function isBootstrapJobResponse(value: unknown): value is BootstrapJobResponse {
+  return isRecord(value) && typeof value.job_id === "string" && typeof value.competence === "string" && typeof value.status === "string" && typeof value.replayed === "boolean";
 }
 
 export function isFeedbackAction(value: unknown): value is FeedbackAction {
