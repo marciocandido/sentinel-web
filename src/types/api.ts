@@ -428,7 +428,7 @@ export function isBootstrapPreflightResponse(value: unknown): value is Bootstrap
     metric(value.free_bytes, true) && metric(value.workspace_estimate_bytes, true) &&
     typeof value.database_ready === "boolean" && typeof value.schema_current === "boolean" && typeof value.worker_available === "boolean" &&
     typeof value.lock_available === "boolean" && Array.isArray(value.blockers) && value.blockers.every((item) => typeof item === "string") &&
-    typeof value.can_start === "boolean" && isIsoTimestampWithTimezone(value.observed_at);
+    typeof value.can_start === "boolean" && (!value.can_start || /^\d{4}-(0[1-9]|1[0-2])$/.test(value.competence)) && isIsoTimestampWithTimezone(value.observed_at);
 }
 export function isBootstrapJobResponse(value: unknown): value is BootstrapJobResponse {
   return isRecord(value) && typeof value.job_id === "string" && typeof value.competence === "string" && typeof value.status === "string" && typeof value.replayed === "boolean";

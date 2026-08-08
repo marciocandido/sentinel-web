@@ -11,7 +11,7 @@ const progressStates = new Set(["INITIALIZING", "DOWNLOADING", "PROCESSING", "LO
 
 export function BaseLifecycleGate({ runtime }: { runtime: RuntimeLifecycleView }) {
   const state = runtime.runtime?.base.state;
-  const setup = useBootstrapSetup(state === "AWAITING_OPERATOR" || state === "FAILED", runtime.refreshNow);
+  const setup = useBootstrapSetup(state === "AWAITING_OPERATOR" || state === "FAILED" ? state : null, runtime.confirmationVersion, runtime.refreshNow);
   const [confirm, setConfirm] = useState(false);
   const triggerRef = useRef<HTMLElement | null>(null);
   const previous = useRef<string | null>(null);
@@ -37,7 +37,7 @@ export function BaseLifecycleGate({ runtime }: { runtime: RuntimeLifecycleView }
   const prepare = async () => {
     if (!setup.preflight) return;
     const result = await setup.start(setup.preflight.competence);
-    closeConfirm(result !== "accepted");
+    if (result !== "in_progress") closeConfirm(result !== "accepted");
   };
 
   if (!runtime.runtime) return <section className="runtime-panel" role={runtime.transportState === "pending" ? "status" : undefined}><h1>{runtime.transportState === "pending" ? "Verificando disponibilidade da base" : "Não foi possível confirmar o estado da base"}</h1>{runtime.transportState !== "pending" && <button onClick={runtime.refreshNow}>Verificar novamente</button>}</section>;

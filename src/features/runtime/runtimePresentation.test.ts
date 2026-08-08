@@ -3,7 +3,7 @@ import { presentRuntime } from "./runtimePresentation";
 import type { RuntimeLifecycleView } from "./runtimeTypes";
 
 const healthy = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: null, available_competence: null, preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
-function view(overrides: Partial<RuntimeLifecycleView> = {}): RuntimeLifecycleView { return { runtime: healthy, transportState: "fresh", lastConfirmedAt: Date.now(), checking: false, lastErrorCode: null, refreshNow: () => undefined, ...overrides }; }
+function view(overrides: Partial<RuntimeLifecycleView> = {}): RuntimeLifecycleView { return { runtime: healthy, transportState: "fresh", lastConfirmedAt: Date.now(), confirmationVersion: 0, checking: false, lastErrorCode: null, refreshNow: () => undefined, ...overrides }; }
 
 describe("runtime presentation", () => {
   it("covers the seven public summaries without exposing raw runtime fields", () => {

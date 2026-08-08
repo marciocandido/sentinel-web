@@ -8,7 +8,7 @@ export interface BootstrapSetupView {
   accepted: boolean;
   uncertain: boolean;
   reload: () => Promise<boolean>;
-  verifyUncertain: () => Promise<void>;
+  verifyUncertain: () => void;
 }
 
 export function PreflightDetails({ preflight }: { preflight: BootstrapPreflightResponse }) {

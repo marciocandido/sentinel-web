@@ -6,6 +6,7 @@ export interface RuntimeLifecycleView {
   runtime: RuntimeStatusResponse | null;
   transportState: RuntimeTransportState;
   lastConfirmedAt: number | null;
+  confirmationVersion: number;
   checking: boolean;
   lastErrorCode: string | null;
   refreshNow: () => void;

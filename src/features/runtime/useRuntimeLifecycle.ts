@@ -19,6 +19,7 @@ export function useRuntimeLifecycle(): RuntimeLifecycleView {
   const [runtime, setRuntime] = useState<RuntimeStatusResponse | null>(null);
   const [transportState, setTransportState] = useState<RuntimeTransportState>("pending");
   const [lastConfirmedAt, setLastConfirmedAt] = useState<number | null>(null);
+  const [confirmationVersion, setConfirmationVersion] = useState(0);
   const [checking, setChecking] = useState(false);
   const [lastErrorCode, setLastErrorCode] = useState<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
@@ -55,6 +56,7 @@ export function useRuntimeLifecycle(): RuntimeLifecycleView {
       lastConfirmedRef.current = now;
       setRuntime(next);
       setLastConfirmedAt(now);
+      setConfirmationVersion((version) => version + 1);
       setLastErrorCode(null);
       setTransportState("fresh");
       healthyRoundsRef.current = isStableHealthy(next) ? healthyRoundsRef.current + 1 : 0;
@@ -121,5 +123,5 @@ export function useRuntimeLifecycle(): RuntimeLifecycleView {
     };
   }, [clearTimer, refreshNow]);
 
-  return { runtime, transportState, lastConfirmedAt, checking, lastErrorCode, refreshNow };
+  return { runtime, transportState, lastConfirmedAt, confirmationVersion, checking, lastErrorCode, refreshNow };
 }
