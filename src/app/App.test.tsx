@@ -38,15 +38,16 @@ describe("Sentinel Web foundation", () => {
     expect(screen.getByRole("button", { name: /Empresas/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Listas/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Administração/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Buscar" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "Buscar" })).toBeEnabled();
     await waitFor(() => expect(screen.getByText("Sistema disponível")).toBeInTheDocument());
   });
 
-  it("starts by checking the API", () => {
+  it("does not mount Discovery before the first runtime confirmation", () => {
     fetchMock.mockImplementation(() => new Promise<Response>(() => undefined));
     render(<App />);
     expect(screen.getByText("Verificação pendente")).toBeInTheDocument();
-    expect(screen.getByText("Carregando segmentos...")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Buscar" })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("shows offline for HTTP and network failures without exposing a stack trace", async () => {
@@ -56,7 +57,7 @@ describe("Sentinel Web foundation", () => {
     });
     render(<App />);
     await waitFor(() => expect(screen.getByText("Sistema indisponível")).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByText(/Não foi possível carregar os segmentos/)).toBeInTheDocument());
+    expect(screen.getByText("Não foi possível confirmar o estado da base")).toBeInTheDocument();
     expect(screen.queryByText(/network failed/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/stack trace/i)).not.toBeInTheDocument();
   });

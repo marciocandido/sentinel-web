@@ -22,6 +22,7 @@ vi.mock("./RadiusMap", () => ({
 }));
 
 const fetchMock = vi.fn();
+const runtime = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: "2026-07", available_competence: "2026-07", preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
 const catalog = { items: [{ id: "metal", name: "Metal" }] };
 
 function response(body: unknown, status = 200): Response {
@@ -34,6 +35,7 @@ function response(body: unknown, status = 200): Response {
 
 function defaultApi(input: RequestInfo | URL): Promise<Response> {
   const url = input.toString();
+  if (url.includes("/api/v1/runtime/status")) return Promise.resolve(response(runtime));
   if (url.includes("health/live")) {
     return Promise.resolve(response({ status: "ok", service: "sentinel-api" }));
   }

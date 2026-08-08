@@ -222,6 +222,17 @@ select:disabled { cursor: not-allowed; background: #eef2f6; color: #64748b; }
 .coverage-note { margin-bottom: 14px; padding: 11px 13px; border-left: 3px solid #b7791f; border-radius: 4px; background: #fffbeb; color: #664000; line-height: 1.45; }
 .root-branches-table { min-width: 1950px; }
 .commercial-group-table { min-width: 1900px; }
+.runtime-panel { max-width: 760px; margin: 12px auto; padding: 24px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-primary); }
+.runtime-panel h1 { margin-top: 0; font-size: 1.3rem; }
+.runtime-panel dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; }
+.runtime-panel dt { color: var(--text-muted); font-size: .78rem; font-weight: 700; }
+.runtime-panel dd { margin: 3px 0 0; overflow-wrap: anywhere; }
+.runtime-panel ol, .runtime-panel ul { display: grid; gap: 8px; padding-left: 22px; }
+.bootstrap-dialog-layer { position: fixed; z-index: 130; inset: 0; display: grid; place-items: center; padding: 18px; background: rgb(15 23 42 / 58%); }
+.bootstrap-dialog-layer > button { position: absolute; inset: 0; width: 100%; border: 0; background: transparent; }
+.bootstrap-dialog-layer > section { position: relative; z-index: 1; width: min(520px, 100%); padding: 22px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-primary); box-shadow: 0 18px 50px rgb(15 23 42 / 40%); }
+.bootstrap-dialog-layer h2 { margin-top: 0; }
+.bootstrap-dialog-layer section > button + button { margin-left: 8px; }
 
 @media (max-width: 720px) {
   .sidebar { position: fixed; z-index: 110; inset: 0 auto 0 0; width: min(300px, calc(100vw - 48px)); transform: translateX(-105%); visibility: hidden; pointer-events: none; transition: transform .18s ease, visibility 0s linear .18s; padding: 18px 12px; box-shadow: 8px 0 24px rgb(15 23 42 / 30%); }
@@ -250,6 +261,8 @@ select:disabled { cursor: not-allowed; background: #eef2f6; color: #64748b; }
   .similar-fields__wide { grid-column: auto; }
   .radius-results-layout { grid-template-columns: 1fr; }
   .radius-map { height: 280px; }
+  .runtime-panel { margin-inline: 0; padding: 18px; }
+  .runtime-panel dl { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 1180px) {

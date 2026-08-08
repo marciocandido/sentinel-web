@@ -422,10 +422,10 @@ export function isRuntimeStatusResponse(value: unknown): value is RuntimeStatusR
     isRuntimeComponent(value.components.worker) && isRuntimeBase(value.base);
 }
 export function isBootstrapPreflightResponse(value: unknown): value is BootstrapPreflightResponse {
+  const metric = (candidate: unknown, nullable = false) => (nullable && candidate === null) || (typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0);
   return isRecord(value) && typeof value.source === "string" && typeof value.competence === "string" && typeof value.file_count === "number" &&
-    typeof value.shard_count === "number" && (value.download_bytes === null || typeof value.download_bytes === "number") &&
-    typeof value.reusable_bytes === "number" && (value.remaining_download_bytes === null || typeof value.remaining_download_bytes === "number") &&
-    (value.free_bytes === null || typeof value.free_bytes === "number") && (value.workspace_estimate_bytes === null || typeof value.workspace_estimate_bytes === "number") &&
+    metric(value.file_count) && metric(value.shard_count) && metric(value.download_bytes, true) && metric(value.reusable_bytes) && metric(value.remaining_download_bytes, true) &&
+    metric(value.free_bytes, true) && metric(value.workspace_estimate_bytes, true) &&
     typeof value.database_ready === "boolean" && typeof value.schema_current === "boolean" && typeof value.worker_available === "boolean" &&
     typeof value.lock_available === "boolean" && Array.isArray(value.blockers) && value.blockers.every((item) => typeof item === "string") &&
     typeof value.can_start === "boolean" && isIsoTimestampWithTimezone(value.observed_at);

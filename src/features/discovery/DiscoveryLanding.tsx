@@ -101,7 +101,21 @@ type LastRequest =
       offset: number;
     };
 
-export function DiscoveryLanding() {
+export type DiscoveryLifecycleError =
+  | "base_setup_required"
+  | "base_initializing"
+  | "base_unavailable";
+
+export interface DiscoveryLandingProps {
+  onLifecycleError?: (code: DiscoveryLifecycleError) => void;
+}
+
+const isLifecycleError = (code: string): code is DiscoveryLifecycleError =>
+  code === "base_setup_required" ||
+  code === "base_initializing" ||
+  code === "base_unavailable";
+
+export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
   const [mode, setMode] = useState<SearchMode>("segment");
   const [values, setValues] = useState<DiscoveryFormValues>(EMPTY_FORM);
   const [radiusValues, setRadiusValues] =
@@ -205,7 +219,10 @@ export function DiscoveryLanding() {
       if (requestId !== requestIdRef.current || controller.signal.aborted) return;
       const code =
         error instanceof SentinelApiError ? error.code : "network_error";
-      if (code !== "request_aborted") setState({ kind: "error", code });
+      if (isLifecycleError(code)) {
+        setState({ kind: "initial" });
+        onLifecycleError?.(code);
+      } else if (code !== "request_aborted") setState({ kind: "error", code });
     }
   };
 
@@ -241,7 +258,10 @@ export function DiscoveryLanding() {
       if (requestId !== requestIdRef.current || controller.signal.aborted) return;
       const code =
         error instanceof SentinelApiError ? error.code : "network_error";
-      if (code !== "request_aborted") {
+      if (isLifecycleError(code)) {
+        setRadiusState({ kind: "initial" });
+        onLifecycleError?.(code);
+      } else if (code !== "request_aborted") {
         setRadiusState({ kind: "error", code });
       }
     }
@@ -266,7 +286,10 @@ export function DiscoveryLanding() {
     } catch (error) {
       if (requestId !== requestIdRef.current || controller.signal.aborted) return;
       const code = error instanceof SentinelApiError ? error.code : "network_error";
-      if (code !== "request_aborted") setNeighborsState({ kind: "error", code });
+      if (isLifecycleError(code)) {
+        setNeighborsState({ kind: "initial" });
+        onLifecycleError?.(code);
+      } else if (code !== "request_aborted") setNeighborsState({ kind: "error", code });
     }
   };
 
@@ -299,7 +322,10 @@ export function DiscoveryLanding() {
       if (requestId !== requestIdRef.current || controller.signal.aborted) return;
       const code =
         error instanceof SentinelApiError ? error.code : "network_error";
-      if (code !== "request_aborted") {
+      if (isLifecycleError(code)) {
+        setRootBranchesState({ kind: "initial" });
+        onLifecycleError?.(code);
+      } else if (code !== "request_aborted") {
         setRootBranchesState({ kind: "error", code });
       }
     }
@@ -334,7 +360,10 @@ export function DiscoveryLanding() {
       if (requestId !== requestIdRef.current || controller.signal.aborted) return;
       const code =
         error instanceof SentinelApiError ? error.code : "network_error";
-      if (code !== "request_aborted") {
+      if (isLifecycleError(code)) {
+        setCommercialGroupState({ kind: "initial" });
+        onLifecycleError?.(code);
+      } else if (code !== "request_aborted") {
         setCommercialGroupState({ kind: "error", code });
       }
     }

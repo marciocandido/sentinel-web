@@ -1,4 +1,4 @@
-import { DiscoveryLanding } from "../features/discovery/DiscoveryLanding";
+import { BaseLifecycleGate } from "../features/runtime/BaseLifecycleGate";
 import { useRuntimeLifecycle } from "../features/runtime/useRuntimeLifecycle";
 import { AppShell } from "./AppShell";
 
@@ -6,7 +6,7 @@ export function App() {
   const runtime = useRuntimeLifecycle();
   return (
     <AppShell runtime={runtime}>
-      <DiscoveryLanding />
+      <BaseLifecycleGate runtime={runtime} />
     </AppShell>
   );
 }

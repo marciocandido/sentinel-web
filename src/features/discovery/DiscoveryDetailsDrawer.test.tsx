@@ -4,6 +4,7 @@ import { App } from "../../app/App";
 import { discoveryPage, establishment } from "../../test/fixtures";
 
 const liveness = { status: "ok", service: "sentinel-api" } as const;
+const runtime = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: "2026-07", available_competence: "2026-07", preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
 const catalog = { items: [{ id: "metal-mecanica", name: "Metal-mecânica" }] };
 const items = [
   establishment({
@@ -54,6 +55,7 @@ function jsonResponse(body: unknown): Response {
 
 function defaultApi(input: RequestInfo | URL): Promise<Response> {
   const url = input.toString();
+  if (url.includes("/api/v1/runtime/status")) return Promise.resolve(jsonResponse(runtime));
   if (url.includes("/health/live")) return Promise.resolve(jsonResponse(liveness));
   if (url.includes("/api/v1/catalog/segments")) return Promise.resolve(jsonResponse(catalog));
   const parsed = new URL(url, "http://sentinel.local");

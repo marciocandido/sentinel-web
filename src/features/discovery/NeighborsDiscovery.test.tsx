@@ -12,12 +12,14 @@ vi.mock("./RadiusMap", () => ({
 }));
 
 const fetchMock = vi.fn();
+const runtime = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: "2026-07", available_competence: "2026-07", preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
 const response = (body: unknown) => ({ ok: true, status: 200, json: () => Promise.resolve(body) }) as Response;
 
 beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation((input: RequestInfo | URL) => {
     const url = input.toString();
+    if (url.includes("/api/v1/runtime/status")) return Promise.resolve(response(runtime));
     if (url.includes("health/live")) return Promise.resolve(response({ status: "ok", service: "sentinel-api" }));
     if (url.includes("catalog/segments")) return Promise.resolve(response({ items: [{ id: "metal", name: "Metal" }] }));
     return Promise.resolve(response(neighborSearchPage()));
@@ -35,6 +37,7 @@ describe("vizinhos", () => {
   it("uses the CNPJ-specific endpoint, preserves order, and omits domain fields not in the contract", async () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
       const url = input.toString();
+      if (url.includes("/api/v1/runtime/status")) return Promise.resolve(response(runtime));
       if (url.includes("health/live")) return Promise.resolve(response({ status: "ok", service: "sentinel-api" }));
       if (url.includes("catalog/segments")) return Promise.resolve(response({ items: [] }));
       return Promise.resolve(response(neighborSearchPage([neighborEstablishment({ razao_social: "PRIMEIRA" }), neighborEstablishment({ cnpj_full: "0002", razao_social: "SEGUNDA" })])));
