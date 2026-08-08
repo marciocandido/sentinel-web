@@ -17,6 +17,8 @@ describe("runtime presentation", () => {
   });
   it("keeps backend worker stale distinct from a stale frontend snapshot", () => {
     expect(presentRuntime(view({ runtime: { ...healthy, components: { ...healthy.components, worker: { ...healthy.components.worker, state: "STALE" } } } })).summary).toBe("Sistema com restrição");
-    expect(presentRuntime(view({ transportState: "stale" })).worker).toBe("Disponível");
+    expect(presentRuntime(view({ transportState: "stale" }))).toMatchObject({
+      summary: "Dados desatualizados", api: "Desatualizado", database: "Desatualizado", worker: "Desatualizado",
+    });
   });
 });

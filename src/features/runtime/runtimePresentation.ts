@@ -5,12 +5,13 @@ export type RuntimeTone = "neutral" | "success" | "attention" | "danger";
 export interface RuntimePresentation { summary: RuntimeSummaryLabel; tone: RuntimeTone; api: string; database: string; worker: string; canRetry: boolean; }
 
 function componentLabels(view: RuntimeLifecycleView) {
+  if (view.transportState === "stale") return { api: "Desatualizado", database: "Desatualizado", worker: "Desatualizado" };
   if (!view.runtime) {
     if (view.lastErrorCode === "database_unavailable") return { api: "Disponível", database: "Indisponível", worker: "Desconhecido" };
     return { api: "Indisponível", database: "Desconhecido", worker: "Desconhecido" };
   }
   const { components } = view.runtime;
-  const api = view.transportState === "stale" ? "Desatualizado" : components.api.state === "AVAILABLE" ? "Disponível" : "Indisponível";
+  const api = components.api.state === "AVAILABLE" ? "Disponível" : "Indisponível";
   const database = components.database.state === "AVAILABLE" && components.database.schema_current === true ? "Disponível" : components.database.state === "UNAVAILABLE" ? "Indisponível" : "Desconhecido";
   const worker = components.worker.state === "IDLE" ? "Disponível" : components.worker.state === "RUNNING" ? "Em execução" : components.worker.state === "STALE" ? "Sem confirmação recente" : components.worker.state === "UNAVAILABLE" ? "Indisponível" : "Desconhecido";
   return { api, database, worker };

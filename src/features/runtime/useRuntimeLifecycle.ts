@@ -91,11 +91,12 @@ export function useRuntimeLifecycle(): RuntimeLifecycleView {
 
   const refreshNow = useCallback(() => {
     clearTimer();
+    updateStale();
     requestRef.current += 1;
     controllerRef.current?.abort();
     controllerRef.current = null;
     runRef.current();
-  }, [clearTimer]);
+  }, [clearTimer, updateStale]);
 
   useEffect(() => {
     mountedRef.current = true;
