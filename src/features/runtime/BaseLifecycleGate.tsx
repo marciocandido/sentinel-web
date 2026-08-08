@@ -6,4 +6,48 @@ import { BootstrapOnboarding } from "./BootstrapOnboarding";
 import { BootstrapProgress } from "./BootstrapProgress";
 import type { RuntimeLifecycleView } from "./runtimeTypes";
 import { useBootstrapSetup } from "./useBootstrapSetup";
-export function BaseLifecycleGate({ runtime }: { runtime: RuntimeLifecycleView }) { const state = runtime.runtime?.base.state; const setup = useBootstrapSetup(state === "AWAITING_OPERATOR" || state === "FAILED", runtime.refreshNow); const [confirm, setConfirm] = useState(false); const prepare = async () => { if (!setup.preflight) return; const ok = await setup.start(setup.preflight.competence); if (ok) setConfirm(false); }; const previous = useRef<string | null>(null); const [announcement, setAnnouncement] = useState(""); useEffect(() => { if (previous.current && previous.current !== "READY" && state === "READY") setAnnouncement("Base da Receita preparada. Discovery disponível."); previous.current = state ?? null; }, [state]); if (!runtime.runtime) return <section className="runtime-panel" role={runtime.transportState === "pending" ? "status" : undefined}><h1>{runtime.transportState === "pending" ? "Verificando disponibilidade da base" : "Não foi possível confirmar o estado da base"}</h1>{runtime.transportState !== "pending" && <button onClick={runtime.refreshNow}>Verificar novamente</button>}</section>; if (state === "READY") return <><p className="sr-only" aria-live="polite">{announcement}</p><DiscoveryLanding onLifecycleError={() => runtime.refreshNow()} /></>; if (state === "EMPTY") return <section className="runtime-panel" role="status"><h1>Inicializando configuração do Sentinel</h1><p>O estado da base ainda está sendo preparado pelo servidor.</p></section>; if (state === "AWAITING_OPERATOR") return <>{confirm && setup.preflight && <BootstrapConfirmDialog competence={setup.preflight.competence} download={setup.preflight.download_bytes} reusable={setup.preflight.reusable_bytes} remaining={setup.preflight.remaining_download_bytes} busy={setup.loading} retry={false} onCancel={() => setConfirm(false)} onConfirm={() => void prepare()} />}<BootstrapOnboarding {...setup} onPrepare={() => setConfirm(true)} onReload={setup.reload} /></>; if (state === "FAILED") return <>{confirm && setup.preflight && <BootstrapConfirmDialog competence={setup.preflight.competence} download={setup.preflight.download_bytes} reusable={setup.preflight.reusable_bytes} remaining={setup.preflight.remaining_download_bytes} busy={setup.loading} retry onCancel={() => setConfirm(false)} onConfirm={() => void prepare()} />}<BootstrapFailure runtime={runtime.runtime} setup={setup} onPrepare={() => setConfirm(true)} /></>; return <BootstrapProgress runtime={runtime.runtime} transport={runtime.transportState} />; }
+
+const progressStates = new Set(["INITIALIZING", "DOWNLOADING", "PROCESSING", "LOADING", "VALIDATING"]);
+
+export function BaseLifecycleGate({ runtime }: { runtime: RuntimeLifecycleView }) {
+  const state = runtime.runtime?.base.state;
+  const setup = useBootstrapSetup(state === "AWAITING_OPERATOR" || state === "FAILED", runtime.refreshNow);
+  const [confirm, setConfirm] = useState(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const previous = useRef<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+
+  useEffect(() => {
+    if (previous.current && previous.current !== "READY" && state === "READY") {
+      setAnnouncement("Base da Receita preparada. Discovery disponível.");
+    }
+    previous.current = state ?? null;
+  }, [state]);
+
+  const openConfirm = () => {
+    triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setConfirm(true);
+  };
+  const closeConfirm = (restoreFocus = true) => {
+    setConfirm(false);
+    if (restoreFocus) queueMicrotask(() => {
+      if (triggerRef.current?.isConnected) triggerRef.current.focus();
+    });
+  };
+  const prepare = async () => {
+    if (!setup.preflight) return;
+    const result = await setup.start(setup.preflight.competence);
+    closeConfirm(result !== "accepted");
+  };
+
+  if (!runtime.runtime) return <section className="runtime-panel" role={runtime.transportState === "pending" ? "status" : undefined}><h1>{runtime.transportState === "pending" ? "Verificando disponibilidade da base" : "Não foi possível confirmar o estado da base"}</h1>{runtime.transportState !== "pending" && <button onClick={runtime.refreshNow}>Verificar novamente</button>}</section>;
+  if (state === "READY") return <><p className="sr-only" aria-live="polite">{announcement}</p><DiscoveryLanding onLifecycleError={() => runtime.refreshNow()} /></>;
+  if (state === "EMPTY") return <section className="runtime-panel" role="status"><h1>Inicializando configuração do Sentinel</h1><p>O estado da base ainda está sendo preparado pelo servidor.</p></section>;
+  if (state === "UNAVAILABLE" || state === null) return <section className="runtime-panel"><h1>Não foi possível confirmar o estado da base</h1><button onClick={runtime.refreshNow}>Verificar novamente</button></section>;
+
+  const dialog = confirm && setup.preflight && <BootstrapConfirmDialog competence={setup.preflight.competence} download={setup.preflight.download_bytes} reusable={setup.preflight.reusable_bytes} remaining={setup.preflight.remaining_download_bytes} busy={setup.loading} retry={state === "FAILED"} onCancel={() => closeConfirm()} onConfirm={() => void prepare()} />;
+  if (state === "AWAITING_OPERATOR") return <>{dialog}<BootstrapOnboarding setup={setup} onPrepare={openConfirm} /></>;
+  if (state === "FAILED") return <>{dialog}<BootstrapFailure runtime={runtime.runtime} setup={setup} onPrepare={openConfirm} /></>;
+  if (state && progressStates.has(state)) return <BootstrapProgress runtime={runtime.runtime} transport={runtime.transportState} />;
+  return <section className="runtime-panel"><h1>Não foi possível confirmar o estado da base</h1><button onClick={runtime.refreshNow}>Verificar novamente</button></section>;
+}

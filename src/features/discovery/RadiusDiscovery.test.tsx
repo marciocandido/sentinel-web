@@ -33,6 +33,9 @@ function response(body: unknown, status = 200): Response {
   } as Response;
 }
 
+const originalMockImplementation = fetchMock.mockImplementation.bind(fetchMock);
+fetchMock.mockImplementation = ((implementation) => originalMockImplementation((input, init) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(response(runtime)) : implementation(input, init))) as typeof fetchMock.mockImplementation;
+
 function defaultApi(input: RequestInfo | URL): Promise<Response> {
   const url = input.toString();
   if (url.includes("/api/v1/runtime/status")) return Promise.resolve(response(runtime));
@@ -56,7 +59,7 @@ function radiusUrl(index: number): URL {
 }
 
 async function prepareRadiusSearch() {
-  fireEvent.click(screen.getByRole("radio", { name: "Por raio" }));
+  fireEvent.click(await screen.findByRole("radio", { name: "Por raio" }));
   fireEvent.change(screen.getByLabelText("Nome do município"), {
     target: { value: "SAO PAULO" },
   });
@@ -81,13 +84,13 @@ function submitRadius() {
 beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(defaultApi);
-  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(response(runtime)) : fetchMock(input, init));
 });
 
 describe("Discovery por raio", () => {
-  it("shows a third mode and starts with municipality origin", () => {
+  it("shows a third mode and starts with municipality origin", async () => {
     render(<App />);
-    expect(screen.getByRole("radio", { name: "Por raio" })).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: "Por raio" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: "Por raio" }));
     expect(screen.getByLabelText("Tipo de origem")).toHaveValue("municipality");
     expect(screen.getByLabelText("UF da origem")).toBeInTheDocument();

@@ -53,6 +53,9 @@ function response(body: unknown, status = 200): Response {
   } as Response;
 }
 
+const originalMockImplementation = fetchMock.mockImplementation.bind(fetchMock);
+fetchMock.mockImplementation = ((implementation) => originalMockImplementation((input, init) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(response(runtime)) : implementation(input, init))) as typeof fetchMock.mockImplementation;
+
 function defaultApi(input: RequestInfo | URL): Promise<Response> {
   const url = input.toString();
   if (url.includes("/api/v1/runtime/status")) return Promise.resolve(response(runtime));
@@ -85,8 +88,8 @@ function groupUrl(index: number): URL {
   return new URL(groupCalls()[index][0].toString(), "http://local");
 }
 
-function selectGroupMode() {
-  fireEvent.click(screen.getByRole("radio", { name: "Por grupo" }));
+async function selectGroupMode() {
+  fireEvent.click(await screen.findByRole("radio", { name: "Por grupo" }));
 }
 
 function groupInput() {
@@ -105,15 +108,15 @@ function submitGroupForm() {
   );
 }
 
-function prepareGroupSearch(value = "grupo-metal") {
-  selectGroupMode();
+async function prepareGroupSearch(value = "grupo-metal") {
+  await selectGroupMode();
   fireEvent.change(groupInput(), { target: { value } });
 }
 
 beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(defaultApi);
-  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(response(runtime)) : fetchMock(input, init));
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: { writeText: vi.fn().mockResolvedValue(undefined) },
@@ -127,8 +130,9 @@ afterEach(() => {
 });
 
 describe("modo grupo comercial", () => {
-  it("shows the fifth accessible mode and preserves the four previous modes", () => {
+  it("shows the fifth accessible mode and preserves the four previous modes", async () => {
     render(<App />);
+    await screen.findByRole("radio", { name: "Por segmento" });
     for (const name of [
       "Por segmento",
       "Por região",
@@ -139,7 +143,7 @@ describe("modo grupo comercial", () => {
       expect(screen.getByRole("radio", { name })).toBeInTheDocument();
     }
 
-    selectGroupMode();
+    await selectGroupMode();
     expect(groupInput()).toHaveAttribute("type", "text");
     expect(
       screen.getByText(/grupo previamente registrado no Sentinel/i),
@@ -161,7 +165,7 @@ describe("modo grupo comercial", () => {
 
   it("rejects blank submission and preserves textual special characters in the URL", async () => {
     render(<App />);
-    selectGroupMode();
+    await selectGroupMode();
     submitGroup();
     expect(await screen.findByText("Informe o ID do grupo.")).toBeInTheDocument();
     expect(groupInput()).toHaveAttribute("aria-invalid", "true");
@@ -183,14 +187,14 @@ describe("modo grupo comercial", () => {
     ).toBe(true);
   });
 
-  it("renders loading with aria-busy and prevents duplicate button clicks", () => {
+  it("renders loading with aria-busy and prevents duplicate button clicks", async () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) =>
       input.toString().includes("/commercial-groups?")
         ? new Promise<Response>(() => undefined)
         : defaultApi(input),
     );
     render(<App />);
-    prepareGroupSearch();
+    await prepareGroupSearch();
     submitGroup();
 
     expect(screen.getByRole("button", { name: "Buscando..." })).toBeDisabled();
@@ -239,7 +243,7 @@ describe("modo grupo comercial", () => {
         : defaultApi(input),
     );
     render(<App />);
-    prepareGroupSearch();
+    await prepareGroupSearch();
     submitGroup();
 
     const context = await screen.findByLabelText("Contexto do grupo comercial");
@@ -308,7 +312,7 @@ describe("modo grupo comercial", () => {
         : defaultApi(input),
     );
     render(<App />);
-    prepareGroupSearch();
+    await prepareGroupSearch();
     submitGroup();
 
     expect(
@@ -344,7 +348,7 @@ describe("modo grupo comercial", () => {
       );
     });
     render(<App />);
-    prepareGroupSearch("grupo-original");
+    await prepareGroupSearch("grupo-original");
     submitGroup();
 
     expect(await screen.findByRole("button", { name: "Anterior" })).toBeDisabled();
@@ -398,7 +402,7 @@ describe("modo grupo comercial", () => {
       );
     });
     render(<App />);
-    prepareGroupSearch("grupo A/01");
+    await prepareGroupSearch("grupo A/01");
     submitGroup();
     fireEvent.click(await screen.findByRole("button", { name: "Próxima" }));
     fireEvent.change(groupInput(), { target: { value: "outro grupo" } });
@@ -417,7 +421,7 @@ describe("modo grupo comercial", () => {
     abortSpy.mockRestore();
   });
 
-  it("aborts on new search, mode change and unmount without public cancellation", () => {
+  it("aborts on new search, mode change and unmount without public cancellation", async () => {
     const signals: AbortSignal[] = [];
     fetchMock.mockImplementation(
       (input: RequestInfo | URL, init?: RequestInit) => {
@@ -435,7 +439,7 @@ describe("modo grupo comercial", () => {
       },
     );
     const view = render(<App />);
-    prepareGroupSearch();
+    await prepareGroupSearch();
     submitGroupForm();
     fireEvent.change(groupInput(), { target: { value: "grupo-dois" } });
     submitGroupForm();
@@ -445,7 +449,7 @@ describe("modo grupo comercial", () => {
     expect(signals[1].aborted).toBe(true);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
-    prepareGroupSearch("grupo-tres");
+    await prepareGroupSearch("grupo-tres");
     submitGroupForm();
     view.unmount();
     expect(signals[2].aborted).toBe(true);
@@ -460,7 +464,7 @@ describe("modo grupo comercial", () => {
       return new Promise<Response>((resolve) => resolvers.push(resolve));
     });
     render(<App />);
-    prepareGroupSearch("grupo-antigo");
+    await prepareGroupSearch("grupo-antigo");
     submitGroupForm();
     fireEvent.change(groupInput(), { target: { value: "grupo-novo" } });
     submitGroupForm();
@@ -535,7 +539,7 @@ describe("modo grupo comercial", () => {
         : defaultApi(input),
     );
     render(<App />);
-    prepareGroupSearch();
+    await prepareGroupSearch();
     submitGroup();
     expect(await screen.findByText(text)).toBeInTheDocument();
     expect(screen.queryByText("private SQL DSN")).not.toBeInTheDocument();
@@ -560,7 +564,7 @@ describe("modo grupo comercial", () => {
       return Promise.reject(new TypeError("private network stack"));
     });
     render(<App />);
-    prepareGroupSearch();
+    await prepareGroupSearch();
     submitGroup();
     expect(
       await screen.findByText(

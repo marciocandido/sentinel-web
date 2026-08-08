@@ -63,7 +63,7 @@ afterEach(() => {
 describe("Discovery search", () => {
   it("starts in segment mode and validates the required segment", async () => {
     render(<App />);
-    expect(screen.getByRole("radio", { name: "Por segmento" })).toBeChecked();
+    expect(await screen.findByRole("radio", { name: "Por segmento" })).toBeChecked();
     expect(screen.getByText("Preencha os filtros e execute uma busca.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
     expect(await screen.findByText("Selecione um segmento para realizar a busca.")).toBeInTheDocument();
@@ -108,7 +108,7 @@ describe("Discovery search", () => {
 
   it("requires a regional filter and does not accept segment alone", async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("radio", { name: "Por região" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Por região" }));
     await selectSegment();
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
     expect(screen.getByText(/Informe ao menos UF/)).toBeInTheDocument();
@@ -117,7 +117,7 @@ describe("Discovery search", () => {
 
   it("uses only the region route with UF, TOM, IBGE, municipality and optional segment", async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("radio", { name: "Por região" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Por região" }));
     await selectSegment();
     fireEvent.change(screen.getByLabelText("UF"), { target: { value: "SP" } });
     fireEvent.change(screen.getByLabelText("Nome do município"), { target: { value: "SAO PAULO" } });
@@ -158,10 +158,10 @@ describe("Discovery search", () => {
       return new Promise<Response>(() => undefined);
     });
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
-    expect(await screen.findByText(/Selecione um segmento/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Buscar" }));
+    expect(await screen.findByText("Selecione um segmento para realizar a busca.")).toBeInTheDocument();
     await submitSegment();
-    fireEvent.click(screen.getByRole("radio", { name: "Por região" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Por região" }));
     expect(signal?.aborted).toBe(true);
     expect(screen.queryByText(/Selecione um segmento para realizar/)).not.toBeInTheDocument();
     expect(screen.getByText("Preencha os filtros e execute uma busca.")).toBeInTheDocument();

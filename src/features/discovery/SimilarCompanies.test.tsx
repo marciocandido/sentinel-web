@@ -17,6 +17,9 @@ function jsonResponse(body: unknown, status = 200): Response {
   } as Response;
 }
 
+const originalMockImplementation = fetchMock.mockImplementation.bind(fetchMock);
+fetchMock.mockImplementation = ((implementation) => originalMockImplementation((input, init) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(jsonResponse(runtime)) : implementation(input, init))) as typeof fetchMock.mockImplementation;
+
 function isSimilar(input: RequestInfo | URL): boolean {
   return input.toString().includes("/similar?");
 }
@@ -58,7 +61,7 @@ function similarUrls(): string[] {
 beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(defaultApi);
-  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(jsonResponse(runtime)) : fetchMock(input, init));
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: { writeText: vi.fn().mockResolvedValue(undefined) },

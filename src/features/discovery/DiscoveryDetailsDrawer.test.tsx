@@ -53,6 +53,9 @@ function jsonResponse(body: unknown): Response {
   return { ok: true, status: 200, json: () => Promise.resolve(body) } as Response;
 }
 
+const originalMockImplementation = fetchMock.mockImplementation.bind(fetchMock);
+fetchMock.mockImplementation = ((implementation) => originalMockImplementation((input, init) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(jsonResponse(runtime)) : implementation(input, init))) as typeof fetchMock.mockImplementation;
+
 function defaultApi(input: RequestInfo | URL): Promise<Response> {
   const url = input.toString();
   if (url.includes("/api/v1/runtime/status")) return Promise.resolve(jsonResponse(runtime));
@@ -76,7 +79,7 @@ async function renderResults() {
 beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(defaultApi);
-  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(jsonResponse(runtime)) : fetchMock(input, init));
   writeTextMock.mockReset();
   writeTextMock.mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", {

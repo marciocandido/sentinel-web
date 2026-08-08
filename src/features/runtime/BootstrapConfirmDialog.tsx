@@ -58,7 +58,7 @@ export function BootstrapConfirmDialog({
           A preparação acontece no servidor e continua mesmo se esta página for fechada.
         </p>
         <button ref={cancelRef} type="button" disabled={busy} onClick={onCancel}>Cancelar</button>
-        <button type="button" disabled={busy} onClick={onConfirm}>{busy ? "Preparando..." : "Preparar base"}</button>
+        <button type="button" disabled={busy} onClick={onConfirm}>{busy ? "Preparando..." : retry ? "Tentar novamente" : "Preparar base"}</button>
       </section>
     </div>
   );

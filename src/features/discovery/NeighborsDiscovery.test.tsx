@@ -24,7 +24,7 @@ beforeEach(() => {
     if (url.includes("catalog/segments")) return Promise.resolve(response({ items: [{ id: "metal", name: "Metal" }] }));
     return Promise.resolve(response(neighborSearchPage()));
   });
-  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(response(runtime)) : fetchMock(input, init));
 });
 
 describe("vizinhos", () => {
@@ -43,7 +43,7 @@ describe("vizinhos", () => {
       return Promise.resolve(response(neighborSearchPage([neighborEstablishment({ razao_social: "PRIMEIRA" }), neighborEstablishment({ cnpj_full: "0002", razao_social: "SEGUNDA" })])));
     });
     render(<App />);
-    fireEvent.click(screen.getByRole("radio", { name: "Por vizinhos" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Por vizinhos" }));
     fireEvent.change(screen.getByLabelText("CNPJ de referência"), { target: { value: "00.ABC/0001-55" } });
     fireEvent.change(screen.getByLabelText("Raio em quilômetros"), { target: { value: "15" } });
     fireEvent.submit(screen.getByRole("form", { name: "Formulário de busca por vizinhos" }));
@@ -76,7 +76,7 @@ describe("vizinhos", () => {
       return Promise.resolve(response(neighborSearchPage(undefined, { offset: Number(parsed.searchParams.get("offset")), has_more: Number(parsed.searchParams.get("offset")) === 0 })));
     });
     render(<App />);
-    fireEvent.click(screen.getByRole("radio", { name: "Por vizinhos" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Por vizinhos" }));
     fireEvent.change(screen.getByLabelText("CNPJ de referência"), { target: { value: "001" } });
     fireEvent.submit(screen.getByRole("form", { name: "Formulário de busca por vizinhos" }));
     await screen.findByRole("table");
