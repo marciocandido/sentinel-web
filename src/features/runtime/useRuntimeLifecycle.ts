@@ -29,6 +29,13 @@ export function useRuntimeLifecycle(): RuntimeLifecycleView {
   const lastConfirmedRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
 
+  const abortCurrentRound = useCallback(() => {
+    requestRef.current += 1;
+    const controller = controllerRef.current;
+    controllerRef.current = null;
+    controller?.abort();
+  }, []);
+
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current);
     timerRef.current = null;
@@ -69,7 +76,7 @@ export function useRuntimeLifecycle(): RuntimeLifecycleView {
       setTransportState(confirmed !== null && Date.now() - confirmed >= STALE_AFTER_MS ? "stale" : "degraded");
     }).finally(() => {
       if (!mountedRef.current || requestId !== requestRef.current) return;
-      controllerRef.current = null;
+      if (controllerRef.current === controller) controllerRef.current = null;
       setChecking(false);
       if (document.hidden) return;
       const delay = healthyRoundsRef.current >= 2 ? HEALTHY_POLL_MS : FAST_POLL_MS;
@@ -94,20 +101,16 @@ export function useRuntimeLifecycle(): RuntimeLifecycleView {
   const refreshNow = useCallback(() => {
     clearTimer();
     updateStale();
-    requestRef.current += 1;
-    controllerRef.current?.abort();
-    controllerRef.current = null;
+    abortCurrentRound();
     runRef.current();
-  }, [clearTimer, updateStale]);
+  }, [abortCurrentRound, clearTimer, updateStale]);
 
   useEffect(() => {
     mountedRef.current = true;
     const onVisibility = () => {
       if (document.hidden) {
         clearTimer();
-        requestRef.current += 1;
-        controllerRef.current?.abort();
-        controllerRef.current = null;
+        abortCurrentRound();
       } else {
         refreshNow();
       }
@@ -118,10 +121,9 @@ export function useRuntimeLifecycle(): RuntimeLifecycleView {
       mountedRef.current = false;
       document.removeEventListener("visibilitychange", onVisibility);
       clearTimer();
-      requestRef.current += 1;
-      controllerRef.current?.abort();
+      abortCurrentRound();
     };
-  }, [clearTimer, refreshNow]);
+  }, [abortCurrentRound, clearTimer, refreshNow]);
 
   return { runtime, transportState, lastConfirmedAt, confirmationVersion, checking, lastErrorCode, refreshNow };
 }

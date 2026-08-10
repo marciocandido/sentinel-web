@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getRuntimeStatus } from "../../services/sentinelApi";
@@ -7,7 +8,8 @@ vi.mock("../../services/sentinelApi", () => ({ getRuntimeStatus: vi.fn() }));
 const runtimeRequest = vi.mocked(getRuntimeStatus);
 const healthy = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: null, available_competence: null, preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
 const degraded = { ...healthy, summary: "RESTRICTED" as const };
-function Harness() { const runtime = useRuntimeLifecycle(); return <><output data-testid="transport">{runtime.transportState}</output><output data-testid="state">{runtime.runtime?.summary ?? "none"}</output><button onClick={runtime.refreshNow}>refresh</button></>; }
+const processing = { ...healthy, summary: "INITIALIZING" as const, components: { ...healthy.components, worker: { ...healthy.components.worker, state: "RUNNING" as const } }, base: { ...healthy.base, state: "PROCESSING" as const, preparing_competence: "2099-01", current_stage: "BUILD_BASE_UTIL", progress: { phase: "PROCESSING", stage: "BUILD_BASE_UTIL" } } };
+function Harness() { const runtime = useRuntimeLifecycle(); return <><output data-testid="transport">{runtime.transportState}</output><output data-testid="state">{runtime.runtime?.summary ?? "none"}</output><output data-testid="lifecycle">{runtime.runtime?.base.state ?? "none"}</output><output data-testid="checking">{String(runtime.checking)}</output><button onClick={runtime.refreshNow}>refresh</button></>; }
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: unknown) => void; const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; }); return { promise, resolve, reject }; }
 async function flush() { await act(async () => { await Promise.resolve(); }); }
 function hidden(value: boolean) { Object.defineProperty(document, "hidden", { configurable: true, value }); document.dispatchEvent(new Event("visibilitychange")); }
@@ -22,6 +24,28 @@ describe("useRuntimeLifecycle", () => {
     await act(async () => vi.advanceTimersByTimeAsync(15_000)); expect(runtimeRequest).toHaveBeenCalledTimes(2);
     await act(async () => vi.advanceTimersByTimeAsync(59_999)); expect(runtimeRequest).toHaveBeenCalledTimes(2);
     await act(async () => vi.advanceTimersByTimeAsync(1)); expect(runtimeRequest).toHaveBeenCalledTimes(3);
+  });
+
+  it("restarts an aborted initial round during the real StrictMode effect replay", async () => {
+    const first = deferred<Awaited<ReturnType<typeof getRuntimeStatus>>>();
+    const second = deferred<Awaited<ReturnType<typeof getRuntimeStatus>>>();
+    runtimeRequest.mockImplementationOnce(() => first.promise).mockImplementationOnce(() => second.promise);
+    render(<StrictMode><Harness /></StrictMode>);
+    expect(runtimeRequest).toHaveBeenCalledTimes(2);
+    const firstSignal = runtimeRequest.mock.calls[0][0]?.signal as AbortSignal;
+    const secondSignal = runtimeRequest.mock.calls[1][0]?.signal as AbortSignal;
+    expect(firstSignal.aborted).toBe(true);
+    expect(secondSignal.aborted).toBe(false);
+
+    second.resolve(processing); await flush();
+    expect(screen.getByTestId("lifecycle")).toHaveTextContent("PROCESSING");
+    expect(screen.getByTestId("transport")).toHaveTextContent("fresh");
+    expect(screen.getByTestId("checking")).toHaveTextContent("false");
+
+    first.resolve(healthy); await flush();
+    expect(screen.getByTestId("lifecycle")).toHaveTextContent("PROCESSING");
+    expect(screen.getByTestId("transport")).toHaveTextContent("fresh");
+    expect(screen.getByTestId("checking")).toHaveTextContent("false");
   });
 
   it("returns to 15 seconds after a degraded response", async () => {
