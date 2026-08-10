@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { LoaderCircle } from "lucide-react";
 import { DiscoveryLanding } from "../discovery/DiscoveryLanding";
 import { BootstrapConfirmDialog } from "./BootstrapConfirmDialog";
 import { BootstrapFailure } from "./BootstrapFailure";
@@ -40,7 +41,10 @@ export function BaseLifecycleGate({ runtime }: { runtime: RuntimeLifecycleView }
     if (result !== "in_progress") closeConfirm(result !== "accepted");
   };
 
-  if (!runtime.runtime) return <section className="runtime-panel" role={runtime.transportState === "pending" ? "status" : undefined}><h1>{runtime.transportState === "pending" ? "Verificando disponibilidade da base" : "Não foi possível confirmar o estado da base"}</h1>{runtime.transportState !== "pending" && <button onClick={runtime.refreshNow}>Verificar novamente</button>}</section>;
+  if (!runtime.runtime) {
+    if (runtime.transportState === "pending") return <section className="runtime-panel runtime-panel--loading" role="status" aria-live="polite" aria-busy="true"><LoaderCircle className="runtime-panel__spinner" aria-hidden="true" /><div><h1>Verificando estado do Sentinel</h1><p>Confirmando API, banco, worker e base da Receita…</p></div></section>;
+    return <section className="runtime-panel"><h1>Não foi possível confirmar o estado da base</h1><button onClick={runtime.refreshNow}>Verificar novamente</button></section>;
+  }
   if (state === "READY") return <><p className="sr-only" aria-live="polite">{announcement}</p><DiscoveryLanding onLifecycleError={() => runtime.refreshNow()} /></>;
   if (state === "EMPTY") return <section className="runtime-panel" role="status"><h1>Inicializando configuração do Sentinel</h1><p>O estado da base ainda está sendo preparado pelo servidor.</p></section>;
   if (state === "UNAVAILABLE" || state === null) return <section className="runtime-panel"><h1>Não foi possível confirmar o estado da base</h1><button onClick={runtime.refreshNow}>Verificar novamente</button></section>;

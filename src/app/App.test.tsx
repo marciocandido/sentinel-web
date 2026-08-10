@@ -4,6 +4,7 @@ import { App } from "./App";
 import { buildApiUrl, getJson } from "../services/apiClient";
 
 const runtime = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: "2026-07", available_competence: "2026-07", preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
+const processingRuntime = { ...runtime, summary: "INITIALIZING" as const, components: { ...runtime.components, worker: { ...runtime.components.worker, state: "RUNNING" as const } }, base: { ...runtime.base, state: "PROCESSING" as const, preparing_competence: "2099-01", current_stage: "BUILD_BASE_UTIL", progress: { phase: "PROCESSING", stage: "BUILD_BASE_UTIL" } } };
 const catalog = { items: [{ id: "metal-mecanica", name: "Metal-mecânica" }] };
 const fetchMock = vi.fn();
 
@@ -46,8 +47,30 @@ describe("Sentinel Web foundation", () => {
     fetchMock.mockImplementation(() => new Promise<Response>(() => undefined));
     render(<App />);
     expect(screen.getByText("Verificação pendente")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText("Verificando estado do Sentinel")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar detalhes da saúde" }));
+    expect(screen.getByText("API").parentElement).toHaveTextContent("APIVerificando");
+    expect(screen.getByText("Banco").parentElement).toHaveTextContent("BancoVerificando");
+    expect(screen.getByText("Worker").parentElement).toHaveTextContent("WorkerVerificando");
+    expect(screen.queryByText("Indisponível")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Buscar" })).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("replaces initial verification with progress after the first processing confirmation", async () => {
+    let resolveRuntime: ((response: Response) => void) | undefined;
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (input.toString().includes("/api/v1/runtime/status")) return new Promise<Response>((resolve) => { resolveRuntime = resolve; });
+      return Promise.reject(new Error(`Unexpected request: ${input.toString()}`));
+    });
+    render(<App />);
+    expect(screen.getByText("Verificando estado do Sentinel")).toBeInTheDocument();
+    await act(async () => resolveRuntime?.(jsonResponse(processingRuntime)));
+    expect(await screen.findByText("Preparando base da Receita")).toBeInTheDocument();
+    expect(screen.getByText("Construindo base útil")).toBeInTheDocument();
+    expect(screen.queryByText("Verificando estado do Sentinel")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sistema indisponível")).not.toBeInTheDocument();
   });
 
   it("shows offline for HTTP and network failures without exposing a stack trace", async () => {

@@ -7,6 +7,7 @@ export interface RuntimePresentation { summary: RuntimeSummaryLabel; tone: Runti
 function componentLabels(view: RuntimeLifecycleView) {
   if (view.transportState === "stale") return { api: "Desatualizado", database: "Desatualizado", worker: "Desatualizado" };
   if (!view.runtime) {
+    if (view.transportState === "pending") return { api: "Verificando", database: "Verificando", worker: "Verificando" };
     if (view.lastErrorCode === "database_unavailable") return { api: "Disponível", database: "Indisponível", worker: "Desconhecido" };
     return { api: "Indisponível", database: "Desconhecido", worker: "Desconhecido" };
   }

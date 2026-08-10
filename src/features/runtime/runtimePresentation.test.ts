@@ -6,6 +6,18 @@ const healthy = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", com
 function view(overrides: Partial<RuntimeLifecycleView> = {}): RuntimeLifecycleView { return { runtime: healthy, transportState: "fresh", lastConfirmedAt: Date.now(), confirmationVersion: 0, checking: false, lastErrorCode: null, refreshNow: () => undefined, ...overrides }; }
 
 describe("runtime presentation", () => {
+  it("keeps an unconfirmed initial request neutral", () => {
+    expect(presentRuntime(view({ runtime: null, transportState: "pending" }))).toMatchObject({
+      summary: "Verificação pendente", tone: "neutral", api: "Verificando", database: "Verificando", worker: "Verificando",
+    });
+  });
+
+  it("shows transport unavailability only after an initial request fails", () => {
+    expect(presentRuntime(view({ runtime: null, transportState: "degraded", lastErrorCode: "network_error" }))).toMatchObject({
+      summary: "Sistema indisponível", tone: "danger", api: "Indisponível", database: "Desconhecido", worker: "Desconhecido",
+    });
+  });
+
   it("covers the seven public summaries without exposing raw runtime fields", () => {
     expect(presentRuntime(view({ runtime: null, transportState: "pending" })).summary).toBe("Verificação pendente");
     expect(presentRuntime(view({ runtime: { ...healthy, base: { ...healthy.base, state: "AWAITING_OPERATOR" } } })).summary).toBe("Configuração necessária");
