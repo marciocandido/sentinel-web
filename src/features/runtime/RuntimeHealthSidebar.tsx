@@ -1,4 +1,4 @@
-import { Activity, ChevronDown, ChevronUp, Database, Server } from "lucide-react";
+import { Activity, ChevronDown, ChevronUp, Database, LoaderCircle, Server } from "lucide-react";
 import { useState } from "react";
 import type { RuntimeLifecycleView } from "./runtimeTypes";
 import { presentRuntime } from "./runtimePresentation";
@@ -7,6 +7,12 @@ export function RuntimeHealthSidebar({ runtime }: { runtime: RuntimeLifecycleVie
   const [expanded, setExpanded] = useState(false);
   const presentation = presentRuntime(runtime);
   const panelId = "runtime-health-details";
+  const initialPending = runtime.transportState === "pending" && runtime.runtime === null;
+  const components = [
+    { label: "API", value: presentation.api, Icon: initialPending ? LoaderCircle : Server },
+    { label: "Banco", value: presentation.database, Icon: initialPending ? LoaderCircle : Database },
+    { label: "Worker", value: presentation.worker, Icon: initialPending ? LoaderCircle : Activity },
+  ];
   return <section className={`runtime-health runtime-health--${presentation.tone}`} aria-label="Saúde operacional">
     <div className="runtime-health__summary" aria-live="polite">
       <span className="runtime-health__label">{presentation.summary}</span>
@@ -15,11 +21,7 @@ export function RuntimeHealthSidebar({ runtime }: { runtime: RuntimeLifecycleVie
         {expanded ? <ChevronUp aria-hidden="true" size={16} /> : <ChevronDown aria-hidden="true" size={16} />}
       </button>
     </div>
-    {expanded && <div id={panelId} className="runtime-health__details">
-      <p><Server aria-hidden="true" size={16} /><span>API</span><strong>{presentation.api}</strong></p>
-      <p><Database aria-hidden="true" size={16} /><span>Banco</span><strong>{presentation.database}</strong></p>
-      <p><Activity aria-hidden="true" size={16} /><span>Worker</span><strong>{presentation.worker}</strong></p>
-    </div>}
+    {expanded && <div id={panelId} className="runtime-health__details">{components.map(({ label, value, Icon }) => <p key={label}><Icon className={initialPending ? "runtime-health__checking-icon" : "runtime-health__component-icon"} aria-hidden="true" size={16} /><span>{label}</span><strong>{value}</strong></p>)}</div>}
     {presentation.canRetry && <button type="button" className="runtime-health__retry" onClick={runtime.refreshNow} disabled={runtime.checking} aria-busy={runtime.checking}>Verificar novamente</button>}
   </section>;
 }
