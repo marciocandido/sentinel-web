@@ -6,6 +6,23 @@ export interface LivenessResponse {
 export type RuntimeSummary = "PENDING" | "AVAILABLE" | "INITIALIZING" | "RESTRICTED" | "UNAVAILABLE" | "STALE";
 export type RuntimeComponentState = "PENDING" | "AVAILABLE" | "INITIALIZING" | "RESTRICTED" | "UNAVAILABLE" | "STALE" | "IDLE" | "RUNNING";
 export type RuntimeBaseState = "EMPTY" | "AWAITING_OPERATOR" | "INITIALIZING" | "DOWNLOADING" | "PROCESSING" | "LOADING" | "VALIDATING" | "READY" | "FAILED" | "UNAVAILABLE";
+export type RuntimeUpdateStatus = "AUTHORIZED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "ROLLED_BACK";
+export type RuntimeUpdateStage =
+  | "DISCOVERY"
+  | "DOWNLOAD"
+  | "PROCESSING"
+  | "VALIDATING_GENERATION"
+  | "LOADING_CANDIDATE"
+  | "VALIDATING_CANDIDATE"
+  | "CANDIDATE_READY"
+  | "PRE_PROMOTION_BACKUP"
+  | "PROMOTION_WAITING"
+  | "PROMOTING"
+  | "POST_PROMOTION_VALIDATION"
+  | "ROLLING_BACK"
+  | "SUCCEEDED"
+  | "ROLLED_BACK"
+  | "ROLLBACK_FAILED";
 
 export interface RuntimeComponent {
   state: RuntimeComponentState;
@@ -16,6 +33,7 @@ export interface RuntimeComponent {
 export interface RuntimeBase {
   state: RuntimeBaseState | null;
   active_competence: string | null;
+  previous_competence: string | null;
   available_competence: string | null;
   preparing_competence: string | null;
   action_required: string | null;
@@ -23,6 +41,28 @@ export interface RuntimeBase {
   progress: Record<string, unknown> | null;
   last_failure_code: string | null;
   last_failure_message: string | null;
+  update_policy: string | null;
+  last_metadata_check_at: string | null;
+  last_metadata_check_result: string | null;
+  last_metadata_check_error: string | null;
+  active_operation: string | null;
+}
+
+export interface RuntimeUpdate {
+  job_id: string | null;
+  status: RuntimeUpdateStatus | null;
+  stage: RuntimeUpdateStage | null;
+  progress: Record<string, unknown> | null;
+  target_competence: string | null;
+  failure_code: string | null;
+  failure_message: string | null;
+  active_competence_at_start: string | null;
+  pre_promotion_backup_id: string | null;
+  authorized_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  promoted_at: string | null;
+  rolled_back_at: string | null;
 }
 
 export interface RuntimeStatusResponse {
@@ -30,6 +70,7 @@ export interface RuntimeStatusResponse {
   summary: RuntimeSummary;
   components: { api: RuntimeComponent; database: RuntimeComponent; worker: RuntimeComponent };
   base: RuntimeBase;
+  update: RuntimeUpdate;
 }
 
 export interface BootstrapPreflightResponse {
@@ -41,6 +82,27 @@ export interface BootstrapPreflightResponse {
 }
 
 export interface BootstrapJobResponse { job_id: string; competence: string; status: string; replayed: boolean; }
+
+export interface UpdatePreflightResponse {
+  source: string;
+  active_competence: string | null;
+  target_competence: string | null;
+  file_count: number;
+  shard_count: number;
+  download_bytes: number | null;
+  reusable_bytes: number;
+  remaining_download_bytes: number | null;
+  free_bytes: number | null;
+  staging_estimate_bytes: number | null;
+  database_ready: boolean;
+  schema_current: boolean;
+  worker_available: boolean;
+  lock_available: boolean;
+  conflict_with_job: boolean;
+  blockers: string[];
+  can_start: boolean;
+  observed_at: string;
+}
 
 export interface SegmentCatalogItem {
   id: string;
@@ -402,6 +464,8 @@ function isIsoTimestampWithTimezone(value: unknown): value is string {
 const RUNTIME_SUMMARIES: readonly RuntimeSummary[] = ["PENDING", "AVAILABLE", "INITIALIZING", "RESTRICTED", "UNAVAILABLE", "STALE"];
 const RUNTIME_COMPONENT_STATES: readonly RuntimeComponentState[] = ["PENDING", "AVAILABLE", "INITIALIZING", "RESTRICTED", "UNAVAILABLE", "STALE", "IDLE", "RUNNING"];
 const RUNTIME_BASE_STATES: readonly RuntimeBaseState[] = ["EMPTY", "AWAITING_OPERATOR", "INITIALIZING", "DOWNLOADING", "PROCESSING", "LOADING", "VALIDATING", "READY", "FAILED", "UNAVAILABLE"];
+const RUNTIME_UPDATE_STATUSES: readonly RuntimeUpdateStatus[] = ["AUTHORIZED", "RUNNING", "SUCCEEDED", "FAILED", "ROLLED_BACK"];
+const RUNTIME_UPDATE_STAGES: readonly RuntimeUpdateStage[] = ["DISCOVERY", "DOWNLOAD", "PROCESSING", "VALIDATING_GENERATION", "LOADING_CANDIDATE", "VALIDATING_CANDIDATE", "CANDIDATE_READY", "PRE_PROMOTION_BACKUP", "PROMOTION_WAITING", "PROMOTING", "POST_PROMOTION_VALIDATION", "ROLLING_BACK", "SUCCEEDED", "ROLLED_BACK", "ROLLBACK_FAILED"];
 
 function isNullableBoolean(value: unknown): value is boolean | null { return value === null || typeof value === "boolean"; }
 function isRuntimeComponent(value: unknown): value is RuntimeComponent {
@@ -411,15 +475,28 @@ function isRuntimeComponent(value: unknown): value is RuntimeComponent {
 }
 function isRuntimeBase(value: unknown): value is RuntimeBase {
   return isRecord(value) && (value.state === null || (typeof value.state === "string" && RUNTIME_BASE_STATES.includes(value.state as RuntimeBaseState))) &&
-    isNullableString(value.active_competence) && isNullableString(value.available_competence) && isNullableString(value.preparing_competence) &&
+    isNullableString(value.active_competence) && isNullableString(value.previous_competence) && isNullableString(value.available_competence) && isNullableString(value.preparing_competence) &&
     isNullableString(value.action_required) && isNullableString(value.current_stage) && isNullableString(value.last_failure_code) &&
-    isNullableString(value.last_failure_message) && (value.progress === null || (isRecord(value.progress) && !Array.isArray(value.progress)));
+    isNullableString(value.last_failure_message) && isNullableString(value.update_policy) && isNullableString(value.last_metadata_check_at) &&
+    (value.last_metadata_check_at === null || isIsoTimestampWithTimezone(value.last_metadata_check_at)) &&
+    isNullableString(value.last_metadata_check_result) && isNullableString(value.last_metadata_check_error) && isNullableString(value.active_operation) &&
+    (value.progress === null || (isRecord(value.progress) && !Array.isArray(value.progress)));
+}
+function isRuntimeUpdate(value: unknown): value is RuntimeUpdate {
+  const timestampFields = ["authorized_at", "started_at", "finished_at", "promoted_at", "rolled_back_at"] as const;
+  return isRecord(value) && isNullableString(value.job_id) &&
+    (value.status === null || (typeof value.status === "string" && RUNTIME_UPDATE_STATUSES.includes(value.status as RuntimeUpdateStatus))) &&
+    (value.stage === null || (typeof value.stage === "string" && RUNTIME_UPDATE_STAGES.includes(value.stage as RuntimeUpdateStage))) &&
+    (value.progress === null || (isRecord(value.progress) && !Array.isArray(value.progress))) &&
+    isNullableString(value.target_competence) && isNullableString(value.failure_code) && isNullableString(value.failure_message) &&
+    isNullableString(value.active_competence_at_start) && isNullableString(value.pre_promotion_backup_id) &&
+    timestampFields.every((field) => value[field] === null || isIsoTimestampWithTimezone(value[field]));
 }
 export function isRuntimeStatusResponse(value: unknown): value is RuntimeStatusResponse {
   return isRecord(value) && isIsoTimestampWithTimezone(value.observed_at) && typeof value.summary === "string" &&
     RUNTIME_SUMMARIES.includes(value.summary as RuntimeSummary) && isRecord(value.components) &&
     isRuntimeComponent(value.components.api) && isRuntimeComponent(value.components.database) &&
-    isRuntimeComponent(value.components.worker) && isRuntimeBase(value.base);
+    isRuntimeComponent(value.components.worker) && isRuntimeBase(value.base) && isRuntimeUpdate(value.update);
 }
 export function isBootstrapPreflightResponse(value: unknown): value is BootstrapPreflightResponse {
   const metric = (candidate: unknown, nullable = false) => (nullable && candidate === null) || (typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0);
@@ -432,6 +509,18 @@ export function isBootstrapPreflightResponse(value: unknown): value is Bootstrap
 }
 export function isBootstrapJobResponse(value: unknown): value is BootstrapJobResponse {
   return isRecord(value) && typeof value.job_id === "string" && typeof value.competence === "string" && typeof value.status === "string" && typeof value.replayed === "boolean";
+}
+
+export function isUpdatePreflightResponse(value: unknown): value is UpdatePreflightResponse {
+  const metric = (candidate: unknown, nullable = false) => (nullable && candidate === null) || (typeof candidate === "number" && Number.isSafeInteger(candidate) && candidate >= 0);
+  return isRecord(value) && typeof value.source === "string" && isNullableString(value.active_competence) && isNullableString(value.target_competence) &&
+    metric(value.file_count) && metric(value.shard_count) && metric(value.download_bytes, true) && metric(value.reusable_bytes) &&
+    metric(value.remaining_download_bytes, true) && metric(value.free_bytes, true) && metric(value.staging_estimate_bytes, true) &&
+    typeof value.database_ready === "boolean" && typeof value.schema_current === "boolean" && typeof value.worker_available === "boolean" &&
+    typeof value.lock_available === "boolean" && typeof value.conflict_with_job === "boolean" && Array.isArray(value.blockers) &&
+    value.blockers.every((item) => typeof item === "string") && typeof value.can_start === "boolean" &&
+    (!value.can_start || (typeof value.target_competence === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.target_competence))) &&
+    isIsoTimestampWithTimezone(value.observed_at);
 }
 
 export function isFeedbackAction(value: unknown): value is FeedbackAction {

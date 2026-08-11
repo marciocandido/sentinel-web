@@ -2,8 +2,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { RuntimeHealthSidebar } from "./RuntimeHealthSidebar";
 import type { RuntimeLifecycleView } from "./runtimeTypes";
+import { runtimeStatus } from "../../test/runtimeFixtures";
 
-const freshRuntime = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: null, available_competence: null, preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
+const freshRuntime = runtimeStatus();
 const refreshNow = () => undefined;
 const pending: RuntimeLifecycleView = { runtime: null, transportState: "pending", lastConfirmedAt: null, confirmationVersion: 0, checking: true, lastErrorCode: null, refreshNow };
 const fresh: RuntimeLifecycleView = { runtime: freshRuntime, transportState: "fresh", lastConfirmedAt: Date.now(), confirmationVersion: 1, checking: false, lastErrorCode: null, refreshNow };

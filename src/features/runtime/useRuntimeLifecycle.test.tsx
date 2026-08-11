@@ -3,12 +3,13 @@ import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getRuntimeStatus } from "../../services/sentinelApi";
 import { useRuntimeLifecycle } from "./useRuntimeLifecycle";
+import { runtimeStatus } from "../../test/runtimeFixtures";
 
 vi.mock("../../services/sentinelApi", () => ({ getRuntimeStatus: vi.fn() }));
 const runtimeRequest = vi.mocked(getRuntimeStatus);
-const healthy = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: null, available_competence: null, preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
-const degraded = { ...healthy, summary: "RESTRICTED" as const };
-const processing = { ...healthy, summary: "INITIALIZING" as const, components: { ...healthy.components, worker: { ...healthy.components.worker, state: "RUNNING" as const } }, base: { ...healthy.base, state: "PROCESSING" as const, preparing_competence: "2099-01", current_stage: "BUILD_BASE_UTIL", progress: { phase: "PROCESSING", stage: "BUILD_BASE_UTIL" } } };
+const healthy = runtimeStatus();
+const degraded = runtimeStatus({ summary: "RESTRICTED" });
+const processing = runtimeStatus({ summary: "INITIALIZING", components: { worker: { state: "RUNNING" } }, base: { state: "PROCESSING", preparing_competence: "2099-01", current_stage: "BUILD_BASE_UTIL", progress: { phase: "PROCESSING", stage: "BUILD_BASE_UTIL" } } });
 function Harness() { const runtime = useRuntimeLifecycle(); return <><output data-testid="transport">{runtime.transportState}</output><output data-testid="state">{runtime.runtime?.summary ?? "none"}</output><output data-testid="lifecycle">{runtime.runtime?.base.state ?? "none"}</output><output data-testid="checking">{String(runtime.checking)}</output><button onClick={runtime.refreshNow}>refresh</button></>; }
 function deferred<T>() { let resolve!: (value: T) => void; let reject!: (error: unknown) => void; const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; }); return { promise, resolve, reject }; }
 async function flush() { await act(async () => { await Promise.resolve(); }); }
@@ -53,6 +54,16 @@ describe("useRuntimeLifecycle", () => {
     render(<Harness />); await flush(); await act(async () => vi.advanceTimersByTimeAsync(15_000)); await act(async () => vi.advanceTimersByTimeAsync(60_000));
     await act(async () => vi.advanceTimersByTimeAsync(14_999)); expect(runtimeRequest).toHaveBeenCalledTimes(3);
     await act(async () => vi.advanceTimersByTimeAsync(1)); expect(runtimeRequest).toHaveBeenCalledTimes(4);
+  });
+
+  it("keeps fast polling for an active or failed monthly update", async () => {
+    const running = runtimeStatus({ components: { worker: { state: "RUNNING" } }, update: { job_id: "job", status: "RUNNING", stage: "PROCESSING", target_competence: "2026-08" } });
+    const failed = runtimeStatus({ update: { job_id: "job", status: "FAILED", stage: "VALIDATING_CANDIDATE", target_competence: "2026-08" } });
+    runtimeRequest.mockResolvedValueOnce(running).mockResolvedValueOnce(running).mockResolvedValueOnce(failed);
+    render(<Harness />); await flush();
+    await act(async () => vi.advanceTimersByTimeAsync(15_000));
+    await act(async () => vi.advanceTimersByTimeAsync(15_000));
+    expect(runtimeRequest).toHaveBeenCalledTimes(3);
   });
 
   it("does not overlap, aborts an old refresh and ignores its late response", async () => {

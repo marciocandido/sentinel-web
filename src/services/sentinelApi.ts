@@ -12,6 +12,7 @@ import {
   isRuntimeStatusResponse,
   isBootstrapPreflightResponse,
   isBootstrapJobResponse,
+  isUpdatePreflightResponse,
   type CommercialGroupPage,
   type DiscoveryEstablishmentPage,
   type LivenessResponse,
@@ -27,6 +28,7 @@ import {
   type RuntimeStatusResponse,
   type BootstrapPreflightResponse,
   type BootstrapJobResponse,
+  type UpdatePreflightResponse,
 } from "../types/api";
 import { getJson, postJson, SentinelApiError, type RequestOptions } from "./apiClient";
 
@@ -155,6 +157,21 @@ export async function getBootstrapPreflight(competence?: string, options?: Reque
 
 export async function startBootstrap(competence: string, options?: RequestOptions): Promise<BootstrapJobResponse> {
   const response = await postJson("/api/v1/base/bootstrap", { competence }, { ...options, timeoutMs: RUNTIME_TIMEOUT_MS, acceptedStatuses: [200, 202] });
+  if (!isBootstrapJobResponse(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  return response;
+}
+
+export async function getUpdatePreflight(competence?: string, options?: RequestOptions): Promise<UpdatePreflightResponse> {
+  const query = new URLSearchParams();
+  if (competence?.trim()) query.set("competence", competence.trim());
+  const suffix = query.size ? `?${query.toString()}` : "";
+  const response = await getJson(`/api/v1/base/update/preflight${suffix}`, { ...options, timeoutMs: RUNTIME_TIMEOUT_MS });
+  if (!isUpdatePreflightResponse(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  return response;
+}
+
+export async function startMonthlyUpdate(competence: string, options?: RequestOptions): Promise<BootstrapJobResponse> {
+  const response = await postJson("/api/v1/base/update", { competence }, { ...options, timeoutMs: RUNTIME_TIMEOUT_MS, acceptedStatuses: [200, 202] });
   if (!isBootstrapJobResponse(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
   return response;
 }

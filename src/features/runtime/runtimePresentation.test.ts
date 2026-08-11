@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { presentRuntime } from "./runtimePresentation";
 import type { RuntimeLifecycleView } from "./runtimeTypes";
+import { runtimeStatus } from "../../test/runtimeFixtures";
 
-const healthy = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: null, available_competence: null, preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
+const healthy = runtimeStatus();
 function view(overrides: Partial<RuntimeLifecycleView> = {}): RuntimeLifecycleView { return { runtime: healthy, transportState: "fresh", lastConfirmedAt: Date.now(), confirmationVersion: 0, checking: false, lastErrorCode: null, refreshNow: () => undefined, ...overrides }; }
 
 describe("runtime presentation", () => {
@@ -20,17 +21,28 @@ describe("runtime presentation", () => {
 
   it("covers the seven public summaries without exposing raw runtime fields", () => {
     expect(presentRuntime(view({ runtime: null, transportState: "pending" })).summary).toBe("Verificação pendente");
-    expect(presentRuntime(view({ runtime: { ...healthy, base: { ...healthy.base, state: "AWAITING_OPERATOR" } } })).summary).toBe("Configuração necessária");
-    expect(presentRuntime(view({ runtime: { ...healthy, base: { ...healthy.base, state: "PROCESSING" } } })).summary).toBe("Sistema inicializando");
+    expect(presentRuntime(view({ runtime: runtimeStatus({ base: { state: "AWAITING_OPERATOR" } }) })).summary).toBe("Configuração necessária");
+    expect(presentRuntime(view({ runtime: runtimeStatus({ base: { state: "PROCESSING" } }) })).summary).toBe("Sistema inicializando");
     expect(presentRuntime(view()).summary).toBe("Sistema disponível");
-    expect(presentRuntime(view({ runtime: { ...healthy, base: { ...healthy.base, state: "FAILED" } } })).summary).toBe("Sistema com restrição");
+    expect(presentRuntime(view({ runtime: runtimeStatus({ base: { state: "FAILED" } }) })).summary).toBe("Sistema com restrição");
     expect(presentRuntime(view({ runtime: null, transportState: "degraded", lastErrorCode: "network_error" })).summary).toBe("Sistema indisponível");
     expect(presentRuntime(view({ transportState: "stale" })).summary).toBe("Dados desatualizados");
   });
   it("keeps backend worker stale distinct from a stale frontend snapshot", () => {
-    expect(presentRuntime(view({ runtime: { ...healthy, components: { ...healthy.components, worker: { ...healthy.components.worker, state: "STALE" } } } })).summary).toBe("Sistema com restrição");
+    expect(presentRuntime(view({ runtime: runtimeStatus({ components: { worker: { state: "STALE" } } }) })).summary).toBe("Sistema com restrição");
     expect(presentRuntime(view({ transportState: "stale" }))).toMatchObject({
       summary: "Dados desatualizados", api: "Desatualizado", database: "Desatualizado", worker: "Desatualizado",
     });
+  });
+  it("keeps the system available while the monthly worker is active", () => {
+    const running = runtimeStatus({ components: { worker: { state: "RUNNING" } }, base: { active_operation: "UPDATE" }, update: { job_id: "job", status: "RUNNING", stage: "PROMOTING", target_competence: "2026-08" } });
+    expect(presentRuntime(view({ runtime: running }))).toMatchObject({ summary: "Sistema disponível", worker: "Atualizando base" });
+    const waiting = runtimeStatus({ base: { active_operation: "UPDATE" }, update: { job_id: "job", status: "RUNNING", stage: "PROMOTION_WAITING", target_competence: "2026-08" } });
+    expect(presentRuntime(view({ runtime: waiting }))).toMatchObject({ summary: "Sistema disponível", worker: "Atualização aguardando retomada" });
+  });
+
+  it("treats a failed update over READY as a restriction and a rollback as available", () => {
+    expect(presentRuntime(view({ runtime: runtimeStatus({ update: { job_id: "job", status: "FAILED", stage: "VALIDATING_CANDIDATE" } }) }))).toMatchObject({ summary: "Sistema com restrição" });
+    expect(presentRuntime(view({ runtime: runtimeStatus({ update: { job_id: "job", status: "ROLLED_BACK", stage: "ROLLED_BACK" } }) }))).toMatchObject({ summary: "Sistema disponível" });
   });
 });
