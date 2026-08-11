@@ -14,11 +14,14 @@ const progressStates = new Set(["INITIALIZING", "DOWNLOADING", "PROCESSING", "LO
 
 export function BaseLifecycleGate({ runtime }: { runtime: RuntimeLifecycleView }) {
   const state = runtime.runtime?.base.state;
+  const actionRequired = runtime.runtime?.base.action_required;
+  const updateStage = runtime.runtime?.update.stage;
+  const correlatedRollbackStage = actionRequired === null && runtime.runtime?.base.active_operation === "UPDATE" &&
+    (updateStage === "ROLLING_BACK" || updateStage === "ROLLBACK_FAILED");
   const monthlyRecovery = state === "FAILED" && (
-    runtime.runtime?.base.action_required === "RETRY_MONTHLY_ROLLBACK" ||
-    runtime.runtime?.base.action_required === "MANUAL_MONTHLY_ROLLBACK" ||
-    runtime.runtime?.update.stage === "ROLLING_BACK" ||
-    runtime.runtime?.update.stage === "ROLLBACK_FAILED"
+    actionRequired === "RETRY_MONTHLY_ROLLBACK" ||
+    actionRequired === "MANUAL_MONTHLY_ROLLBACK" ||
+    correlatedRollbackStage
   );
   const setup = useBootstrapSetup(state === "AWAITING_OPERATOR" || (state === "FAILED" && !monthlyRecovery) ? state : null, runtime.confirmationVersion, runtime.refreshNow);
   const [confirm, setConfirm] = useState(false);

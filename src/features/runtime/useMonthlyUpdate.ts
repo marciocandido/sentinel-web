@@ -5,6 +5,7 @@ import type { UpdatePreflightResponse } from "../../types/api";
 import type { RuntimeLifecycleView } from "./runtimeTypes";
 
 type StartResult = "accepted" | "uncertain" | "blocked" | "failed" | "in_progress";
+type UncertainAttempt = { target: string; confirmationVersion: number; baselineJobId: string | null };
 const UNCERTAIN_CODES = new Set(["request_timeout", "network_error", "invalid_response", "invalid_json"]);
 
 export function monthlyUpdateTarget(view: RuntimeLifecycleView) {
@@ -32,7 +33,7 @@ export function useMonthlyUpdate(view: RuntimeLifecycleView) {
   const postController = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const starting = useRef(false);
-  const uncertainAttempt = useRef<{ target: string; version: number } | null>(null);
+  const uncertainAttempt = useRef<UncertainAttempt | null>(null);
   const reloadAfterRuntimeVersion = useRef<number | null>(null);
 
   const reload = useCallback(async () => {
@@ -75,17 +76,30 @@ export function useMonthlyUpdate(view: RuntimeLifecycleView) {
 
   useEffect(() => {
     const attempt = uncertainAttempt.current;
-    if (!attempt || view.confirmationVersion <= attempt.version) return;
+    if (!attempt || view.transportState !== "fresh" || view.confirmationVersion <= attempt.confirmationVersion) return;
     const update = view.runtime?.update;
-    if (update?.target_competence === attempt.target && update.job_id && update.status) {
+    const isNewMatchingJob = update?.target_competence === attempt.target &&
+      update.job_id !== null && update.job_id !== attempt.baselineJobId;
+    if (isNewMatchingJob) {
       uncertainAttempt.current = null;
       queueMicrotask(() => {
         setUncertain(false);
         setAccepted(true);
         setError(null);
       });
+      return;
     }
-  }, [view.confirmationVersion, view.runtime]);
+    const activeMatchingJob = update?.target_competence === attempt.target &&
+      (update.status === "AUTHORIZED" || update.status === "RUNNING");
+    if (activeMatchingJob) return;
+    uncertainAttempt.current = null;
+    queueMicrotask(() => {
+      setUncertain(false);
+      setAccepted(false);
+      setError(null);
+      void reload();
+    });
+  }, [reload, view.confirmationVersion, view.runtime, view.transportState]);
 
   useEffect(() => {
     const version = reloadAfterRuntimeVersion.current;
@@ -102,6 +116,11 @@ export function useMonthlyUpdate(view: RuntimeLifecycleView) {
     setSubmitting(true);
     setError(null);
     const controller = new AbortController();
+    const attempt: UncertainAttempt = {
+      target: competence,
+      confirmationVersion: view.confirmationVersion,
+      baselineJobId: view.runtime?.update.job_id ?? null,
+    };
     postController.current = controller;
     try {
       await startMonthlyUpdate(competence, { signal: controller.signal });
@@ -113,7 +132,7 @@ export function useMonthlyUpdate(view: RuntimeLifecycleView) {
       if (controller.signal.aborted) return "failed";
       const code = cause instanceof SentinelApiError ? cause.code : "network_error";
       if (UNCERTAIN_CODES.has(code)) {
-        uncertainAttempt.current = { target: competence, version: view.confirmationVersion };
+        uncertainAttempt.current = attempt;
         setUncertain(true);
         setPreflight(null);
         setError("uncertain");

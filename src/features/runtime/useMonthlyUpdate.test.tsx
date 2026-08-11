@@ -65,9 +65,9 @@ describe("useMonthlyUpdate", () => {
     await waitFor(() => expect(refreshNow).toHaveBeenCalledTimes(1));
   });
 
-  it("treats an uncertain POST as non-repeatable until runtime confirms the job", async () => {
+  it("does not accept the historical job for the same target after an uncertain retry", async () => {
     startRequest.mockRejectedValue(new SentinelApiError("request_timeout", "timeout"));
-    const initial = view();
+    const initial = view({ runtime: runtimeStatus({ base: { available_competence: null }, update: { job_id: "old-job", status: "FAILED", stage: "VALIDATING_CANDIDATE", target_competence: "2026-08" } }) });
     const { rerender } = render(<Harness runtime={initial} />);
     await waitFor(() => expect(screen.getByTestId("preflight")).toHaveTextContent("2026-08"));
     fireEvent.click(screen.getByRole("button", { name: "start" }));
@@ -75,7 +75,37 @@ describe("useMonthlyUpdate", () => {
     fireEvent.click(screen.getByRole("button", { name: "start" }));
     expect(startRequest).toHaveBeenCalledTimes(1);
     expect(refreshNow).toHaveBeenCalledTimes(1);
-    rerender(<Harness runtime={view({ confirmationVersion: 2, runtime: runtimeStatus({ base: { available_competence: null, active_operation: "UPDATE" }, update: { job_id: "job", status: "AUTHORIZED", stage: "DISCOVERY", target_competence: "2026-08" } }) })} />);
+    rerender(<Harness runtime={view({ confirmationVersion: 2, runtime: runtimeStatus({ base: { available_competence: null }, update: { job_id: "old-job", status: "FAILED", stage: "VALIDATING_CANDIDATE", target_competence: "2026-08" } }) })} />);
+    await waitFor(() => expect(preflightRequest).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId("state")).not.toHaveTextContent("accepted");
+    expect(startRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("ends uncertainty after a fresh runtime proves no new update was persisted", async () => {
+    startRequest.mockRejectedValue(new SentinelApiError("request_timeout", "timeout"));
+    const { rerender } = render(<Harness runtime={view()} />);
+    await waitFor(() => expect(screen.getByTestId("preflight")).toHaveTextContent("2026-08"));
+    fireEvent.click(screen.getByRole("button", { name: "start" }));
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("uncertain"));
+
+    rerender(<Harness runtime={view({ confirmationVersion: 2, runtime: runtimeStatus({ base: { available_competence: "2026-08", active_operation: null } }) })} />);
+    await waitFor(() => expect(preflightRequest).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("idle"));
+    expect(startRequest).toHaveBeenCalledTimes(1);
+
+    startRequest.mockResolvedValueOnce({ job_id: "new-job", competence: "2026-08", status: "AUTHORIZED", replayed: false });
+    fireEvent.click(screen.getByRole("button", { name: "start" }));
+    await waitFor(() => expect(startRequest).toHaveBeenCalledTimes(2));
+  });
+
+  it("accepts an uncertain retry only after a new matching job appears", async () => {
+    startRequest.mockRejectedValue(new SentinelApiError("request_timeout", "timeout"));
+    const { rerender } = render(<Harness runtime={view({ runtime: runtimeStatus({ base: { available_competence: null }, update: { job_id: "old-job", status: "FAILED", stage: "VALIDATING_CANDIDATE", target_competence: "2026-08" } }) })} />);
+    await waitFor(() => expect(screen.getByTestId("preflight")).toHaveTextContent("2026-08"));
+    fireEvent.click(screen.getByRole("button", { name: "start" }));
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("uncertain"));
+
+    rerender(<Harness runtime={view({ confirmationVersion: 2, runtime: runtimeStatus({ base: { available_competence: null, active_operation: "UPDATE" }, update: { job_id: "new-job", status: "RUNNING", stage: "DISCOVERY", target_competence: "2026-08" } }) })} />);
     await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("accepted"));
     expect(startRequest).toHaveBeenCalledTimes(1);
   });
