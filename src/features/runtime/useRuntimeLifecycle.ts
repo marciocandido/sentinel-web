@@ -9,7 +9,8 @@ const HEALTHY_POLL_MS = 60_000;
 const STALE_AFTER_MS = 120_000;
 
 function isStableHealthy(runtime: RuntimeStatusResponse) {
-  const { components, base } = runtime;
+  const { components, base, update } = runtime;
+  if (update.status === "AUTHORIZED" || update.status === "RUNNING" || update.status === "FAILED") return false;
   return runtime.summary === "AVAILABLE" && base.state === "READY" &&
     components.api.state === "AVAILABLE" && components.database.state === "AVAILABLE" &&
     components.database.schema_current === true && components.worker.state === "IDLE";

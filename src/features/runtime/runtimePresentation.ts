@@ -11,10 +11,12 @@ function componentLabels(view: RuntimeLifecycleView) {
     if (view.lastErrorCode === "database_unavailable") return { api: "Disponível", database: "Indisponível", worker: "Desconhecido" };
     return { api: "Indisponível", database: "Desconhecido", worker: "Desconhecido" };
   }
-  const { components } = view.runtime;
+  const { components, update } = view.runtime;
   const api = components.api.state === "AVAILABLE" ? "Disponível" : "Indisponível";
   const database = components.database.state === "AVAILABLE" && components.database.schema_current === true ? "Disponível" : components.database.state === "UNAVAILABLE" ? "Indisponível" : "Desconhecido";
-  const worker = components.worker.state === "IDLE" ? "Disponível" : components.worker.state === "RUNNING" ? "Em execução" : components.worker.state === "STALE" ? "Sem confirmação recente" : components.worker.state === "UNAVAILABLE" ? "Indisponível" : "Desconhecido";
+  const worker = update.status === "AUTHORIZED" || update.status === "RUNNING"
+    ? update.stage === "PROMOTION_WAITING" && components.worker.state === "IDLE" ? "Atualização aguardando retomada" : "Atualizando base"
+    : components.worker.state === "IDLE" ? "Disponível" : components.worker.state === "RUNNING" ? "Em execução" : components.worker.state === "STALE" ? "Sem confirmação recente" : components.worker.state === "UNAVAILABLE" ? "Indisponível" : "Desconhecido";
   return { api, database, worker };
 }
 
@@ -26,7 +28,9 @@ export function presentRuntime(view: RuntimeLifecycleView): RuntimePresentation 
   const { base, summary, components } = view.runtime;
   if (base.state === "EMPTY" || base.state === "AWAITING_OPERATOR") return { summary: "Configuração necessária", tone: "attention", ...labels, canRetry: view.transportState === "degraded" };
   if (["INITIALIZING", "DOWNLOADING", "PROCESSING", "LOADING", "VALIDATING"].includes(base.state ?? "")) return { summary: "Sistema inicializando", tone: "attention", ...labels, canRetry: view.transportState === "degraded" };
-  const healthy = summary === "AVAILABLE" && base.state === "READY" && components.api.state === "AVAILABLE" && components.database.state === "AVAILABLE" && components.database.schema_current === true && components.worker.state === "IDLE";
+  const updateKeepsBaseAvailable = view.runtime.update.status === "AUTHORIZED" || view.runtime.update.status === "RUNNING";
+  const workerCompatible = components.worker.state === "IDLE" || (updateKeepsBaseAvailable && components.worker.state === "RUNNING");
+  const healthy = summary === "AVAILABLE" && base.state === "READY" && components.api.state === "AVAILABLE" && components.database.state === "AVAILABLE" && components.database.schema_current === true && workerCompatible && view.runtime.update.status !== "FAILED";
   if (healthy && view.transportState === "fresh") return { summary: "Sistema disponível", tone: "success", ...labels, canRetry: false };
   if (summary === "UNAVAILABLE" && components.database.state === "UNAVAILABLE") return { summary: "Sistema indisponível", tone: "danger", ...labels, canRetry: true };
   return { summary: "Sistema com restrição", tone: "attention", ...labels, canRetry: true };

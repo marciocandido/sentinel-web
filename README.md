@@ -70,6 +70,20 @@ bootstrap, permite nova tentativa somente quando o preflight autoriza e libera
 Discovery apenas após `READY`. Um reset operacional externo volta ao onboarding;
 nenhum download ou ETL é executado pelo navegador.
 
+Com uma geração `READY`, a mesma autoridade de runtime também apresenta a
+atualização mensal quando o backend detecta uma nova competência. A autorização
+é explícita e precedida por `GET /api/v1/base/update/preflight`; o navegador
+envia somente a competência confirmada para `POST /api/v1/base/update`. Durante
+download, processamento, candidate, backup e promoção, Discovery continua
+disponível enquanto o backend mantiver a base `READY`. O painel mostra apenas
+progresso real retornado pela API, além dos resultados de sucesso, falha e
+rollback. Falhas de recuperação que tornam a base indisponível bloqueiam
+Discovery e exigem atuação operacional, sem oferecer bootstrap ou restore no
+navegador.
+
+A política mensal suportada é `NOTIFY_ONLY`: não há `FULL_AUTO`, promoção
+manual pelo frontend, override de redução, ETL ou download executado no browser.
+
 ## Qualidade
 
 ```bash
@@ -226,6 +240,9 @@ não é uma ficha completa da empresa e não consulta endpoint de detalhe.
 ## Endpoints consumidos
 
 - `GET /health/live` — indicador de processo HTTP vivo;
+- `GET /api/v1/runtime/status` — lifecycle, saúde e atualização mensal;
+- `GET /api/v1/base/update/preflight` — validação da atualização mensal;
+- `POST /api/v1/base/update` — autorização explícita por competência;
 - `GET /api/v1/catalog/segments` — seletor de segmentos.
 - `GET /api/v1/discovery/segments/{segment_id}/establishments` — busca por
   segmento;

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../app/App";
+import { runtimeStatus } from "../../test/runtimeFixtures";
 import { neighborEstablishment, neighborSearchPage } from "../../test/fixtures";
 import { isNeighborSearchPage } from "../../types/api";
 import { createNeighborsSnapshot, validateNeighbors } from "./neighborsUtils";
@@ -12,7 +13,7 @@ vi.mock("./RadiusMap", () => ({
 }));
 
 const fetchMock = vi.fn();
-const runtime = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: "2026-07", available_competence: "2026-07", preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
+const runtime = runtimeStatus();
 const response = (body: unknown) => ({ ok: true, status: 200, json: () => Promise.resolve(body) }) as Response;
 
 beforeEach(() => {

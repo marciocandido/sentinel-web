@@ -2,9 +2,10 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { buildApiUrl, getJson } from "../services/apiClient";
+import { runtimeStatus } from "../test/runtimeFixtures";
 
-const runtime = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: "2026-07", available_competence: "2026-07", preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
-const processingRuntime = { ...runtime, summary: "INITIALIZING" as const, components: { ...runtime.components, worker: { ...runtime.components.worker, state: "RUNNING" as const } }, base: { ...runtime.base, state: "PROCESSING" as const, preparing_competence: "2099-01", current_stage: "BUILD_BASE_UTIL", progress: { phase: "PROCESSING", stage: "BUILD_BASE_UTIL" } } };
+const runtime = runtimeStatus();
+const processingRuntime = runtimeStatus({ summary: "INITIALIZING", components: { worker: { state: "RUNNING" } }, base: { state: "PROCESSING", preparing_competence: "2099-01", current_stage: "BUILD_BASE_UTIL", progress: { phase: "PROCESSING", stage: "BUILD_BASE_UTIL" } } });
 const catalog = { items: [{ id: "metal-mecanica", name: "Metal-mecânica" }] };
 const fetchMock = vi.fn();
 
@@ -71,6 +72,15 @@ describe("Sentinel Web foundation", () => {
     expect(screen.getByText("Construindo base útil")).toBeInTheDocument();
     expect(screen.queryByText("Verificando estado do Sentinel")).not.toBeInTheDocument();
     expect(screen.queryByText("Sistema indisponível")).not.toBeInTheDocument();
+  });
+
+  it("keeps Discovery mounted while a monthly update is active", async () => {
+    const activeUpdate = runtimeStatus({ components: { worker: { state: "RUNNING" } }, base: { active_operation: "UPDATE", preparing_competence: "2026-08" }, update: { job_id: "job", status: "RUNNING", stage: "PRE_PROMOTION_BACKUP", target_competence: "2026-08" } });
+    fetchMock.mockImplementation((input: RequestInfo | URL) => Promise.resolve(input.toString().includes("/api/v1/runtime/status") ? jsonResponse(activeUpdate) : jsonResponse(catalog)));
+    render(<App />);
+    expect(await screen.findByText("Criando backup pré-promoção")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Buscar" })).toBeEnabled();
+    expect(screen.getByText("Sistema disponível")).toBeInTheDocument();
   });
 
   it("shows offline for HTTP and network failures without exposing a stack trace", async () => {

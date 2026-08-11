@@ -1,11 +1,12 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../app/App";
+import { runtimeStatus } from "../../test/runtimeFixtures";
 import { isSimilarCompanyPage } from "../../types/api";
 import { discoveryPage, establishment, similarCompany, similarCompanyPage } from "../../test/fixtures";
 
 const liveness = { status: "ok", service: "sentinel-api" } as const;
-const runtime = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: "2026-07", available_competence: "2026-07", preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
+const runtime = runtimeStatus();
 const catalog = { items: [{ id: "metal-mecanica", name: "Metal-mecânica" }] };
 const fetchMock = vi.fn();
 
