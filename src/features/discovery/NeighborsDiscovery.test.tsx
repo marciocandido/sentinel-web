@@ -12,17 +12,19 @@ vi.mock("./RadiusMap", () => ({
 }));
 
 const fetchMock = vi.fn();
+const runtime = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: "2026-07", available_competence: "2026-07", preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
 const response = (body: unknown) => ({ ok: true, status: 200, json: () => Promise.resolve(body) }) as Response;
 
 beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation((input: RequestInfo | URL) => {
     const url = input.toString();
+    if (url.includes("/api/v1/runtime/status")) return Promise.resolve(response(runtime));
     if (url.includes("health/live")) return Promise.resolve(response({ status: "ok", service: "sentinel-api" }));
     if (url.includes("catalog/segments")) return Promise.resolve(response({ items: [{ id: "metal", name: "Metal" }] }));
     return Promise.resolve(response(neighborSearchPage()));
   });
-  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(response(runtime)) : fetchMock(input, init));
 });
 
 describe("vizinhos", () => {
@@ -35,12 +37,13 @@ describe("vizinhos", () => {
   it("uses the CNPJ-specific endpoint, preserves order, and omits domain fields not in the contract", async () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
       const url = input.toString();
+      if (url.includes("/api/v1/runtime/status")) return Promise.resolve(response(runtime));
       if (url.includes("health/live")) return Promise.resolve(response({ status: "ok", service: "sentinel-api" }));
       if (url.includes("catalog/segments")) return Promise.resolve(response({ items: [] }));
       return Promise.resolve(response(neighborSearchPage([neighborEstablishment({ razao_social: "PRIMEIRA" }), neighborEstablishment({ cnpj_full: "0002", razao_social: "SEGUNDA" })])));
     });
     render(<App />);
-    fireEvent.click(screen.getByRole("radio", { name: "Por vizinhos" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Por vizinhos" }));
     fireEvent.change(screen.getByLabelText("CNPJ de referência"), { target: { value: "00.ABC/0001-55" } });
     fireEvent.change(screen.getByLabelText("Raio em quilômetros"), { target: { value: "15" } });
     fireEvent.submit(screen.getByRole("form", { name: "Formulário de busca por vizinhos" }));
@@ -73,7 +76,7 @@ describe("vizinhos", () => {
       return Promise.resolve(response(neighborSearchPage(undefined, { offset: Number(parsed.searchParams.get("offset")), has_more: Number(parsed.searchParams.get("offset")) === 0 })));
     });
     render(<App />);
-    fireEvent.click(screen.getByRole("radio", { name: "Por vizinhos" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Por vizinhos" }));
     fireEvent.change(screen.getByLabelText("CNPJ de referência"), { target: { value: "001" } });
     fireEvent.submit(screen.getByRole("form", { name: "Formulário de busca por vizinhos" }));
     await screen.findByRole("table");

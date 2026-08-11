@@ -35,6 +35,7 @@ vi.mock("./RadiusMap", () => ({
 
 const fetchMock = vi.fn();
 const liveness = { status: "ok", service: "sentinel-api" } as const;
+const runtime = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: "2026-07", available_competence: "2026-07", preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
 const catalog = { items: [{ id: "metal", name: "Metal" }] };
 
 function response(body: unknown, status = 200): Response {
@@ -45,8 +46,12 @@ function response(body: unknown, status = 200): Response {
   } as Response;
 }
 
+const originalMockImplementation = fetchMock.mockImplementation.bind(fetchMock);
+fetchMock.mockImplementation = ((implementation) => originalMockImplementation((input, init) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(response(runtime)) : implementation(input, init))) as typeof fetchMock.mockImplementation;
+
 function defaultApi(input: RequestInfo | URL): Promise<Response> {
   const url = input.toString();
+  if (url.includes("/api/v1/runtime/status")) return Promise.resolve(response(runtime));
   if (url.includes("/health/live")) return Promise.resolve(response(liveness));
   if (url.includes("/catalog/segments")) return Promise.resolve(response(catalog));
   if (url.includes("/root-branches?")) {
@@ -81,8 +86,8 @@ function rootUrl(index: number): URL {
   return new URL(rootCalls()[index][0].toString(), "http://local");
 }
 
-function selectRootMode() {
-  fireEvent.click(screen.getByRole("radio", { name: "Por raiz/filiais" }));
+async function selectRootMode() {
+  fireEvent.click(await screen.findByRole("radio", { name: "Por raiz/filiais" }));
 }
 
 function identifierInput(name: "CNPJ completo" | "Raiz do CNPJ") {
@@ -104,7 +109,7 @@ function submitRootForm() {
 }
 
 async function prepareRootSearch(value = "00ABC234000155") {
-  selectRootMode();
+  await selectRootMode();
   fireEvent.change(identifierInput("CNPJ completo"), {
     target: { value },
   });
@@ -113,7 +118,7 @@ async function prepareRootSearch(value = "00ABC234000155") {
 beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(defaultApi);
-  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(response(runtime)) : fetchMock(input, init));
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: { writeText: vi.fn().mockResolvedValue(undefined) },
@@ -127,8 +132,9 @@ afterEach(() => {
 });
 
 describe("modo raiz e filiais", () => {
-  it("shows the fourth mode, preserves previous modes and starts with CNPJ", () => {
+  it("shows the fourth mode, preserves previous modes and starts with CNPJ", async () => {
     render(<App />);
+    await screen.findByRole("radio", { name: "Por segmento" });
     for (const name of [
       "Por segmento",
       "Por região",
@@ -137,7 +143,7 @@ describe("modo raiz e filiais", () => {
     ]) {
       expect(screen.getByRole("radio", { name })).toBeInTheDocument();
     }
-    selectRootMode();
+    await selectRootMode();
     expect(screen.getByRole("radio", { name: "CNPJ completo" })).toBeChecked();
     expect(identifierInput("CNPJ completo")).toHaveAttribute("type", "text");
     expect(screen.getByText(/frontend preserva o valor como texto/i)).toBeInTheDocument();
@@ -169,7 +175,7 @@ describe("modo raiz e filiais", () => {
 
   it("rejects an empty submission and preserves alphanumeric CNPJ and leading zero root", async () => {
     render(<App />);
-    selectRootMode();
+    await selectRootMode();
     submitRoot();
     expect(await screen.findByText("Informe o CNPJ completo.")).toBeInTheDocument();
     expect(rootCalls()).toHaveLength(0);
@@ -435,7 +441,7 @@ describe("modo raiz e filiais", () => {
     expect(signals[1].aborted).toBe(true);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
-    selectRootMode();
+    await selectRootMode();
     submitRootForm();
     view.unmount();
     expect(signals[2].aborted).toBe(true);

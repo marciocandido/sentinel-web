@@ -61,6 +61,15 @@ banco, a liveness ainda pode ficar online e o catálogo pode retornar 503 com
 `database_unavailable`; essa é uma condição tratada pela interface, não uma
 indicação de que o catálogo esteja configurado.
 
+A sidebar consulta `GET /api/v1/runtime/status` como fonte única de saúde da
+API, banco, worker e base. O monitor usa timeout de 4 s, reduz polling quando
+o runtime está estável e pausa em abas ocultas. A primeira configuração da base
+é guiada por preflight e confirmação: a preparação ocorre no servidor e
+continua se a página for fechada. A interface mostra fases públicas do
+bootstrap, permite nova tentativa somente quando o preflight autoriza e libera
+Discovery apenas após `READY`. Um reset operacional externo volta ao onboarding;
+nenhum download ou ETL é executado pelo navegador.
+
 ## Qualidade
 
 ```bash

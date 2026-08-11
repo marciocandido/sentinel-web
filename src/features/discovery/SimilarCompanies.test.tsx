@@ -5,6 +5,7 @@ import { isSimilarCompanyPage } from "../../types/api";
 import { discoveryPage, establishment, similarCompany, similarCompanyPage } from "../../test/fixtures";
 
 const liveness = { status: "ok", service: "sentinel-api" } as const;
+const runtime = { observed_at: "2026-08-07T19:43:22Z", summary: "AVAILABLE", components: { api: { state: "AVAILABLE", schema_current: null, last_seen_at: null }, database: { state: "AVAILABLE", schema_current: true, last_seen_at: null }, worker: { state: "IDLE", schema_current: null, last_seen_at: null } }, base: { state: "READY", active_competence: "2026-07", available_competence: "2026-07", preparing_competence: null, action_required: null, current_stage: null, progress: null, last_failure_code: null, last_failure_message: null } } as const;
 const catalog = { items: [{ id: "metal-mecanica", name: "Metal-mecânica" }] };
 const fetchMock = vi.fn();
 
@@ -16,12 +17,16 @@ function jsonResponse(body: unknown, status = 200): Response {
   } as Response;
 }
 
+const originalMockImplementation = fetchMock.mockImplementation.bind(fetchMock);
+fetchMock.mockImplementation = ((implementation) => originalMockImplementation((input, init) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(jsonResponse(runtime)) : implementation(input, init))) as typeof fetchMock.mockImplementation;
+
 function isSimilar(input: RequestInfo | URL): boolean {
   return input.toString().includes("/similar?");
 }
 
 function defaultApi(input: RequestInfo | URL): Promise<Response> {
   const url = input.toString();
+  if (url.includes("/api/v1/runtime/status")) return Promise.resolve(jsonResponse(runtime));
   if (url.includes("/health/live")) return Promise.resolve(jsonResponse(liveness));
   if (url.includes("/api/v1/catalog/segments")) return Promise.resolve(jsonResponse(catalog));
   if (isSimilar(input)) return Promise.resolve(jsonResponse(similarCompanyPage()));
@@ -56,7 +61,7 @@ function similarUrls(): string[] {
 beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(defaultApi);
-  vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => input.toString().includes("/api/v1/runtime/status") ? Promise.resolve(jsonResponse(runtime)) : fetchMock(input, init));
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: { writeText: vi.fn().mockResolvedValue(undefined) },
