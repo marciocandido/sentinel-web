@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { buildApiUrl, getJson } from "../services/apiClient";
@@ -145,10 +145,14 @@ describe("Sentinel Web foundation", () => {
     const menu = screen.getByRole("button", { name: "Abrir menu" });
     fireEvent.click(menu);
     expect(menu).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByLabelText("Navegação principal")).toHaveClass("sidebar--mobile-open");
+    const drawer = screen.getByLabelText("Navegação principal");
+    expect(drawer).toHaveClass("sidebar--mobile-open");
+    expect(within(drawer).getByLabelText("Saúde operacional")).toBeInTheDocument();
     expect(document.getElementById("app-content")).toHaveAttribute("inert");
     fireEvent.keyDown(document, { key: "Escape" });
     expect(menu).toHaveAttribute("aria-expanded", "false");
+    expect(drawer).not.toHaveClass("sidebar--mobile-open");
+    expect(document.getElementById("app-content")).not.toHaveAttribute("inert");
     expect(menu).toHaveFocus();
   });
 

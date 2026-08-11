@@ -125,7 +125,7 @@ select:disabled { cursor: not-allowed; background: var(--control-disabled-surfac
 .field-message { margin: 6px 0 0; display: flex; align-items: center; gap: 7px; color: var(--text-muted); font-size: .8rem; }
 .mini-spinner { width: 14px; height: 14px; border: 2px solid var(--spinner-track); border-top-color: var(--brand); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .runtime-health__checking-icon { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .runtime-health__checking-icon, .runtime-panel__spinner, .mini-spinner { animation: none; } }
 .field-error { margin-top: 4px; padding: 10px; border-left: 3px solid var(--danger); border-radius: 4px; background: var(--error-surface); color: var(--error-text); max-width: 570px; }
 .field-error p { margin: 0 0 8px; line-height: 1.4; }
 .secondary-button, .primary-button { min-height: 36px; padding: 0 12px; border-radius: 6px; font-weight: 700; }
