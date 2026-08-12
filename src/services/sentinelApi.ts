@@ -30,7 +30,7 @@ import {
   type BootstrapJobResponse,
   type UpdatePreflightResponse,
 } from "../types/api";
-import { getJson, postJson, SentinelApiError, type RequestOptions } from "./apiClient";
+import { getJson, postBinary, postJson, SentinelApiError, type RequestOptions } from "./apiClient";
 
 export interface SegmentSearchParams {
   segmentId: string;
@@ -98,6 +98,83 @@ export interface CommercialGroupSearchParams {
   groupId: string;
   limit: number;
   offset: number;
+}
+
+export type DiscoveryExportFormat = "CSV" | "XLSX";
+
+export interface SegmentExportSearch {
+  kind: "SEGMENT";
+  segment_id: string;
+  uf?: string;
+  codigo_tom?: string;
+  porte_codigo?: string;
+  capital_min?: string;
+  capital_max?: string;
+}
+
+export interface RegionExportSearch {
+  kind: "REGION";
+  uf?: string;
+  codigo_tom?: string;
+  codigo_ibge?: string;
+  municipio_nome?: string;
+  segment_id?: string;
+}
+
+export interface RadiusExportSearch {
+  kind: "RADIUS";
+  radius_km: number;
+  origin_lat?: number;
+  origin_lon?: number;
+  origin_cnpj?: string;
+  origin_codigo_tom?: string;
+  origin_codigo_ibge?: string;
+  origin_municipio_nome?: string;
+  origin_uf?: string;
+  segment_id?: string;
+  uf?: string;
+}
+
+export interface NeighborsExportSearch {
+  kind: "NEIGHBORS";
+  cnpj_full: string;
+  radius_km: number;
+  segment_id?: string;
+  uf?: string;
+}
+
+export type RootBranchesExportSearch =
+  | { kind: "ROOT_BRANCHES"; cnpj: string }
+  | { kind: "ROOT_BRANCHES"; cnpj_root: string };
+
+export interface CommercialGroupExportSearch {
+  kind: "COMMERCIAL_GROUP";
+  group_id: string;
+}
+
+export interface SimilarExportSearch {
+  kind: "SIMILAR";
+  cnpj_full: string;
+}
+
+export type DiscoveryExportSearch =
+  | SegmentExportSearch
+  | RegionExportSearch
+  | RadiusExportSearch
+  | NeighborsExportSearch
+  | RootBranchesExportSearch
+  | CommercialGroupExportSearch
+  | SimilarExportSearch;
+
+export interface DiscoveryExportRequest {
+  format: DiscoveryExportFormat;
+  search: DiscoveryExportSearch;
+}
+
+export interface DiscoveryExportFile {
+  blob: Blob;
+  filename: string;
+  format: DiscoveryExportFormat;
 }
 
 export interface FeedbackCreateParams {
@@ -307,6 +384,48 @@ export async function searchCommercialGroup(
     throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
   }
   return response;
+}
+
+const EXPORT_MEDIA_TYPES: Record<DiscoveryExportFormat, string> = {
+  CSV: "text/csv",
+  XLSX: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+
+function exportFilename(
+  contentDisposition: string | null,
+  format: DiscoveryExportFormat,
+  kind: DiscoveryExportSearch["kind"],
+): string {
+  const match = contentDisposition?.match(/^\s*attachment\s*;\s*filename\s*=\s*"([^"]+)"\s*$/i);
+  if (!match) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  const extension = format === "CSV" ? "csv" : "xlsx";
+  const expected = new RegExp(
+    `^sentinel-${kind.toLowerCase()}-\\d{8}T\\d{6}Z\\.${extension}$`,
+  );
+  if (!expected.test(match[1])) {
+    throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  }
+  return match[1];
+}
+
+export async function exportDiscoveryResults(
+  request: DiscoveryExportRequest,
+  options?: RequestOptions,
+): Promise<DiscoveryExportFile> {
+  const response = await postBinary(
+    "/api/v1/discovery/exports",
+    request,
+    { ...options, acceptedStatuses: [200] },
+  );
+  const mediaType = response.contentType?.split(";", 1)[0].trim().toLowerCase();
+  if (mediaType !== EXPORT_MEDIA_TYPES[request.format]) {
+    throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  }
+  return {
+    blob: response.blob,
+    filename: exportFilename(response.contentDisposition, request.format, request.search.kind),
+    format: request.format,
+  };
 }
 
 export async function createFeedbackEvent(

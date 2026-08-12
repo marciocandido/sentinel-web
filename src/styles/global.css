@@ -137,6 +137,11 @@ select:disabled { cursor: not-allowed; background: var(--control-disabled-surfac
 .search-actions p { margin: 0; color: var(--text-muted); font-size: .8rem; }
 .results-section { width: 100%; max-width: none; min-width: 0; margin-top: 20px; padding: clamp(18px, 2vw, 22px); border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .results-section h2 { margin: 0 0 14px; font-size: 1.05rem; }
+.export-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.export-actions__buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.export-actions p { margin: 0; color: var(--text-muted); }
+.export-actions .export-actions__error { color: var(--error-text); }
+.export-actions .export-actions__success { color: var(--success-text); }
 .empty-state, .loading-state { margin: 0; color: var(--text-muted); }
 .loading-state { display: flex; align-items: center; gap: 9px; }
 .results-error { padding: 12px; border-left: 3px solid var(--danger); background: var(--error-surface); color: var(--error-text); }
