@@ -17,6 +17,25 @@ function binaryResponse(
   } as Response;
 }
 
+function pendingBodyResponse(
+  status: number,
+  signal: AbortSignal | null | undefined,
+  reader: "blob" | "json",
+  onStart: () => void,
+): Response {
+  const pendingRead = () => {
+    onStart();
+    return new Promise<never>((_resolve, reject) => {
+      signal?.addEventListener(
+        "abort",
+        () => reject(new DOMException("private body detail", "AbortError")),
+        { once: true },
+      );
+    });
+  };
+  return { ...binaryResponse(status), [reader]: pendingRead } as Response;
+}
+
 beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
@@ -96,5 +115,78 @@ describe("postBinary", () => {
     await expect(postBinary("/exports", {})).rejects.toEqual(
       expect.objectContaining<Partial<SentinelApiError>>({ code: "network_error" }),
     );
+  });
+
+  it("preserves an external abort while reading a successful Blob", async () => {
+    let bodyStarted!: () => void;
+    const started = new Promise<void>((resolve) => { bodyStarted = resolve; });
+    fetchMock.mockImplementationOnce((_input, init?: RequestInit) => Promise.resolve(
+      pendingBodyResponse(200, init?.signal, "blob", bodyStarted),
+    ));
+    const external = new AbortController();
+
+    const request = postBinary("/exports", {}, { signal: external.signal });
+    await started;
+    external.abort();
+
+    await expect(request).rejects.toMatchObject({ code: "request_aborted" });
+  });
+
+  it("preserves a timeout while reading a successful Blob", async () => {
+    vi.useFakeTimers();
+    let bodyStarted!: () => void;
+    const started = new Promise<void>((resolve) => { bodyStarted = resolve; });
+    fetchMock.mockImplementationOnce((_input, init?: RequestInit) => Promise.resolve(
+      pendingBodyResponse(200, init?.signal, "blob", bodyStarted),
+    ));
+
+    const request = postBinary("/exports", {}, { timeoutMs: 10 });
+    await started;
+    const result = expect(request).rejects.toMatchObject({ code: "request_timeout" });
+    await vi.advanceTimersByTimeAsync(10);
+    await result;
+  });
+
+  it("maps a non-abort Blob read failure to a sanitized invalid response", async () => {
+    fetchMock.mockResolvedValue({
+      ...binaryResponse(),
+      blob: () => Promise.reject(new Error("private body detail")),
+    } as Response);
+
+    await expect(postBinary("/exports", {})).rejects.toMatchObject({
+      code: "invalid_response",
+      status: 200,
+      message: "A API retornou uma resposta que não pôde ser interpretada.",
+    });
+  });
+
+  it("preserves an external abort while reading an error JSON body", async () => {
+    let bodyStarted!: () => void;
+    const started = new Promise<void>((resolve) => { bodyStarted = resolve; });
+    fetchMock.mockImplementationOnce((_input, init?: RequestInit) => Promise.resolve(
+      pendingBodyResponse(422, init?.signal, "json", bodyStarted),
+    ));
+    const external = new AbortController();
+
+    const request = postBinary("/exports", {}, { signal: external.signal });
+    await started;
+    external.abort();
+
+    await expect(request).rejects.toMatchObject({ code: "request_aborted" });
+  });
+
+  it("preserves a timeout while reading an error JSON body", async () => {
+    vi.useFakeTimers();
+    let bodyStarted!: () => void;
+    const started = new Promise<void>((resolve) => { bodyStarted = resolve; });
+    fetchMock.mockImplementationOnce((_input, init?: RequestInit) => Promise.resolve(
+      pendingBodyResponse(500, init?.signal, "json", bodyStarted),
+    ));
+
+    const request = postBinary("/exports", {}, { timeoutMs: 10 });
+    await started;
+    const result = expect(request).rejects.toMatchObject({ code: "request_timeout" });
+    await vi.advanceTimersByTimeAsync(10);
+    await result;
   });
 });

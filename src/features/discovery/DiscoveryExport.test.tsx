@@ -163,6 +163,7 @@ describe("Discovery export UI", () => {
 
   it("keeps results on a safe export error and aborts export on a new search", async () => {
     let exportSignal: AbortSignal | undefined;
+    let exportBodyStarted = false;
     let exportAttempts = 0;
     fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       if (!input.toString().endsWith("/api/v1/discovery/exports")) return defaultApi(input, init);
@@ -173,9 +174,23 @@ describe("Discovery export UI", () => {
         }, 422));
       }
       exportSignal = init?.signal ?? undefined;
-      return new Promise<Response>((_resolve, reject) => {
-        init?.signal?.addEventListener("abort", () => reject(new DOMException("private", "AbortError")));
-      });
+      const request = JSON.parse(init?.body as string) as {
+        format: "CSV" | "XLSX";
+        search: { kind: string };
+      };
+      return Promise.resolve({
+        ...binaryResponse(request.search.kind, request.format),
+        blob: () => {
+          exportBodyStarted = true;
+          return new Promise<Blob>((_resolve, reject) => {
+            init?.signal?.addEventListener(
+              "abort",
+              () => reject(new DOMException("private", "AbortError")),
+              { once: true },
+            );
+          });
+        },
+      } as Response);
     });
     render(<App />);
     await submitMode("segment");
@@ -188,11 +203,14 @@ describe("Discovery export UI", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Exportar Excel" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Preparando arquivo Excel");
+    await waitFor(() => expect(exportBodyStarted).toBe(true));
     expect(screen.getByRole("button", { name: "Exportar CSV" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
-    expect(exportSignal?.aborted).toBe(true);
+    await waitFor(() => expect(exportSignal?.aborted).toBe(true));
     expect(URL.createObjectURL).not.toHaveBeenCalled();
     expect(screen.queryByText(/cancelad/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("EMPRESA EXEMPLO LTDA")).toBeInTheDocument();
   });
 
   it("exports similar companies from the drawer using only the textual reference", async () => {

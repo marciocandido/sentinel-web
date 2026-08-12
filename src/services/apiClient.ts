@@ -50,6 +50,20 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
+function transportAbortError(
+  error: unknown,
+  timedOut: boolean,
+  signal: AbortSignal,
+): SentinelApiError | null {
+  if (timedOut) {
+    return new SentinelApiError("request_timeout", "A requisição excedeu o tempo limite.");
+  }
+  if (signal.aborted || isAbortError(error)) {
+    return new SentinelApiError("request_aborted", "A requisição foi cancelada.");
+  }
+  return null;
+}
+
 export async function getJson(path: string, options: RequestOptions = {}): Promise<unknown> {
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -209,12 +223,8 @@ export async function postBinary(
         },
       );
     } catch (error) {
-      if (timedOut) {
-        throw new SentinelApiError("request_timeout", "A requisição excedeu o tempo limite.");
-      }
-      if (isAbortError(error)) {
-        throw new SentinelApiError("request_aborted", "A requisição foi cancelada.");
-      }
+      const abortError = transportAbortError(error, timedOut, controller.signal);
+      if (abortError) throw abortError;
       throw new SentinelApiError("network_error", "Não foi possível conectar à API.");
     }
 
@@ -223,7 +233,9 @@ export async function postBinary(
       let payload: unknown;
       try {
         payload = await response.json();
-      } catch {
+      } catch (error) {
+        const abortError = transportAbortError(error, timedOut, controller.signal);
+        if (abortError) throw abortError;
         payload = null;
       }
       if (isApiErrorResponse(payload)) {
@@ -235,7 +247,9 @@ export async function postBinary(
     let blob: Blob;
     try {
       blob = await response.blob();
-    } catch {
+    } catch (error) {
+      const abortError = transportAbortError(error, timedOut, controller.signal);
+      if (abortError) throw abortError;
       throw new SentinelApiError(
         "invalid_response",
         "A API retornou uma resposta que não pôde ser interpretada.",
