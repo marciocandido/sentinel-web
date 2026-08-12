@@ -7,11 +7,13 @@ import {
   searchCommercialGroup,
   searchNeighboringEstablishments,
   searchRootBranches,
+  type DiscoveryExportSearch,
 } from "../../services/sentinelApi";
 import type { DiscoveryEstablishment } from "../../types/api";
 import { CommercialGroupResults } from "./CommercialGroupResults";
 import { CommercialGroupSearchForm } from "./CommercialGroupSearchForm";
 import { DiscoveryDetailsDrawer } from "./DiscoveryDetailsDrawer";
+import { DiscoveryExportActions } from "./DiscoveryExportActions";
 import { DiscoveryModeSwitcher } from "./DiscoveryModeSwitcher";
 import { DiscoveryResults } from "./DiscoveryResults";
 import { DiscoverySearchForm } from "./DiscoverySearchForm";
@@ -68,6 +70,8 @@ import {
   createCommercialGroupSnapshot,
   validateCommercialGroup,
 } from "./commercialGroupUtils";
+import { toDiscoveryExportSearch } from "./discoveryExport";
+import { useDiscoveryExport } from "./useDiscoveryExport";
 
 type LastRequest =
   | {
@@ -162,6 +166,8 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
   const rootResultsHeadingRef = useRef<HTMLHeadingElement>(null);
   const rootFocusPendingRef = useRef(false);
   const commercialGroupResultsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const discoveryExport = useDiscoveryExport();
+  const [exportSearch, setExportSearch] = useState<DiscoveryExportSearch | null>(null);
 
   const beginRequest = () => {
     setSelected(null);
@@ -385,6 +391,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
 
   const changeMode = (next: SearchMode) => {
     if (next === mode) return;
+    discoveryExport.cancel();
     requestIdRef.current += 1;
     controllerRef.current?.abort();
     controllerRef.current = null;
@@ -393,6 +400,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     neighborsSubmittedRef.current = null;
     rootBranchesSubmittedRef.current = null;
     commercialGroupSubmittedRef.current = null;
+    setExportSearch(null);
     lastRef.current = null;
     setSelected(null);
     setMode(next);
@@ -412,8 +420,10 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     const validation = validateSearch(mode, values);
     setErrors(validation);
     if (Object.keys(validation).length) return;
+    discoveryExport.cancel();
     const snapshot = createSnapshot(mode, values);
     submittedRef.current = snapshot;
+    setExportSearch(toDiscoveryExportSearch({ kind: "standard", snapshot }));
     void executeStandard(snapshot, limit, 0);
   };
 
@@ -421,8 +431,10 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     const validation = validateRadius(radiusValues);
     setRadiusErrors(validation);
     if (Object.keys(validation).length) return;
+    discoveryExport.cancel();
     const snapshot = createRadiusSnapshot(radiusValues);
     radiusSubmittedRef.current = snapshot;
+    setExportSearch(toDiscoveryExportSearch({ kind: "radius", snapshot }));
     void executeRadius(snapshot, limit, 0);
   };
 
@@ -430,8 +442,10 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     const validation = validateNeighbors(neighborsValues);
     setNeighborsErrors(validation);
     if (Object.keys(validation).length) return;
+    discoveryExport.cancel();
     const snapshot = createNeighborsSnapshot(neighborsValues);
     neighborsSubmittedRef.current = snapshot;
+    setExportSearch(toDiscoveryExportSearch({ kind: "neighbors", snapshot }));
     void executeNeighbors(snapshot, limit, 0);
   };
 
@@ -439,8 +453,10 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     const validation = validateRootBranches(rootBranchesValues);
     setRootBranchesErrors(validation);
     if (Object.keys(validation).length) return;
+    discoveryExport.cancel();
     const snapshot = createRootBranchesSnapshot(rootBranchesValues);
     rootBranchesSubmittedRef.current = snapshot;
+    setExportSearch(toDiscoveryExportSearch({ kind: "root", snapshot }));
     void executeRootBranches(snapshot, limit, 0);
   };
 
@@ -448,8 +464,10 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     const validation = validateCommercialGroup(commercialGroupValues);
     setCommercialGroupErrors(validation);
     if (Object.keys(validation).length) return;
+    discoveryExport.cancel();
     const snapshot = createCommercialGroupSnapshot(commercialGroupValues);
     commercialGroupSubmittedRef.current = snapshot;
+    setExportSearch(toDiscoveryExportSearch({ kind: "group", snapshot }));
     void executeCommercialGroup(snapshot, limit, 0);
   };
 
@@ -558,6 +576,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
   const openRootBranchesFromDrawer = (
     establishment: DiscoveryEstablishment,
   ) => {
+    discoveryExport.cancel();
     requestIdRef.current += 1;
     controllerRef.current?.abort();
     controllerRef.current = null;
@@ -584,6 +603,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     const snapshot = createRootBranchesSnapshot(values);
     setRootBranchesValues(values);
     rootBranchesSubmittedRef.current = snapshot;
+    setExportSearch(toDiscoveryExportSearch({ kind: "root", snapshot }));
     rootFocusPendingRef.current = true;
     void executeRootBranches(snapshot, limit, 0);
   };
@@ -693,6 +713,11 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
             />
           )}
         </article>
+        <DiscoveryExportActions
+          search={exportSearch}
+          state={discoveryExport.state}
+          onExport={(format, search) => void discoveryExport.start(format, search)}
+        />
         {mode === "neighbors" ? (
           <NeighborsResults
             state={neighborsState}

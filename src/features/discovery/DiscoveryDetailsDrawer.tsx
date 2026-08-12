@@ -4,7 +4,9 @@ import { searchSimilarCompanies } from "../../services/sentinelApi";
 import type { DiscoveryEstablishment } from "../../types/api";
 import { detailValue, matchLabel } from "./discoveryUtils";
 import { DiscoveryDetailField } from "./DiscoveryDetailField";
+import { toDiscoveryExportSearch } from "./discoveryExport";
 import { SimilarCompaniesView, type SimilarCompaniesState } from "./SimilarCompaniesView";
+import { useDiscoveryExport } from "./useDiscoveryExport";
 
 interface DiscoveryDetailsDrawerProps {
   establishment: DiscoveryEstablishment;
@@ -38,6 +40,11 @@ export function DiscoveryDetailsDrawer({
   const [similarState, setSimilarState] = useState<SimilarCompaniesState>({ kind: "idle" });
   const similarControllerRef = useRef<AbortController | null>(null);
   const similarRequestIdRef = useRef(0);
+  const {
+    state: similarExportState,
+    start: startSimilarExport,
+    cancel: cancelSimilarExport,
+  } = useDiscoveryExport();
 
   const abortSimilarRequest = useCallback(() => {
     similarRequestIdRef.current += 1;
@@ -47,8 +54,9 @@ export function DiscoveryDetailsDrawer({
 
   const closeDrawer = useCallback(() => {
     abortSimilarRequest();
+    cancelSimilarExport();
     onClose();
-  }, [abortSimilarRequest, onClose]);
+  }, [abortSimilarRequest, cancelSimilarExport, onClose]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -135,12 +143,14 @@ export function DiscoveryDetailsDrawer({
 
   const backToDetails = () => {
     abortSimilarRequest();
+    cancelSimilarExport();
     setSimilarState({ kind: "idle" });
     setView("details");
   };
 
   const openRootBranches = () => {
     abortSimilarRequest();
+    cancelSimilarExport();
     onOpenRootBranches(establishment);
   };
 
@@ -211,6 +221,12 @@ export function DiscoveryDetailsDrawer({
           {view === "similar" ? (
             <SimilarCompaniesView
               state={similarState}
+              exportState={similarExportState}
+              exportSearch={toDiscoveryExportSearch({
+                kind: "similar",
+                cnpjFull: establishment.cnpj_full,
+              })}
+              onExport={(format, search) => void startSimilarExport(format, search)}
               backButtonRef={backButtonRef}
               onBack={backToDetails}
               onRetry={retrySimilar}

@@ -1,6 +1,9 @@
 import type { Ref } from "react";
 import type { SimilarCompanyPage } from "../../types/api";
+import type { DiscoveryExportFormat, DiscoveryExportSearch } from "../../services/sentinelApi";
+import { DiscoveryExportActions } from "./DiscoveryExportActions";
 import { publicSimilarError, similarityReasonLabel, similarValue } from "./similarityUtils";
+import type { DiscoveryExportState } from "./useDiscoveryExport";
 
 export type SimilarCompaniesState =
   | { kind: "idle" }
@@ -10,6 +13,9 @@ export type SimilarCompaniesState =
 
 interface SimilarCompaniesViewProps {
   state: SimilarCompaniesState;
+  exportState: DiscoveryExportState;
+  exportSearch: DiscoveryExportSearch;
+  onExport: (format: DiscoveryExportFormat, search: DiscoveryExportSearch) => void;
   backButtonRef: Ref<HTMLButtonElement>;
   onBack: () => void;
   onRetry: () => void;
@@ -21,6 +27,9 @@ const distanceFormatter = new Intl.NumberFormat("pt-BR", { maximumFractionDigits
 
 export function SimilarCompaniesView({
   state,
+  exportState,
+  exportSearch,
+  onExport,
   backButtonRef,
   onBack,
   onRetry,
@@ -40,6 +49,12 @@ export function SimilarCompaniesView({
       >
         Voltar aos detalhes
       </button>
+
+      <DiscoveryExportActions
+        search={exportSearch}
+        state={exportState}
+        onExport={onExport}
+      />
 
       <section
         className="similar-results"

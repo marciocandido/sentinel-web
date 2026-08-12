@@ -24,6 +24,12 @@ export interface JsonRequestOptions extends RequestOptions {
   acceptedStatuses?: readonly number[];
 }
 
+export interface BinaryResponse {
+  blob: Blob;
+  contentType: string | null;
+  contentDisposition: string | null;
+}
+
 export function normalizeBaseUrl(baseUrl?: string): string {
   const trimmed = baseUrl?.trim() ?? "";
   if (!trimmed) return "";
@@ -42,6 +48,20 @@ export function buildApiUrl(path: string, baseUrl?: string): string {
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
+}
+
+function transportAbortError(
+  error: unknown,
+  timedOut: boolean,
+  signal: AbortSignal,
+): SentinelApiError | null {
+  if (timedOut) {
+    return new SentinelApiError("request_timeout", "A requisição excedeu o tempo limite.");
+  }
+  if (signal.aborted || isAbortError(error)) {
+    return new SentinelApiError("request_aborted", "A requisição foi cancelada.");
+  }
+  return null;
 }
 
 export async function getJson(path: string, options: RequestOptions = {}): Promise<unknown> {
@@ -164,6 +184,83 @@ export async function postJson(
       throw new SentinelApiError("http_error", "A API retornou um erro inesperado.", response.status);
     }
     return payload;
+  } finally {
+    window.clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", forwardAbort);
+  }
+}
+
+export async function postBinary(
+  path: string,
+  body: unknown,
+  options: JsonRequestOptions = {},
+): Promise<BinaryResponse> {
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  let timedOut = false;
+  const forwardAbort = () => controller.abort();
+  if (options.signal?.aborted) controller.abort();
+  else options.signal?.addEventListener("abort", forwardAbort, { once: true });
+  const timeout = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    let response: Response;
+    try {
+      response = await fetch(
+        buildApiUrl(path, options.baseUrl ?? import.meta.env.VITE_SENTINEL_API_URL),
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/octet-stream",
+            "Content-Type": "application/json",
+            ...options.headers,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        },
+      );
+    } catch (error) {
+      const abortError = transportAbortError(error, timedOut, controller.signal);
+      if (abortError) throw abortError;
+      throw new SentinelApiError("network_error", "Não foi possível conectar à API.");
+    }
+
+    const acceptedStatuses = options.acceptedStatuses ?? [200];
+    if (!acceptedStatuses.includes(response.status)) {
+      let payload: unknown;
+      try {
+        payload = await response.json();
+      } catch (error) {
+        const abortError = transportAbortError(error, timedOut, controller.signal);
+        if (abortError) throw abortError;
+        payload = null;
+      }
+      if (isApiErrorResponse(payload)) {
+        throw new SentinelApiError(payload.error.code, payload.error.message, response.status);
+      }
+      throw new SentinelApiError("http_error", "A API retornou um erro inesperado.", response.status);
+    }
+
+    let blob: Blob;
+    try {
+      blob = await response.blob();
+    } catch (error) {
+      const abortError = transportAbortError(error, timedOut, controller.signal);
+      if (abortError) throw abortError;
+      throw new SentinelApiError(
+        "invalid_response",
+        "A API retornou uma resposta que não pôde ser interpretada.",
+        response.status,
+      );
+    }
+    return {
+      blob,
+      contentType: response.headers.get("Content-Type"),
+      contentDisposition: response.headers.get("Content-Disposition"),
+    };
   } finally {
     window.clearTimeout(timeout);
     options.signal?.removeEventListener("abort", forwardAbort);

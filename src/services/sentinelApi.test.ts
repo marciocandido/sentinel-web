@@ -14,6 +14,7 @@ import {
   searchRootBranches,
   createFeedbackEvent,
   listFeedbackEvents,
+  exportDiscoveryResults,
 } from "./sentinelApi";
 
 const fetchMock = vi.fn();
@@ -23,6 +24,25 @@ function jsonResponse(body: unknown, status = 200): Response {
     ok: status >= 200 && status < 300,
     status,
     json: () => Promise.resolve(body),
+  } as Response;
+}
+
+function exportResponse(
+  format: "CSV" | "XLSX",
+  filename: string,
+  contentType?: string,
+): Response {
+  const blob = new Blob([format]);
+  return {
+    ok: true,
+    status: 200,
+    headers: new Headers({
+      "Content-Type": contentType ?? (format === "CSV"
+        ? "text/csv; charset=utf-8"
+        : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    }),
+    blob: () => Promise.resolve(blob),
   } as Response;
 }
 
@@ -201,6 +221,81 @@ describe("Sentinel Discovery API", () => {
     await expect(
       searchCommercialGroup({ groupId: "grupo-metal", limit: 50, offset: 0 }),
     ).rejects.toMatchObject({ code: "invalid_response" });
+  });
+});
+
+describe("Sentinel Discovery export API", () => {
+  it("posts only the CSV request and accepts its safe server filename", async () => {
+    fetchMock.mockResolvedValueOnce(exportResponse(
+      "CSV",
+      "sentinel-segment-20260812T015500Z.csv",
+    ));
+    const request = {
+      format: "CSV",
+      search: {
+        kind: "SEGMENT",
+        segment_id: "0123456",
+        codigo_tom: "0001",
+      },
+    } as const;
+    const file = await exportDiscoveryResults(request);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/discovery/exports",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(request),
+      }),
+    );
+    expect(file).toMatchObject({
+      format: "CSV",
+      filename: "sentinel-segment-20260812T015500Z.csv",
+    });
+  });
+
+  it("accepts XLSX and validates MIME, disposition and filename", async () => {
+    fetchMock.mockResolvedValueOnce(exportResponse(
+      "XLSX",
+      "sentinel-root_branches-20260812T015500Z.xlsx",
+    ));
+    await expect(exportDiscoveryResults({
+      format: "XLSX",
+      search: { kind: "ROOT_BRANCHES", cnpj_root: "00123456" },
+    })).resolves.toMatchObject({
+      format: "XLSX",
+      filename: "sentinel-root_branches-20260812T015500Z.xlsx",
+    });
+
+    fetchMock.mockResolvedValueOnce(exportResponse(
+      "CSV",
+      "sentinel-segment-20260812T015500Z.csv",
+      "application/octet-stream",
+    ));
+    await expect(exportDiscoveryResults({
+      format: "CSV",
+      search: { kind: "SEGMENT", segment_id: "metal" },
+    })).rejects.toMatchObject({ code: "invalid_response" });
+
+    const missingDisposition = exportResponse("CSV", "ignored.csv");
+    missingDisposition.headers.delete("Content-Disposition");
+    fetchMock.mockResolvedValueOnce(missingDisposition);
+    await expect(exportDiscoveryResults({
+      format: "CSV",
+      search: { kind: "SEGMENT", segment_id: "metal" },
+    })).rejects.toMatchObject({ code: "invalid_response" });
+
+    const missingFilename = exportResponse("CSV", "ignored.csv");
+    missingFilename.headers.set("Content-Disposition", "attachment");
+    fetchMock.mockResolvedValueOnce(missingFilename);
+    await expect(exportDiscoveryResults({
+      format: "CSV",
+      search: { kind: "SEGMENT", segment_id: "metal" },
+    })).rejects.toMatchObject({ code: "invalid_response" });
+
+    fetchMock.mockResolvedValueOnce(exportResponse("CSV", "../../private.csv"));
+    await expect(exportDiscoveryResults({
+      format: "CSV",
+      search: { kind: "SEGMENT", segment_id: "metal" },
+    })).rejects.toMatchObject({ code: "invalid_response" });
   });
 });
 

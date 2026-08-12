@@ -148,6 +148,12 @@ scroll horizontal em telas estreitas. CNPJ, CNAE, TOM, IBGE, porte e capital
 permanecem texto. Valores ausentes aparecem como `—`, e o status comercial
 `UNKNOWN`/`none` é apresentado explicitamente como desconhecido e provisório.
 
+Após uma busca submetida, os resultados das sete verticais podem ser exportados
+em CSV ou Excel. O navegador envia o mesmo snapshot efetivamente pesquisado ao
+backend, que gera o arquivo sobre o resultado completo — não somente a página
+visível — e controla o limite operacional. O frontend não pagina para exportar,
+não monta colunas e não gera planilhas localmente.
+
 ### Feedback comercial
 
 As seis tabelas principais de Discovery oferecem um painel expansível de
@@ -258,6 +264,8 @@ não é uma ficha completa da empresa e não consulta endpoint de detalhe.
 - `GET /api/v1/discovery/establishments/{cnpj_full}/neighbors` — vizinhos de
   um CNPJ de referência, com status comercial provisório `UNKNOWN`/`none`, sem
   `neighbor_group`.
+- `POST /api/v1/discovery/exports` — exportação CSV/XLSX do snapshot completo
+  submetido nas sete verticais de Discovery, sem `limit` ou `offset` do cliente.
 
 ## Escopo atual
 
@@ -269,6 +277,6 @@ a tela; respostas obsoletas são ignoradas.
 
 Ficam para as próximas etapas: ficha completa, endereço, contatos, CNAEs
 secundários detalhados, QSA, filtros de raio/UF/TOM/segmento para semelhantes,
-feedback, exportação, listas
+listas
 salvas, autenticação, ordenação client-side, busca fuzzy e filtros persistidos
 na URL.
