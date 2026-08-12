@@ -30,7 +30,7 @@ import {
   type BootstrapJobResponse,
   type UpdatePreflightResponse,
 } from "../types/api";
-import { getJson, postBinary, postJson, SentinelApiError, type RequestOptions } from "./apiClient";
+import { deleteNoContent, getJson, postBinary, postJson, SentinelApiError, type RequestOptions } from "./apiClient";
 
 export interface SegmentSearchParams {
   segmentId: string;
@@ -179,6 +179,12 @@ export type DiscoveryExportSearch =
   | RootBranchesExportSearch
   | CommercialGroupExportSearch
   | SimilarExportSearch;
+
+export type DiscoverySearchSpec = DiscoveryExportSearch;
+
+export interface SavedSearch { saved_search_id: string; name: string; search: DiscoverySearchSpec; created_at: string; }
+export interface SavedSearchPage { items: SavedSearch[]; pagination: { limit: number; offset: number; returned: number; has_more: boolean }; }
+export interface SavedSearchCreateParams { name: string; search: DiscoverySearchSpec; }
 
 export interface DiscoveryExportRequest {
   format: DiscoveryExportFormat;
@@ -451,6 +457,50 @@ export async function exportDiscoveryResults(
     filename: exportFilename(response.contentDisposition, request.format, request.search.kind),
     format: request.format,
   };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i;
+function isSavedSearch(value: unknown): value is SavedSearch {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return Object.keys(item).every((key) => ["saved_search_id", "name", "search", "created_at"].includes(key)) &&
+    typeof item.saved_search_id === "string" && UUID.test(item.saved_search_id) &&
+    typeof item.name === "string" && item.name.trim().length > 0 &&
+    typeof item.created_at === "string" && ISO.test(item.created_at) && Number.isFinite(Date.parse(item.created_at)) &&
+    isDiscoverySearchSpec(item.search);
+}
+function isDiscoverySearchSpec(value: unknown): value is DiscoverySearchSpec {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const search = value as Record<string, unknown>;
+  const strings = (keys: string[]) => keys.every((key) => search[key] === undefined || typeof search[key] === "string");
+  const optionalDiscarded = search.include_discarded === undefined || typeof search.include_discarded === "boolean";
+  if (!optionalDiscarded || typeof search.kind !== "string") return false;
+  if (search.kind === "SEGMENT") return typeof search.segment_id === "string" && strings(["uf","codigo_tom","porte_codigo","capital_min","capital_max"]);
+  if (search.kind === "REGION") return strings(["uf","codigo_tom","codigo_ibge","municipio_nome","segment_id"]);
+  if (search.kind === "RADIUS") return typeof search.radius_km === "number" && Number.isFinite(search.radius_km) && strings(["origin_cnpj","origin_codigo_tom","origin_codigo_ibge","origin_municipio_nome","origin_uf","segment_id","uf"]) && (search.origin_lat === undefined || typeof search.origin_lat === "number") && (search.origin_lon === undefined || typeof search.origin_lon === "number");
+  if (search.kind === "NEIGHBORS") return typeof search.cnpj_full === "string" && typeof search.radius_km === "number" && strings(["segment_id","uf"]);
+  if (search.kind === "ROOT_BRANCHES") return (typeof search.cnpj === "string") !== (typeof search.cnpj_root === "string");
+  if (search.kind === "COMMERCIAL_GROUP") return typeof search.group_id === "string";
+  return search.kind === "SIMILAR" && typeof search.cnpj_full === "string";
+}
+function isSavedSearchPage(value: unknown): value is SavedSearchPage {
+  if (!value || typeof value !== "object") return false;
+  const page = value as Record<string, unknown>; const p = page.pagination as Record<string, unknown>;
+  return Array.isArray(page.items) && page.items.every(isSavedSearch) && !!p && Number.isInteger(p.limit) && (p.limit as number) > 0 && Number.isInteger(p.offset) && (p.offset as number) >= 0 && Number.isInteger(p.returned) && (p.returned as number) >= 0 && typeof p.has_more === "boolean";
+}
+export async function createSavedSearch(params: SavedSearchCreateParams, options?: RequestOptions): Promise<SavedSearch> {
+  const response = await postJson("/api/v1/discovery/saved-searches", params, { ...options, acceptedStatuses: [201] });
+  if (!isSavedSearch(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  return response;
+}
+export async function listSavedSearches(params: { limit: number; offset: number }, options?: RequestOptions): Promise<SavedSearchPage> {
+  const response = await getJson(`/api/v1/discovery/saved-searches?${paginationQuery(params.limit, params.offset)}`, options);
+  if (!isSavedSearchPage(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  return response;
+}
+export async function deleteSavedSearch(savedSearchId: string, options?: RequestOptions): Promise<void> {
+  return deleteNoContent(`/api/v1/discovery/saved-searches/${encodeURIComponent(savedSearchId)}`, options);
 }
 
 export async function createFeedbackEvent(

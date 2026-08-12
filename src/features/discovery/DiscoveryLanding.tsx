@@ -72,6 +72,8 @@ import {
 } from "./commercialGroupUtils";
 import { toDiscoveryExportSearch } from "./discoveryExport";
 import { useDiscoveryExport } from "./useDiscoveryExport";
+import { SavedSearchesPanel } from "./SavedSearchesPanel";
+import type { EditableDiscoverySearch } from "./savedSearches";
 
 type LastRequest =
   | {
@@ -629,6 +631,23 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     void executeRootBranches(snapshot, limit, 0);
   };
 
+  const loadSavedSearch = (editable: EditableDiscoverySearch) => {
+    discoveryExport.cancel();
+    requestIdRef.current += 1;
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    submittedRef.current = null; radiusSubmittedRef.current = null; neighborsSubmittedRef.current = null;
+    rootBranchesSubmittedRef.current = null; commercialGroupSubmittedRef.current = null; lastRef.current = null;
+    setExportSearch(null); setSelected(null); setErrors({}); setRadiusErrors({}); setNeighborsErrors({}); setRootBranchesErrors({}); setCommercialGroupErrors({});
+    setState({ kind: "initial" }); setRadiusState({ kind: "initial" }); setNeighborsState({ kind: "initial" }); setRootBranchesState({ kind: "initial" }); setCommercialGroupState({ kind: "initial" });
+    setMode(editable.mode); setIncludeDiscarded(editable.includeDiscarded);
+    if (editable.mode === "segment" || editable.mode === "region") setValues(editable.values);
+    else if (editable.mode === "radius") setRadiusValues(editable.values);
+    else if (editable.mode === "neighbors") setNeighborsValues(editable.values);
+    else if (editable.mode === "root") setRootBranchesValues(editable.values);
+    else if (editable.mode === "group") setCommercialGroupValues(editable.values);
+  };
+
   return (
     <section className="discovery" aria-labelledby="discovery-title">
       <div
@@ -753,6 +772,11 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
           search={exportSearch}
           state={discoveryExport.state}
           onExport={(format, search) => void discoveryExport.start(format, search)}
+        />
+        <SavedSearchesPanel
+          key={exportSearch ? JSON.stringify(exportSearch) : "no-submitted-search"}
+          search={exportSearch}
+          onLoad={loadSavedSearch}
         />
         {mode === "neighbors" ? (
           <NeighborsResults
