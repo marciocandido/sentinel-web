@@ -12,6 +12,7 @@ export interface NeighborsSearchSnapshot {
   radiusKm: number;
   segmentId: string;
   resultUf: string;
+  includeDiscarded: boolean;
 }
 
 export type NeighborsValidationErrors = Partial<Record<keyof NeighborsFormValues, string>>;

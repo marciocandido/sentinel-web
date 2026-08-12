@@ -134,11 +134,12 @@ describe("Discovery por raio", () => {
       originCnpj: "00ABC234000155",
       originCodigoTom: "0001",
       radiusKm: "5",
-    });
+    }, true);
     expect(snapshot.origin).toEqual({
       kind: "cnpj",
       cnpj: "00ABC234000155",
     });
+    expect(snapshot.includeDiscarded).toBe(true);
   });
 
   it("paginates with the submitted snapshot and resets offset on limit change", async () => {

@@ -66,7 +66,7 @@ describe("FeedbackPanel in discovery tables", () => {
     );
     render(
       <CommercialGroupResults
-        state={{ kind: "success", page: groupPage, snapshot: { groupId: "Grupo Metal" } }}
+        state={{ kind: "success", page: groupPage, snapshot: { groupId: "Grupo Metal", includeDiscarded: false } }}
         focusRef={createRef()}
         onRetry={vi.fn()}
         onPrevious={vi.fn()}
@@ -100,6 +100,7 @@ describe("FeedbackPanel in discovery tables", () => {
             porteCodigo: "",
             capitalMin: "",
             capitalMax: "",
+            includeDiscarded: false,
           },
         }}
         onRetry={vi.fn()}

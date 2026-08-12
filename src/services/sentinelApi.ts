@@ -39,6 +39,7 @@ export interface SegmentSearchParams {
   porteCodigo?: string;
   capitalMin?: string;
   capitalMax?: string;
+  includeDiscarded?: boolean;
   limit: number;
   offset: number;
 }
@@ -49,12 +50,14 @@ export interface RegionSearchParams {
   codigoIbge?: string;
   municipioNome?: string;
   segmentId?: string;
+  includeDiscarded?: boolean;
   limit: number;
   offset: number;
 }
 
 export interface SimilarCompaniesParams {
   cnpjFull: string;
+  includeDiscarded?: boolean;
   limit: number;
   offset: number;
 }
@@ -71,6 +74,7 @@ export interface RadiusSearchParams {
   radiusKm: number;
   segmentId?: string;
   resultUf?: string;
+  includeDiscarded?: boolean;
   limit: number;
   offset: number;
 }
@@ -80,6 +84,7 @@ export interface NeighborSearchParams {
   radiusKm: number;
   segmentId?: string;
   resultUf?: string;
+  includeDiscarded?: boolean;
   limit: number;
   offset: number;
 }
@@ -90,12 +95,14 @@ export type RootBranchesIdentifier =
 
 export interface RootBranchesSearchParams {
   identifier: RootBranchesIdentifier;
+  includeDiscarded?: boolean;
   limit: number;
   offset: number;
 }
 
 export interface CommercialGroupSearchParams {
   groupId: string;
+  includeDiscarded?: boolean;
   limit: number;
   offset: number;
 }
@@ -110,6 +117,7 @@ export interface SegmentExportSearch {
   porte_codigo?: string;
   capital_min?: string;
   capital_max?: string;
+  include_discarded?: boolean;
 }
 
 export interface RegionExportSearch {
@@ -119,6 +127,7 @@ export interface RegionExportSearch {
   codigo_ibge?: string;
   municipio_nome?: string;
   segment_id?: string;
+  include_discarded?: boolean;
 }
 
 export interface RadiusExportSearch {
@@ -133,6 +142,7 @@ export interface RadiusExportSearch {
   origin_uf?: string;
   segment_id?: string;
   uf?: string;
+  include_discarded?: boolean;
 }
 
 export interface NeighborsExportSearch {
@@ -141,20 +151,24 @@ export interface NeighborsExportSearch {
   radius_km: number;
   segment_id?: string;
   uf?: string;
+  include_discarded?: boolean;
 }
 
-export type RootBranchesExportSearch =
+export type RootBranchesExportSearch = (
   | { kind: "ROOT_BRANCHES"; cnpj: string }
-  | { kind: "ROOT_BRANCHES"; cnpj_root: string };
+  | { kind: "ROOT_BRANCHES"; cnpj_root: string }
+) & { include_discarded?: boolean };
 
 export interface CommercialGroupExportSearch {
   kind: "COMMERCIAL_GROUP";
   group_id: string;
+  include_discarded?: boolean;
 }
 
 export interface SimilarExportSearch {
   kind: "SIMILAR";
   cnpj_full: string;
+  include_discarded?: boolean;
 }
 
 export type DiscoveryExportSearch =
@@ -193,6 +207,10 @@ export interface FeedbackHistoryParams {
 function setIfPresent(query: URLSearchParams, name: string, value?: string) {
   const trimmed = value?.trim();
   if (trimmed) query.set(name, trimmed);
+}
+
+function setIncludeDiscarded(query: URLSearchParams, includeDiscarded?: boolean) {
+  if (includeDiscarded === true) query.set("include_discarded", "true");
 }
 
 function paginationQuery(limit: number, offset: number) {
@@ -271,6 +289,7 @@ export async function searchEstablishmentsBySegment(
   setIfPresent(query, "porte_codigo", params.porteCodigo);
   setIfPresent(query, "capital_min", params.capitalMin);
   setIfPresent(query, "capital_max", params.capitalMax);
+  setIncludeDiscarded(query, params.includeDiscarded);
   const response = await getJson(
     `/api/v1/discovery/segments/${encodeURIComponent(params.segmentId)}/establishments?${query}`,
     options,
@@ -288,6 +307,7 @@ export async function searchEstablishmentsByRegion(
   setIfPresent(query, "codigo_ibge", params.codigoIbge);
   setIfPresent(query, "municipio_nome", params.municipioNome);
   setIfPresent(query, "segment_id", params.segmentId);
+  setIncludeDiscarded(query, params.includeDiscarded);
   const response = await getJson(`/api/v1/discovery/regions/establishments?${query}`, options);
   return assertDiscoveryPage(response);
 }
@@ -297,6 +317,7 @@ export async function searchSimilarCompanies(
   options?: RequestOptions,
 ): Promise<SimilarCompanyPage> {
   const query = paginationQuery(params.limit, params.offset);
+  setIncludeDiscarded(query, params.includeDiscarded);
   const response = await getJson(
     `/api/v1/discovery/establishments/${encodeURIComponent(params.cnpjFull)}/similar?${query}`,
     options,
@@ -325,6 +346,7 @@ export async function searchEstablishmentsByRadius(
   }
   setIfPresent(query, "segment_id", params.segmentId);
   setIfPresent(query, "uf", params.resultUf);
+  setIncludeDiscarded(query, params.includeDiscarded);
   const response = await getJson(`/api/v1/discovery/radius/establishments?${query}`, options);
   if (!isRadiusSearchPage(response)) {
     throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
@@ -340,6 +362,7 @@ export async function searchNeighboringEstablishments(
   query.set("radius_km", String(params.radiusKm));
   setIfPresent(query, "segment_id", params.segmentId);
   setIfPresent(query, "uf", params.resultUf);
+  setIncludeDiscarded(query, params.includeDiscarded);
   const response = await getJson(
     `/api/v1/discovery/establishments/${encodeURIComponent(params.cnpjFull)}/neighbors?${query}`,
     options,
@@ -360,6 +383,7 @@ export async function searchRootBranches(
   } else {
     query.set("cnpj_root", params.identifier.cnpjRoot);
   }
+  setIncludeDiscarded(query, params.includeDiscarded);
   const response = await getJson(
     `/api/v1/discovery/root-branches?${query}`,
     options,
@@ -376,6 +400,7 @@ export async function searchCommercialGroup(
 ): Promise<CommercialGroupPage> {
   const query = paginationQuery(params.limit, params.offset);
   query.set("group_id", params.groupId);
+  setIncludeDiscarded(query, params.includeDiscarded);
   const response = await getJson(
     `/api/v1/discovery/commercial-groups?${query}`,
     options,

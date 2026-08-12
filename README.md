@@ -152,7 +152,8 @@ Após uma busca submetida, os resultados das sete verticais podem ser exportados
 em CSV ou Excel. O navegador envia o mesmo snapshot efetivamente pesquisado ao
 backend, que gera o arquivo sobre o resultado completo — não somente a página
 visível — e controla o limite operacional. O frontend não pagina para exportar,
-não monta colunas e não gera planilhas localmente.
+não monta colunas e não gera planilhas localmente. A exportação também preserva
+a política de visibilidade capturada no submit.
 
 ### Feedback comercial
 
@@ -162,8 +163,11 @@ ações (Útil, Descartar, Já conheço, Contato ruim, Virou visita, Virou orça
 e Virou venda informado) e consulta o histórico append-only do CNPJ. Não há
 notas, edição ou exclusão; o ator retornado é provisório e `Virou venda
 (informado)` não confirma venda ou pedido no ERP. Registrar `Descartar` não
-remove resultados nem muda seu status comercial. A anti-repetição continua
-futura.
+remove resultados já exibidos nem muda seu status comercial. Nas consultas
+seguintes, o backend oculta descartados por padrão; o único controle **Mostrar
+descartados** inclui esses itens somente depois de uma nova busca. Paginação,
+retry, mudança de limite, drawer e exportação continuam usando o snapshot
+submetido, mesmo que o controle editável tenha mudado depois.
 
 ### Paginação
 

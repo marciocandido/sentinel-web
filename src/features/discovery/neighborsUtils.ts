@@ -19,12 +19,16 @@ export function validateNeighbors(values: NeighborsFormValues): NeighborsValidat
   return errors;
 }
 
-export function createNeighborsSnapshot(values: NeighborsFormValues): NeighborsSearchSnapshot {
+export function createNeighborsSnapshot(
+  values: NeighborsFormValues,
+  includeDiscarded = false,
+): NeighborsSearchSnapshot {
   return {
     cnpj: values.cnpj.trim(),
     radiusKm: radius(values.radiusKm)!,
     segmentId: values.segmentId.trim(),
     resultUf: values.resultUf.trim(),
+    includeDiscarded,
   };
 }
 

@@ -157,6 +157,41 @@ describe("similar companies drawer flow", () => {
     ]);
   });
 
+  it("keeps include_discarded from the submitted result through pagination and retry", async () => {
+    let pageAttempt = 0;
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (!isSimilar(input)) return defaultApi(input);
+      const url = new URL(input.toString(), "http://sentinel.local");
+      if (url.searchParams.get("offset") === "25") {
+        pageAttempt += 1;
+        if (pageAttempt === 1) return Promise.reject(new TypeError("synthetic failure"));
+        return Promise.resolve(jsonResponse(similarCompanyPage([], { offset: 25 })));
+      }
+      return Promise.resolve(jsonResponse(similarCompanyPage([similarCompany()], { has_more: true })));
+    });
+    render(<App />);
+    const toggle = await screen.findByRole("checkbox", { name: "Mostrar descartados" });
+    fireEvent.click(toggle);
+    fireEvent.change(screen.getByLabelText(/Segmento/), { target: { value: "metal-mecanica" } });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    const details = await screen.findAllByRole("button", { name: "Ver detalhes" });
+    fireEvent.click(toggle);
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(details[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Ver semelhantes" }));
+    await screen.findByText("EMPRESA SEMELHANTE LTDA");
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Tentar novamente" }));
+    await screen.findByText("Nenhuma empresa semelhante foi encontrada.");
+
+    expect(similarUrls()).toHaveLength(3);
+    for (const url of similarUrls()) {
+      const query = new URL(url, "http://sentinel.local").searchParams;
+      expect(query.get("include_discarded")).toBe("true");
+      expect(query.has("actor_id")).toBe(false);
+    }
+  });
+
   it("shows loading, marks the named results region busy and prevents duplicate action calls", async () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
       if (isSimilar(input)) return new Promise<Response>(() => undefined);

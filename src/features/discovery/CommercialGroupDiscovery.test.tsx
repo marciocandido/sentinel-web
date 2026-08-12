@@ -160,8 +160,8 @@ describe("modo grupo comercial", () => {
       "groupId",
     );
     expect(
-      createCommercialGroupSnapshot({ groupId: "  grupo A/01 & X  " }),
-    ).toEqual({ groupId: "grupo A/01 & X" });
+      createCommercialGroupSnapshot({ groupId: "  grupo A/01 & X  " }, true),
+    ).toEqual({ groupId: "grupo A/01 & X", includeDiscarded: true });
   });
 
   it("rejects blank submission and preserves textual special characters in the URL", async () => {

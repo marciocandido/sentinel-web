@@ -165,13 +165,13 @@ describe("modo raiz e filiais", () => {
         identifierKind: "cnpj",
         identifierValue: "  00ABC234000155  ",
       }),
-    ).toEqual({ identifier: { kind: "cnpj", cnpj: "00ABC234000155" } });
+    ).toEqual({ identifier: { kind: "cnpj", cnpj: "00ABC234000155" }, includeDiscarded: false });
     expect(
       createRootBranchesSnapshot({
         identifierKind: "root",
         identifierValue: "  00123456  ",
-      }),
-    ).toEqual({ identifier: { kind: "root", cnpjRoot: "00123456" } });
+      }, true),
+    ).toEqual({ identifier: { kind: "root", cnpjRoot: "00123456" }, includeDiscarded: true });
   });
 
   it("rejects an empty submission and preserves alphanumeric CNPJ and leading zero root", async () => {
@@ -620,6 +620,48 @@ describe("modo raiz e filiais", () => {
     });
     await waitFor(() => expect(heading).toHaveFocus());
     expect(fetchMock.mock.calls.every(([, init]) => !init || init.method === "GET")).toBe(true);
+  });
+
+  it("inherits discarded visibility from the selected result when opening root branches", async () => {
+    let rootAttempt = 0;
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (!url.includes("/root-branches?")) return defaultApi(input);
+      rootAttempt += 1;
+      if (rootAttempt === 2) return Promise.reject(new TypeError("synthetic root failure"));
+      const query = new URL(url, "http://local").searchParams;
+      return Promise.resolve(response(rootBranchesPage(undefined, {
+        limit: Number(query.get("limit")),
+        offset: Number(query.get("offset")),
+        has_more: rootAttempt === 1,
+      })));
+    });
+    render(<App />);
+    const toggle = await screen.findByRole("checkbox", { name: "Mostrar descartados" });
+    fireEvent.click(toggle);
+    fireEvent.change(screen.getByLabelText(/Segmento/), {
+      target: { value: "metal" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    const details = await screen.findByRole("button", { name: "Ver detalhes" });
+    fireEvent.click(toggle);
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(details);
+    fireEvent.click(screen.getByRole("button", { name: "Ver raiz e filiais" }));
+    await waitFor(() => expect(rootCalls()).toHaveLength(1));
+    fireEvent.click(await screen.findByRole("button", { name: "Próxima" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Tentar novamente" }));
+    await screen.findByText(/Página 2/);
+    fireEvent.change(screen.getByLabelText("Resultados por página"), {
+      target: { value: "25" },
+    });
+    await waitFor(() => expect(rootCalls()).toHaveLength(4));
+    for (let index = 0; index < rootCalls().length; index += 1) {
+      expect(rootUrl(index).searchParams.get("include_discarded")).toBe("true");
+      expect(rootUrl(index).searchParams.has("actor_id")).toBe(false);
+    }
+    expect(rootUrl(3).searchParams.get("limit")).toBe("25");
+    expect(rootUrl(3).searchParams.get("offset")).toBe("0");
   });
 });
 

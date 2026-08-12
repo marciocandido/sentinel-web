@@ -20,11 +20,12 @@ export function validateRootBranches(
 
 export function createRootBranchesSnapshot(
   values: RootBranchesFormValues,
+  includeDiscarded = false,
 ): RootBranchesSearchSnapshot {
   const identifierValue = values.identifierValue.trim();
   return values.identifierKind === "cnpj"
-    ? { identifier: { kind: "cnpj", cnpj: identifierValue } }
-    : { identifier: { kind: "root", cnpjRoot: identifierValue } };
+    ? { identifier: { kind: "cnpj", cnpj: identifierValue }, includeDiscarded }
+    : { identifier: { kind: "root", cnpjRoot: identifierValue }, includeDiscarded };
 }
 
 export function publicRootBranchesError(code: string): string {
