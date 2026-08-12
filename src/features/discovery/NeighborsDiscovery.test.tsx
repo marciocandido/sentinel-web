@@ -32,7 +32,8 @@ describe("vizinhos", () => {
   it("validates CNPJ as text and snapshots the submitted filters", () => {
     expect(validateNeighbors({ cnpj: "", radiusKm: "30", segmentId: "", resultUf: "" }).cnpj).toBeTruthy();
     expect(validateNeighbors({ cnpj: "00.ABC/0001-55", radiusKm: "Infinity", segmentId: "", resultUf: "" }).radiusKm).toBeTruthy();
-    expect(createNeighborsSnapshot({ cnpj: " 00.ABC/0001-55 ", radiusKm: "30", segmentId: " metal ", resultUf: " SP " })).toEqual({ cnpj: "00.ABC/0001-55", radiusKm: 30, segmentId: "metal", resultUf: "SP" });
+    expect(createNeighborsSnapshot({ cnpj: " 00.ABC/0001-55 ", radiusKm: "30", segmentId: " metal ", resultUf: " SP " })).toEqual({ cnpj: "00.ABC/0001-55", radiusKm: 30, segmentId: "metal", resultUf: "SP", includeDiscarded: false });
+    expect(createNeighborsSnapshot({ cnpj: "001", radiusKm: "30", segmentId: "", resultUf: "" }, true).includeDiscarded).toBe(true);
   });
 
   it("uses the CNPJ-specific endpoint, preserves order, and omits domain fields not in the contract", async () => {

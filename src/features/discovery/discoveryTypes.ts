@@ -28,6 +28,7 @@ export type DiscoverySearchSnapshot =
       porteCodigo: string;
       capitalMin: string;
       capitalMax: string;
+      includeDiscarded: boolean;
     }
   | {
       mode: "region";
@@ -36,6 +37,7 @@ export type DiscoverySearchSnapshot =
       codigoTom: string;
       codigoIbge: string;
       municipioNome: string;
+      includeDiscarded: boolean;
     };
 
 export type ValidationErrors = Partial<Record<keyof DiscoveryFormValues | "region", string>>;

@@ -17,6 +17,7 @@ describe("Discovery export snapshots", () => {
         porteCodigo: "03",
         capitalMin: "000100.50",
         capitalMax: "",
+        includeDiscarded: false,
       },
     });
     expect(segment).toEqual({
@@ -27,6 +28,7 @@ describe("Discovery export snapshots", () => {
       porte_codigo: "03",
       capital_min: "000100.50",
       capital_max: undefined,
+      include_discarded: undefined,
     });
     expect(segment).not.toHaveProperty("limit");
     expect(segment).not.toHaveProperty("offset");
@@ -40,6 +42,7 @@ describe("Discovery export snapshots", () => {
         codigoTom: "0001",
         codigoIbge: "0410000",
         municipioNome: "CURITIBA",
+        includeDiscarded: true,
       },
     })).toEqual({
       kind: "REGION",
@@ -48,6 +51,7 @@ describe("Discovery export snapshots", () => {
       codigo_ibge: "0410000",
       municipio_nome: "CURITIBA",
       segment_id: "0123456",
+      include_discarded: true,
     });
   });
 
@@ -60,7 +64,7 @@ describe("Discovery export snapshots", () => {
   ])("maps radius origin %s", (origin, expected) => {
     const search = toDiscoveryExportSearch({
       kind: "radius",
-      snapshot: { origin, radiusKm: 12.5, segmentId: "0123456", resultUf: "SC" },
+      snapshot: { origin, radiusKm: 12.5, segmentId: "0123456", resultUf: "SC", includeDiscarded: true },
     });
     expect(search).toEqual(expect.objectContaining({
       kind: "RADIUS",
@@ -68,6 +72,7 @@ describe("Discovery export snapshots", () => {
       segment_id: "0123456",
       uf: "SC",
       ...expected,
+      include_discarded: true,
     }));
     expect(search).not.toHaveProperty("limit");
     expect(search).not.toHaveProperty("offset");
@@ -76,30 +81,32 @@ describe("Discovery export snapshots", () => {
   it("converts neighbors, both root identifiers, group and similar exactly", () => {
     expect(toDiscoveryExportSearch({
       kind: "neighbors",
-      snapshot: { cnpj: "00ABC123000100", radiusKm: 30, segmentId: "0123456", resultUf: "PR" },
+      snapshot: { cnpj: "00ABC123000100", radiusKm: 30, segmentId: "0123456", resultUf: "PR", includeDiscarded: true },
     })).toEqual({
       kind: "NEIGHBORS",
       cnpj_full: "00ABC123000100",
       radius_km: 30,
       segment_id: "0123456",
       uf: "PR",
+      include_discarded: true,
     });
     expect(toDiscoveryExportSearch({
       kind: "root",
-      snapshot: { identifier: { kind: "cnpj", cnpj: "00ABC123000100" } },
-    })).toEqual({ kind: "ROOT_BRANCHES", cnpj: "00ABC123000100" });
+      snapshot: { identifier: { kind: "cnpj", cnpj: "00ABC123000100" }, includeDiscarded: false },
+    })).toEqual({ kind: "ROOT_BRANCHES", cnpj: "00ABC123000100", include_discarded: undefined });
     expect(toDiscoveryExportSearch({
       kind: "root",
-      snapshot: { identifier: { kind: "root", cnpjRoot: "00123456" } },
-    })).toEqual({ kind: "ROOT_BRANCHES", cnpj_root: "00123456" });
+      snapshot: { identifier: { kind: "root", cnpjRoot: "00123456" }, includeDiscarded: true },
+    })).toEqual({ kind: "ROOT_BRANCHES", cnpj_root: "00123456", include_discarded: true });
     expect(toDiscoveryExportSearch({
       kind: "group",
-      snapshot: { groupId: "grupo-001" },
-    })).toEqual({ kind: "COMMERCIAL_GROUP", group_id: "grupo-001" });
+      snapshot: { groupId: "grupo-001", includeDiscarded: false },
+    })).toEqual({ kind: "COMMERCIAL_GROUP", group_id: "grupo-001", include_discarded: undefined });
     expect(toDiscoveryExportSearch({
       kind: "similar",
       cnpjFull: "00ABC123000100",
-    })).toEqual({ kind: "SIMILAR", cnpj_full: "00ABC123000100" });
+      includeDiscarded: true,
+    })).toEqual({ kind: "SIMILAR", cnpj_full: "00ABC123000100", include_discarded: true });
   });
 });
 

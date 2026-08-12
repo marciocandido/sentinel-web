@@ -57,6 +57,7 @@ export function validateSearch(mode: SearchMode, values: DiscoveryFormValues): V
 export function createSnapshot(
   mode: SearchMode,
   values: DiscoveryFormValues,
+  includeDiscarded = false,
 ): DiscoverySearchSnapshot {
   const trimmed = Object.fromEntries(
     Object.entries(values).map(([key, value]) => [key, value.trim()]),
@@ -70,6 +71,7 @@ export function createSnapshot(
       porteCodigo: trimmed.porteCodigo,
       capitalMin: trimmed.capitalMin,
       capitalMax: trimmed.capitalMax,
+      includeDiscarded,
     };
   }
   if (mode !== "region") throw new Error("Radius search uses a dedicated snapshot.");
@@ -80,6 +82,7 @@ export function createSnapshot(
     codigoTom: trimmed.codigoTom,
     codigoIbge: trimmed.codigoIbge,
     municipioNome: trimmed.municipioNome,
+    includeDiscarded,
   };
 }
 

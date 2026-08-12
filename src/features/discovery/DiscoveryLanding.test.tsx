@@ -224,6 +224,63 @@ describe("Discovery search", () => {
     expect(nextUrl.searchParams.get("offset")).toBe("50");
   });
 
+  it("applies the single discarded toggle only to the next submitted snapshot", async () => {
+    let searchCall = 0;
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      if (!isSearch(input)) return defaultApi(input);
+      searchCall += 1;
+      if (searchCall === 2) return Promise.reject(new TypeError("synthetic network failure"));
+      const url = new URL(input.toString(), "http://sentinel.local");
+      const offset = Number(url.searchParams.get("offset"));
+      const limit = Number(url.searchParams.get("limit"));
+      return Promise.resolve(jsonResponse(discoveryPage([establishment()], {
+        offset,
+        limit,
+        has_more: offset === 0,
+      })));
+    });
+    render(<App />);
+    const toggle = await screen.findByRole("checkbox", { name: "Mostrar descartados" });
+    expect(toggle).not.toBeChecked();
+    expect(screen.getAllByRole("checkbox", { name: "Mostrar descartados" })).toHaveLength(1);
+    expect(screen.getByText("Inclui empresas que você já descartou anteriormente.")).toBeInTheDocument();
+
+    await submitSegment();
+    await screen.findByRole("table");
+    expect(new URL(searchUrls()[0], "http://sentinel.local").searchParams.has("include_discarded")).toBe(false);
+
+    fireEvent.click(toggle);
+    expect(toggle).toBeChecked();
+    expect(searchUrls()).toHaveLength(1);
+    expect(screen.getByText("EMPRESA EXEMPLO LTDA")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    expect(await screen.findByText(/Verifique a conexão com a API/)).toBeInTheDocument();
+    expect(new URL(searchUrls()[1], "http://sentinel.local").searchParams.has("include_discarded")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    await screen.findByText(/Página 2/);
+    expect(new URL(searchUrls()[2], "http://sentinel.local").searchParams.has("include_discarded")).toBe(false);
+
+    fireEvent.change(screen.getByLabelText("Resultados por página"), { target: { value: "25" } });
+    await waitFor(() => expect(searchUrls()).toHaveLength(4));
+    expect(new URL(searchUrls()[3], "http://sentinel.local").searchParams.has("include_discarded")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    await waitFor(() => expect(searchUrls()).toHaveLength(5));
+    expect(new URL(searchUrls()[4], "http://sentinel.local").searchParams.get("include_discarded")).toBe("true");
+    expect(new URL(searchUrls()[4], "http://sentinel.local").searchParams.has("actor_id")).toBe(false);
+  });
+
+  it("keeps one accessible discarded control and its editable value across modes without fetching", async () => {
+    render(<App />);
+    const toggle = await screen.findByRole("checkbox", { name: "Mostrar descartados" });
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("radio", { name: "Por região" }));
+    expect(screen.getAllByRole("checkbox", { name: "Mostrar descartados" })).toHaveLength(1);
+    expect(screen.getByRole("checkbox", { name: "Mostrar descartados" })).toBeChecked();
+    expect(searchUrls()).toHaveLength(0);
+  });
+
   it("uses correct next and previous offsets and disables unavailable directions", async () => {
     fetchMock.mockImplementation((input: RequestInfo | URL) => {
       if (!isSearch(input)) return defaultApi(input);

@@ -161,6 +161,22 @@ describe("Discovery export UI", () => {
     });
   });
 
+  it("exports discarded visibility from the submitted snapshot, not the edited toggle", async () => {
+    render(<App />);
+    const toggle = await screen.findByRole("checkbox", { name: "Mostrar descartados" });
+    fireEvent.click(toggle);
+    await submitMode("segment");
+    fireEvent.click(toggle);
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Exportar CSV" }));
+    await waitFor(() => expect(exportRequests()).toHaveLength(1));
+    expect(exportRequests()[0].search).toMatchObject({
+      kind: "SEGMENT",
+      include_discarded: true,
+    });
+    expect(exportRequests()[0].search).not.toHaveProperty("actor_id");
+  });
+
   it("keeps results on a safe export error and aborts export on a new search", async () => {
     let exportSignal: AbortSignal | undefined;
     let exportBodyStarted = false;
@@ -225,6 +241,27 @@ describe("Discovery export UI", () => {
     expect(exportRequests()[0]).toEqual({
       format: "XLSX",
       search: { kind: "SIMILAR", cnpj_full: "00123456000195" },
+    });
+  });
+
+  it("exports similar companies with the selected result visibility context", async () => {
+    render(<App />);
+    const toggle = await screen.findByRole("checkbox", { name: "Mostrar descartados" });
+    fireEvent.click(toggle);
+    await submitMode("segment");
+    fireEvent.click(toggle);
+    fireEvent.click((await screen.findAllByRole("button", { name: "Ver detalhes" }))[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Ver semelhantes" }));
+    await screen.findByText("EMPRESA SEMELHANTE LTDA");
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Exportar CSV" }));
+    await waitFor(() => expect(exportRequests()).toHaveLength(1));
+    expect(exportRequests()[0]).toEqual({
+      format: "CSV",
+      search: {
+        kind: "SIMILAR",
+        cnpj_full: "00123456000195",
+        include_discarded: true,
+      },
     });
   });
 });

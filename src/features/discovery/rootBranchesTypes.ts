@@ -10,6 +10,7 @@ export interface RootBranchesFormValues {
 
 export interface RootBranchesSearchSnapshot {
   identifier: RootBranchesIdentifier;
+  includeDiscarded: boolean;
 }
 
 export type RootBranchesValidationErrors = Partial<

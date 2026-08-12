@@ -84,6 +84,7 @@ describe("RadiusMap", () => {
             radiusKm: 10,
             segmentId: "",
             resultUf: "",
+            includeDiscarded: false,
           },
         }}
         onRetry={vi.fn()}

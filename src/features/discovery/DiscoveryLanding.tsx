@@ -105,6 +105,11 @@ type LastRequest =
       offset: number;
     };
 
+interface SelectedContext {
+  establishment: DiscoveryEstablishment;
+  includeDiscarded: boolean;
+}
+
 export type DiscoveryLifecycleError =
   | "base_setup_required"
   | "base_initializing"
@@ -130,6 +135,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     useState<RootBranchesFormValues>(EMPTY_ROOT_BRANCHES_FORM);
   const [commercialGroupValues, setCommercialGroupValues] =
     useState<CommercialGroupFormValues>(EMPTY_COMMERCIAL_GROUP_FORM);
+  const [includeDiscarded, setIncludeDiscarded] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [radiusErrors, setRadiusErrors] =
     useState<RadiusValidationErrors>({});
@@ -149,8 +155,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
   const [commercialGroupState, setCommercialGroupState] =
     useState<CommercialGroupViewState>({ kind: "initial" });
   const [limit, setLimit] = useState(50);
-  const [selected, setSelected] =
-    useState<DiscoveryEstablishment | null>(null);
+  const [selected, setSelected] = useState<SelectedContext | null>(null);
   const [detailsTrigger, setDetailsTrigger] =
     useState<HTMLElement | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
@@ -201,6 +206,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
                 porteCodigo: snapshot.porteCodigo,
                 capitalMin: snapshot.capitalMin,
                 capitalMax: snapshot.capitalMax,
+                includeDiscarded: snapshot.includeDiscarded,
                 limit: requestLimit,
                 offset,
               },
@@ -213,6 +219,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
                 codigoTom: snapshot.codigoTom,
                 codigoIbge: snapshot.codigoIbge,
                 municipioNome: snapshot.municipioNome,
+                includeDiscarded: snapshot.includeDiscarded,
                 limit: requestLimit,
                 offset,
               },
@@ -252,6 +259,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
           radiusKm: snapshot.radiusKm,
           segmentId: snapshot.segmentId,
           resultUf: snapshot.resultUf,
+          includeDiscarded: snapshot.includeDiscarded,
           limit: requestLimit,
           offset,
         },
@@ -283,7 +291,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     setNeighborsState({ kind: "loading" });
     try {
       const page = await searchNeighboringEstablishments(
-        { cnpjFull: snapshot.cnpj, radiusKm: snapshot.radiusKm, segmentId: snapshot.segmentId, resultUf: snapshot.resultUf, limit: requestLimit, offset },
+        { cnpjFull: snapshot.cnpj, radiusKm: snapshot.radiusKm, segmentId: snapshot.segmentId, resultUf: snapshot.resultUf, includeDiscarded: snapshot.includeDiscarded, limit: requestLimit, offset },
         { signal: controller.signal },
       );
       if (requestId === requestIdRef.current && !controller.signal.aborted) {
@@ -316,6 +324,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
       const page = await searchRootBranches(
         {
           identifier: snapshot.identifier,
+          includeDiscarded: snapshot.includeDiscarded,
           limit: requestLimit,
           offset,
         },
@@ -354,6 +363,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
       const page = await searchCommercialGroup(
         {
           groupId: snapshot.groupId,
+          includeDiscarded: snapshot.includeDiscarded,
           limit: requestLimit,
           offset,
         },
@@ -421,7 +431,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     setErrors(validation);
     if (Object.keys(validation).length) return;
     discoveryExport.cancel();
-    const snapshot = createSnapshot(mode, values);
+    const snapshot = createSnapshot(mode, values, includeDiscarded);
     submittedRef.current = snapshot;
     setExportSearch(toDiscoveryExportSearch({ kind: "standard", snapshot }));
     void executeStandard(snapshot, limit, 0);
@@ -432,7 +442,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     setRadiusErrors(validation);
     if (Object.keys(validation).length) return;
     discoveryExport.cancel();
-    const snapshot = createRadiusSnapshot(radiusValues);
+    const snapshot = createRadiusSnapshot(radiusValues, includeDiscarded);
     radiusSubmittedRef.current = snapshot;
     setExportSearch(toDiscoveryExportSearch({ kind: "radius", snapshot }));
     void executeRadius(snapshot, limit, 0);
@@ -443,7 +453,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     setNeighborsErrors(validation);
     if (Object.keys(validation).length) return;
     discoveryExport.cancel();
-    const snapshot = createNeighborsSnapshot(neighborsValues);
+    const snapshot = createNeighborsSnapshot(neighborsValues, includeDiscarded);
     neighborsSubmittedRef.current = snapshot;
     setExportSearch(toDiscoveryExportSearch({ kind: "neighbors", snapshot }));
     void executeNeighbors(snapshot, limit, 0);
@@ -454,7 +464,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     setRootBranchesErrors(validation);
     if (Object.keys(validation).length) return;
     discoveryExport.cancel();
-    const snapshot = createRootBranchesSnapshot(rootBranchesValues);
+    const snapshot = createRootBranchesSnapshot(rootBranchesValues, includeDiscarded);
     rootBranchesSubmittedRef.current = snapshot;
     setExportSearch(toDiscoveryExportSearch({ kind: "root", snapshot }));
     void executeRootBranches(snapshot, limit, 0);
@@ -465,7 +475,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     setCommercialGroupErrors(validation);
     if (Object.keys(validation).length) return;
     discoveryExport.cancel();
-    const snapshot = createCommercialGroupSnapshot(commercialGroupValues);
+    const snapshot = createCommercialGroupSnapshot(commercialGroupValues, includeDiscarded);
     commercialGroupSubmittedRef.current = snapshot;
     setExportSearch(toDiscoveryExportSearch({ kind: "group", snapshot }));
     void executeCommercialGroup(snapshot, limit, 0);
@@ -570,11 +580,22 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     if (document.activeElement instanceof HTMLElement) {
       setDetailsTrigger(document.activeElement);
     }
-    setSelected(item);
+    const submittedVisibility = mode === "group"
+      ? commercialGroupSubmittedRef.current?.includeDiscarded
+      : mode === "root"
+        ? rootBranchesSubmittedRef.current?.includeDiscarded
+        : mode === "radius"
+          ? radiusSubmittedRef.current?.includeDiscarded
+          : submittedRef.current?.includeDiscarded;
+    setSelected({
+      establishment: item,
+      includeDiscarded: submittedVisibility ?? false,
+    });
   };
 
   const openRootBranchesFromDrawer = (
     establishment: DiscoveryEstablishment,
+    selectedIncludeDiscarded: boolean,
   ) => {
     discoveryExport.cancel();
     requestIdRef.current += 1;
@@ -600,7 +621,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
       identifierKind: "cnpj",
       identifierValue: establishment.cnpj_full,
     };
-    const snapshot = createRootBranchesSnapshot(values);
+    const snapshot = createRootBranchesSnapshot(values, selectedIncludeDiscarded);
     setRootBranchesValues(values);
     rootBranchesSubmittedRef.current = snapshot;
     setExportSearch(toDiscoveryExportSearch({ kind: "root", snapshot }));
@@ -632,6 +653,21 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
           </div>
           <div className="discovery-form">
             <DiscoveryModeSwitcher mode={mode} onChange={changeMode} />
+          </div>
+          <div className="discarded-visibility-control">
+            <label htmlFor="include-discarded">
+              <input
+                id="include-discarded"
+                type="checkbox"
+                checked={includeDiscarded}
+                aria-describedby="include-discarded-help"
+                onChange={(event) => setIncludeDiscarded(event.target.checked)}
+              />
+              <span>Mostrar descartados</span>
+            </label>
+            <p id="include-discarded-help">
+              Inclui empresas que você já descartou anteriormente.
+            </p>
           </div>
           {mode === "neighbors" ? (
             <NeighborsSearchForm
@@ -768,8 +804,9 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
       </div>
       {selected && (
         <DiscoveryDetailsDrawer
-          key={selected.cnpj_full}
-          establishment={selected}
+          key={selected.establishment.cnpj_full}
+          establishment={selected.establishment}
+          includeDiscarded={selected.includeDiscarded}
           onClose={() => setSelected(null)}
           onOpenRootBranches={openRootBranchesFromDrawer}
           returnFocusTo={detailsTrigger}

@@ -6,6 +6,7 @@ export interface CommercialGroupFormValues {
 
 export interface CommercialGroupSearchSnapshot {
   groupId: string;
+  includeDiscarded: boolean;
 }
 
 export type CommercialGroupValidationErrors = Partial<

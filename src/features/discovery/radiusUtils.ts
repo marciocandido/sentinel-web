@@ -55,6 +55,7 @@ export function validateRadius(
 
 export function createRadiusSnapshot(
   values: RadiusFormValues,
+  includeDiscarded = false,
 ): RadiusSearchSnapshot {
   const text = (value: string) => value.trim();
   const radiusKm = numeric(values.radiusKm)!;
@@ -85,6 +86,7 @@ export function createRadiusSnapshot(
     radiusKm,
     segmentId: text(values.segmentId),
     resultUf: text(values.resultUf),
+    includeDiscarded,
   };
 }
 

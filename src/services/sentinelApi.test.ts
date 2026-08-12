@@ -3,13 +3,17 @@ import {
   discoveryPage,
   establishment,
   commercialGroupPage,
+  neighborSearchPage,
   radiusSearchPage,
   rootBranchesPage,
+  similarCompanyPage,
 } from "../test/fixtures";
 import {
   searchEstablishmentsByRegion,
   searchEstablishmentsBySegment,
   searchEstablishmentsByRadius,
+  searchNeighboringEstablishments,
+  searchSimilarCompanies,
   searchCommercialGroup,
   searchRootBranches,
   createFeedbackEvent,
@@ -221,6 +225,57 @@ describe("Sentinel Discovery API", () => {
     await expect(
       searchCommercialGroup({ groupId: "grupo-metal", limit: 50, offset: 0 }),
     ).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it.each([false, undefined])(
+    "omits include_discarded and actor_id from all seven operations when visibility is %s",
+    async (includeDiscarded) => {
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(discoveryPage()))
+        .mockResolvedValueOnce(jsonResponse(discoveryPage()))
+        .mockResolvedValueOnce(jsonResponse(radiusSearchPage()))
+        .mockResolvedValueOnce(jsonResponse(neighborSearchPage()))
+        .mockResolvedValueOnce(jsonResponse(rootBranchesPage()))
+        .mockResolvedValueOnce(jsonResponse(commercialGroupPage()))
+        .mockResolvedValueOnce(jsonResponse(similarCompanyPage()));
+      await searchEstablishmentsBySegment({ segmentId: "metal", includeDiscarded, limit: 1, offset: 0 });
+      await searchEstablishmentsByRegion({ uf: "PR", includeDiscarded, limit: 1, offset: 0 });
+      await searchEstablishmentsByRadius({ origin: { kind: "cnpj", cnpj: "00ABC" }, radiusKm: 1, includeDiscarded, limit: 1, offset: 0 });
+      await searchNeighboringEstablishments({ cnpjFull: "00ABC", radiusKm: 1, includeDiscarded, limit: 1, offset: 0 });
+      await searchRootBranches({ identifier: { kind: "cnpj", cnpj: "00ABC" }, includeDiscarded, limit: 1, offset: 0 });
+      await searchCommercialGroup({ groupId: "grupo", includeDiscarded, limit: 1, offset: 0 });
+      await searchSimilarCompanies({ cnpjFull: "00ABC", includeDiscarded, limit: 1, offset: 0 });
+
+      for (const [input] of fetchMock.mock.calls) {
+        const url = new URL(input.toString(), "http://sentinel.local");
+        expect(url.searchParams.has("include_discarded")).toBe(false);
+        expect(url.searchParams.has("actor_id")).toBe(false);
+      }
+    },
+  );
+
+  it("sends include_discarded=true, and never actor_id, in all seven operations", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(discoveryPage()))
+      .mockResolvedValueOnce(jsonResponse(discoveryPage()))
+      .mockResolvedValueOnce(jsonResponse(radiusSearchPage()))
+      .mockResolvedValueOnce(jsonResponse(neighborSearchPage()))
+      .mockResolvedValueOnce(jsonResponse(rootBranchesPage()))
+      .mockResolvedValueOnce(jsonResponse(commercialGroupPage()))
+      .mockResolvedValueOnce(jsonResponse(similarCompanyPage()));
+    await searchEstablishmentsBySegment({ segmentId: "metal", includeDiscarded: true, limit: 1, offset: 0 });
+    await searchEstablishmentsByRegion({ uf: "PR", includeDiscarded: true, limit: 1, offset: 0 });
+    await searchEstablishmentsByRadius({ origin: { kind: "cnpj", cnpj: "00ABC" }, radiusKm: 1, includeDiscarded: true, limit: 1, offset: 0 });
+    await searchNeighboringEstablishments({ cnpjFull: "00ABC", radiusKm: 1, includeDiscarded: true, limit: 1, offset: 0 });
+    await searchRootBranches({ identifier: { kind: "cnpj", cnpj: "00ABC" }, includeDiscarded: true, limit: 1, offset: 0 });
+    await searchCommercialGroup({ groupId: "grupo", includeDiscarded: true, limit: 1, offset: 0 });
+    await searchSimilarCompanies({ cnpjFull: "00ABC", includeDiscarded: true, limit: 1, offset: 0 });
+
+    for (const [input] of fetchMock.mock.calls) {
+      const url = new URL(input.toString(), "http://sentinel.local");
+      expect(url.searchParams.getAll("include_discarded")).toEqual(["true"]);
+      expect(url.searchParams.has("actor_id")).toBe(false);
+    }
   });
 });
 

@@ -14,10 +14,14 @@ export type DiscoveryExportSnapshot =
   | { kind: "neighbors"; snapshot: NeighborsSearchSnapshot }
   | { kind: "root"; snapshot: RootBranchesSearchSnapshot }
   | { kind: "group"; snapshot: CommercialGroupSearchSnapshot }
-  | { kind: "similar"; cnpjFull: string };
+  | { kind: "similar"; cnpjFull: string; includeDiscarded: boolean };
 
 function present(value: string): string | undefined {
   return value || undefined;
+}
+
+function includeDiscarded(value: boolean): true | undefined {
+  return value ? true : undefined;
 }
 
 export function toDiscoveryExportSearch(
@@ -34,6 +38,7 @@ export function toDiscoveryExportSearch(
         porte_codigo: present(snapshot.porteCodigo),
         capital_min: present(snapshot.capitalMin),
         capital_max: present(snapshot.capitalMax),
+        include_discarded: includeDiscarded(snapshot.includeDiscarded),
       };
     }
     return {
@@ -43,6 +48,7 @@ export function toDiscoveryExportSearch(
       codigo_ibge: present(snapshot.codigoIbge),
       municipio_nome: present(snapshot.municipioNome),
       segment_id: present(snapshot.segmentId),
+      include_discarded: includeDiscarded(snapshot.includeDiscarded),
     };
   }
   if (input.kind === "radius") {
@@ -52,6 +58,7 @@ export function toDiscoveryExportSearch(
       radius_km: radiusKm,
       segment_id: present(segmentId),
       uf: present(resultUf),
+      include_discarded: includeDiscarded(input.snapshot.includeDiscarded),
     };
     if (origin.kind === "municipality") {
       search.origin_municipio_nome = origin.municipioNome;
@@ -72,17 +79,34 @@ export function toDiscoveryExportSearch(
       radius_km: input.snapshot.radiusKm,
       segment_id: present(input.snapshot.segmentId),
       uf: present(input.snapshot.resultUf),
+      include_discarded: includeDiscarded(input.snapshot.includeDiscarded),
     };
   }
   if (input.kind === "root") {
     return input.snapshot.identifier.kind === "cnpj"
-      ? { kind: "ROOT_BRANCHES", cnpj: input.snapshot.identifier.cnpj }
-      : { kind: "ROOT_BRANCHES", cnpj_root: input.snapshot.identifier.cnpjRoot };
+      ? {
+          kind: "ROOT_BRANCHES",
+          cnpj: input.snapshot.identifier.cnpj,
+          include_discarded: includeDiscarded(input.snapshot.includeDiscarded),
+        }
+      : {
+          kind: "ROOT_BRANCHES",
+          cnpj_root: input.snapshot.identifier.cnpjRoot,
+          include_discarded: includeDiscarded(input.snapshot.includeDiscarded),
+        };
   }
   if (input.kind === "group") {
-    return { kind: "COMMERCIAL_GROUP", group_id: input.snapshot.groupId };
+    return {
+      kind: "COMMERCIAL_GROUP",
+      group_id: input.snapshot.groupId,
+      include_discarded: includeDiscarded(input.snapshot.includeDiscarded),
+    };
   }
-  return { kind: "SIMILAR", cnpj_full: input.cnpjFull };
+  return {
+    kind: "SIMILAR",
+    cnpj_full: input.cnpjFull,
+    include_discarded: includeDiscarded(input.includeDiscarded),
+  };
 }
 
 export function downloadDiscoveryExport(file: DiscoveryExportFile): void {

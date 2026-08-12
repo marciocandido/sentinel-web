@@ -27,6 +27,7 @@ export interface RadiusSearchSnapshot {
   radiusKm: number;
   segmentId: string;
   resultUf: string;
+  includeDiscarded: boolean;
 }
 
 export type RadiusValidationErrors = Partial<

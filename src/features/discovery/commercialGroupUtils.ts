@@ -15,8 +15,9 @@ export function validateCommercialGroup(
 
 export function createCommercialGroupSnapshot(
   values: CommercialGroupFormValues,
+  includeDiscarded = false,
 ): CommercialGroupSearchSnapshot {
-  return { groupId: values.groupId.trim() };
+  return { groupId: values.groupId.trim(), includeDiscarded };
 }
 
 export function publicCommercialGroupError(code: string): string {

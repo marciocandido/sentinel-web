@@ -10,8 +10,12 @@ import { useDiscoveryExport } from "./useDiscoveryExport";
 
 interface DiscoveryDetailsDrawerProps {
   establishment: DiscoveryEstablishment;
+  includeDiscarded: boolean;
   onClose: () => void;
-  onOpenRootBranches: (establishment: DiscoveryEstablishment) => void;
+  onOpenRootBranches: (
+    establishment: DiscoveryEstablishment,
+    includeDiscarded: boolean,
+  ) => void;
   returnFocusTo: HTMLElement | null;
 }
 
@@ -25,6 +29,7 @@ const SIMILAR_COMPANIES_LIMIT = 25;
 
 export function DiscoveryDetailsDrawer({
   establishment,
+  includeDiscarded,
   onClose,
   onOpenRootBranches,
   returnFocusTo,
@@ -122,6 +127,7 @@ export function DiscoveryDetailsDrawer({
     try {
       const page = await searchSimilarCompanies({
         cnpjFull: establishment.cnpj_full,
+        includeDiscarded,
         limit: SIMILAR_COMPANIES_LIMIT,
         offset,
       }, { signal: controller.signal });
@@ -133,7 +139,7 @@ export function DiscoveryDetailsDrawer({
       const code = error instanceof SentinelApiError ? error.code : "network_error";
       if (code !== "request_aborted") setSimilarState({ kind: "error", code, offset });
     }
-  }, [abortSimilarRequest, establishment.cnpj_full]);
+  }, [abortSimilarRequest, establishment.cnpj_full, includeDiscarded]);
 
   const openSimilar = () => {
     if (similarState.kind === "loading") return;
@@ -151,7 +157,7 @@ export function DiscoveryDetailsDrawer({
   const openRootBranches = () => {
     abortSimilarRequest();
     cancelSimilarExport();
-    onOpenRootBranches(establishment);
+    onOpenRootBranches(establishment, includeDiscarded);
   };
 
   const retrySimilar = () => {
@@ -225,6 +231,7 @@ export function DiscoveryDetailsDrawer({
               exportSearch={toDiscoveryExportSearch({
                 kind: "similar",
                 cnpjFull: establishment.cnpj_full,
+                includeDiscarded,
               })}
               onExport={(format, search) => void startSimilarExport(format, search)}
               backButtonRef={backButtonRef}
