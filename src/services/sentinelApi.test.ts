@@ -19,6 +19,9 @@ import {
   createFeedbackEvent,
   listFeedbackEvents,
   exportDiscoveryResults,
+  createSavedSearch,
+  listSavedSearches,
+  deleteSavedSearch,
 } from "./sentinelApi";
 
 const fetchMock = vi.fn();
@@ -54,6 +57,30 @@ beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockResolvedValue(jsonResponse(discoveryPage()));
   vi.stubGlobal("fetch", fetchMock);
+});
+
+describe("saved searches", () => {
+  const saved = (search: unknown) => ({ saved_search_id: "2b5b4d78-7a65-4ba8-b12b-1c3cb0fd5498", name: "Pesquisa", search, created_at: "2026-08-13T12:00:00Z" });
+  const page = (items: unknown[]) => ({ items, pagination: { limit: 20, offset: 0, returned: items.length, has_more: false } });
+  it("creates, lists and deletes canonical payloads without actor_id", async () => {
+    const canonical = { kind:"SIMILAR" as const, cnpj_full:"00ABC", uf:null, codigo_tom:null, segment_id:null, radius_km:null, include_discarded:false };
+    fetchMock.mockResolvedValueOnce(jsonResponse(saved(canonical), 201));
+    await createSavedSearch({ name:" Pesquisa ", search:canonical });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/discovery/saved-searches");
+    expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify({ name:" Pesquisa ", search:canonical }));
+    fetchMock.mockResolvedValueOnce(jsonResponse(page([saved({ kind:"ROOT_BRANCHES", cnpj:"00ABC", cnpj_root:"00123456", include_discarded:false })])));
+    await expect(listSavedSearches({ limit:20, offset:0 })).resolves.toMatchObject({ items:[{ search:{ kind:"ROOT_BRANCHES" } }] });
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/v1/discovery/saved-searches?limit=20&offset=0");
+    fetchMock.mockResolvedValueOnce({ ok:true,status:204,json:vi.fn() } as unknown as Response);
+    await deleteSavedSearch("2b5b4d78-7a65-4ba8-b12b-1c3cb0fd5498");
+    expect(fetchMock.mock.calls[2][0]).toContain("2b5b4d78-7a65-4ba8-b12b-1c3cb0fd5498");
+  });
+  it("rejects malformed or extra saved search fields", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(page([saved({ kind:"SEGMENT", segment_id:"metal", actor_id:"browser" })])));
+    await expect(listSavedSearches({ limit:20, offset:0 })).rejects.toMatchObject({ code:"invalid_response" });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ items:[], pagination:{ limit:20, offset:0, returned:0, has_more:false, total:0 } }));
+    await expect(listSavedSearches({ limit:20, offset:0 })).rejects.toMatchObject({ code:"invalid_response" });
+  });
 });
 
 describe("Sentinel Discovery API", () => {

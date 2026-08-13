@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { postBinary, SentinelApiError } from "./apiClient";
+import { deleteNoContent, postBinary, SentinelApiError } from "./apiClient";
 
 const fetchMock = vi.fn();
 
@@ -188,5 +188,31 @@ describe("postBinary", () => {
     const result = expect(request).rejects.toMatchObject({ code: "request_timeout" });
     await vi.advanceTimersByTimeAsync(10);
     await result;
+  });
+});
+
+describe("deleteNoContent", () => {
+  it("uses DELETE and accepts 204 without reading JSON", async () => {
+    const json = vi.fn();
+    fetchMock.mockResolvedValue({ ok: true, status: 204, json } as unknown as Response);
+    await deleteNoContent("/saved-searches/a", { baseUrl: "https://api.example/" });
+    expect(fetchMock).toHaveBeenCalledWith("https://api.example/saved-searches/a", expect.objectContaining({ method: "DELETE" }));
+    expect(json).not.toHaveBeenCalled();
+  });
+  it("preserves JSON codes and sanitizes unknown delete errors", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 404, json: () => Promise.resolve({ error: { code: "saved_search_not_found", message: "private" } }) } as Response);
+    await expect(deleteNoContent("/x")).rejects.toMatchObject({ code: "saved_search_not_found", status: 404 });
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: () => Promise.reject(new SyntaxError("private")) } as Response);
+    await expect(deleteNoContent("/x")).rejects.toMatchObject({ code: "http_error", status: 500 });
+  });
+  it("maps external abort, timeout and network errors", async () => {
+    const external = new AbortController();
+    fetchMock.mockImplementationOnce((_url, init: RequestInit) => new Promise((_resolve, reject) => init.signal?.addEventListener("abort", () => reject(new DOMException("private", "AbortError")))));
+    const aborted = deleteNoContent("/x", { signal: external.signal }); external.abort();
+    await expect(aborted).rejects.toMatchObject({ code: "request_aborted" });
+    vi.useFakeTimers(); fetchMock.mockImplementationOnce((_url, init: RequestInit) => new Promise((_resolve, reject) => init.signal?.addEventListener("abort", () => reject(new DOMException("private", "AbortError")))));
+    const timed = deleteNoContent("/x", { timeoutMs: 10 }); const result = expect(timed).rejects.toMatchObject({ code: "request_timeout" }); await vi.advanceTimersByTimeAsync(10); await result;
+    vi.useRealTimers(); fetchMock.mockRejectedValueOnce(new TypeError("private"));
+    await expect(deleteNoContent("/x")).rejects.toMatchObject({ code: "network_error" });
   });
 });
