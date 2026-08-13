@@ -24,8 +24,9 @@ function publicSavedSearchError(code: string): string {
   return messages[code] ?? "Não foi possível concluir a operação.";
 }
 
-export function SavedSearchesPanel({ search, onLoad }: {
+export function SavedSearchesPanel({ search, generation, onLoad }: {
   search: DiscoverySearchSpec | null;
+  generation: number;
   onLoad: (editable: EditableDiscoverySearch) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -42,12 +43,13 @@ export function SavedSearchesPanel({ search, onLoad }: {
   const readRef = useRef<AbortController | null>(null);
   const mutationRef = useRef<AbortController | null>(null);
   const aliveRef = useRef(true);
+  const generationRef = useRef(generation);
 
-  const load = async (nextOffset = offset) => {
+  const load = async (nextOffset = offset, clearError = true) => {
     readRef.current?.abort();
     const controller = new AbortController();
     readRef.current = controller;
-    setLoading(true); setError(null);
+    setLoading(true); if (clearError) setError(null);
     try {
       const page = await listSavedSearches({ limit: PAGE_SIZE, offset: nextOffset }, { signal: controller.signal });
       if (!controller.signal.aborted && aliveRef.current) {
@@ -61,10 +63,20 @@ export function SavedSearchesPanel({ search, onLoad }: {
     }
   };
 
-  useEffect(() => () => {
-    aliveRef.current = false;
-    readRef.current?.abort(); mutationRef.current?.abort();
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+      readRef.current?.abort(); mutationRef.current?.abort();
+    };
   }, []);
+
+  useEffect(() => {
+    if (generationRef.current === generation) return;
+    generationRef.current = generation;
+    mutationRef.current?.abort();
+    setSaveOpen(false); setName(""); setError(null); setMutating(false);
+  }, [generation]);
 
   const save = async () => {
     const trimmed = name.trim();
@@ -94,7 +106,7 @@ export function SavedSearchesPanel({ search, onLoad }: {
     } catch (error) {
       const code = error instanceof SentinelApiError ? error.code : "network_error";
       if (!controller.signal.aborted && aliveRef.current) {
-        setConfirm(null); if (code !== "request_aborted") setError(publicSavedSearchError(code)); void load(offset);
+        setConfirm(null); if (code !== "request_aborted") setError(publicSavedSearchError(code)); void load(offset, false);
       }
     } finally { if (!controller.signal.aborted && aliveRef.current) setMutating(false); }
   };
@@ -105,6 +117,7 @@ export function SavedSearchesPanel({ search, onLoad }: {
       <button className="secondary-button" type="button" onClick={() => { const next = !open; setOpen(next); if (next) void load(0); }}>Pesquisas salvas</button>
     </div>
     {notice && <p aria-live="polite">{notice}</p>}
+    {saveOpen && error && <p role="alert">{error}</p>}
     {saveOpen && <div className="saved-searches__save">
       <label htmlFor="saved-search-name">Nome da pesquisa</label>
       <input id="saved-search-name" value={name} maxLength={120} onChange={(event) => setName(event.target.value)} />
@@ -114,7 +127,7 @@ export function SavedSearchesPanel({ search, onLoad }: {
     {open && <div>
       <h2>Pesquisas salvas</h2>
       {loading && <p role="status">Carregando pesquisas salvas...</p>}
-      {error && <p role="alert">{error}</p>}
+      {error && !saveOpen && <p role="alert">{error}</p>}
       {!loading && !items.length && !error && <p>Nenhuma pesquisa salva.</p>}
       <ul>{items.map((item) => {
         const editable = toEditableDiscoverySearch(item.search);
