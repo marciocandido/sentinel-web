@@ -7,6 +7,7 @@ import { DiscoveryDetailField } from "./DiscoveryDetailField";
 import { toDiscoveryExportSearch } from "./discoveryExport";
 import { SimilarCompaniesView, type SimilarCompaniesState } from "./SimilarCompaniesView";
 import { useDiscoveryExport } from "./useDiscoveryExport";
+import { WorklistsPanel } from "./WorklistsPanel";
 
 interface DiscoveryDetailsDrawerProps {
   establishment: DiscoveryEstablishment;
@@ -190,6 +191,11 @@ export function DiscoveryDetailsDrawer({
   const visibleFeedback = clipboardFeedback?.cnpj === establishment.cnpj_full
     ? clipboardFeedback
     : null;
+  const similarSearch = toDiscoveryExportSearch({
+    kind: "similar",
+    cnpjFull: establishment.cnpj_full,
+    includeDiscarded,
+  });
 
   return (
     <div className="details-layer">
@@ -225,21 +231,20 @@ export function DiscoveryDetailsDrawer({
 
         <div className="details-content">
           {view === "similar" ? (
-            <SimilarCompaniesView
-              state={similarState}
-              exportState={similarExportState}
-              exportSearch={toDiscoveryExportSearch({
-                kind: "similar",
-                cnpjFull: establishment.cnpj_full,
-                includeDiscarded,
-              })}
-              onExport={(format, search) => void startSimilarExport(format, search)}
-              backButtonRef={backButtonRef}
-              onBack={backToDetails}
-              onRetry={retrySimilar}
-              onPrevious={previousSimilar}
-              onNext={nextSimilar}
-            />
+            <>
+              <SimilarCompaniesView
+                state={similarState}
+                exportState={similarExportState}
+                exportSearch={similarSearch}
+                onExport={(format, search) => void startSimilarExport(format, search)}
+                backButtonRef={backButtonRef}
+                onBack={backToDetails}
+                onRetry={retrySimilar}
+                onPrevious={previousSimilar}
+                onNext={nextSimilar}
+              />
+              <WorklistsPanel search={similarSearch} generation={0} showList={false} />
+            </>
           ) : (
             <>
               <section aria-labelledby="identification-title">

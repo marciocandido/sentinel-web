@@ -236,6 +236,7 @@ describe("Discovery export UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ver semelhantes" }));
     await screen.findByText("EMPRESA SEMELHANTE LTDA");
     const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: "Salvar como lista de trabalho" })).toBeEnabled();
     fireEvent.click(within(dialog).getByRole("button", { name: "Exportar Excel" }));
     await waitFor(() => expect(exportRequests()).toHaveLength(1));
     expect(exportRequests()[0]).toEqual({

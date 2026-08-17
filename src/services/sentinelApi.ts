@@ -13,7 +13,10 @@ import {
   isBootstrapPreflightResponse,
   isBootstrapJobResponse,
   isUpdatePreflightResponse,
+  isDiscoveryEstablishment,
+  isPaginationMeta,
   type CommercialGroupPage,
+  type DiscoveryEstablishment,
   type DiscoveryEstablishmentPage,
   type LivenessResponse,
   type SegmentCatalogResponse,
@@ -191,6 +194,33 @@ export type DiscoverySearchSpec = DiscoveryExportSearch;
 export interface SavedSearch { saved_search_id: string; name: string; search: DiscoverySearchSpec; created_at: string; }
 export interface SavedSearchPage { items: SavedSearch[]; pagination: { limit: number; offset: number; returned: number; has_more: boolean }; }
 export interface SavedSearchCreateParams { name: string; search: DiscoverySearchSpec; }
+
+export interface Worklist {
+  worklist_id: string;
+  name: string;
+  source_search: DiscoverySearchSpec;
+  item_count: number;
+  created_at: string;
+}
+
+export interface WorklistPage {
+  items: Worklist[];
+  pagination: { limit: number; offset: number; returned: number; has_more: boolean };
+}
+
+export interface WorklistItem {
+  ordinal: number;
+  cnpj_full: string;
+  establishment_known: boolean;
+  establishment: DiscoveryEstablishment | null;
+}
+
+export interface WorklistItemPage {
+  items: WorklistItem[];
+  pagination: { limit: number; offset: number; returned: number; has_more: boolean };
+}
+
+export interface WorklistCreateParams { name: string; search: DiscoverySearchSpec; }
 
 export interface DiscoveryExportRequest {
   format: DiscoveryExportFormat;
@@ -499,6 +529,60 @@ function isSavedSearchPage(value: unknown): value is SavedSearchPage {
   const page = value as Record<string, unknown>; const p = page.pagination as Record<string, unknown>;
   return hasOnlyKeys(page,["items","pagination"]) && Array.isArray(page.items) && page.items.every(isSavedSearch) && !!p && hasOnlyKeys(p,["limit","offset","returned","has_more"]) && Number.isInteger(p.limit) && (p.limit as number) > 0 && Number.isInteger(p.offset) && (p.offset as number) >= 0 && Number.isInteger(p.returned) && (p.returned as number) >= 0 && typeof p.has_more === "boolean";
 }
+
+function isWorklist(value: unknown): value is Worklist {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return hasOnlyKeys(item, ["worklist_id", "name", "source_search", "item_count", "created_at"]) &&
+    typeof item.worklist_id === "string" && UUID.test(item.worklist_id) &&
+    typeof item.name === "string" && item.name.trim().length > 0 && item.name.length <= 120 &&
+    isDiscoverySearchSpec(item.source_search) &&
+    Number.isInteger(item.item_count) && (item.item_count as number) >= 0 &&
+    typeof item.created_at === "string" && ISO.test(item.created_at) && Number.isFinite(Date.parse(item.created_at));
+}
+
+function isWorklistPage(value: unknown): value is WorklistPage {
+  if (!value || typeof value !== "object") return false;
+  const page = value as Record<string, unknown>;
+  return hasOnlyKeys(page, ["items", "pagination"]) &&
+    Array.isArray(page.items) && page.items.every(isWorklist) &&
+    isRecordWithOnlyPaginationKeys(page.pagination);
+}
+
+function isRecordWithOnlyPaginationKeys(value: unknown): boolean {
+  return !!value && typeof value === "object" &&
+    hasOnlyKeys(value as Record<string, unknown>, ["limit", "offset", "returned", "has_more"]) &&
+    isPaginationMeta(value);
+}
+
+function isWorklistEstablishment(value: unknown): value is DiscoveryEstablishment {
+  return !!value && typeof value === "object" &&
+    hasOnlyKeys(value as Record<string, unknown>, [
+      "cnpj_full", "cnpj_root", "razao_social", "nome_fantasia", "uf", "municipio_nome",
+      "codigo_tom", "codigo_ibge", "cnae_principal", "matched_by_cnae_principal",
+      "matched_by_cnae_secundario", "location_precision", "has_geo", "porte_codigo",
+      "capital_social", "commercial_status", "commercial_status_source",
+    ]) && isDiscoveryEstablishment(value);
+}
+
+function isWorklistItem(value: unknown): value is WorklistItem {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  if (!hasOnlyKeys(item, ["ordinal", "cnpj_full", "establishment_known", "establishment"]) ||
+      !Number.isInteger(item.ordinal) || (item.ordinal as number) < 0 ||
+      typeof item.cnpj_full !== "string" || typeof item.establishment_known !== "boolean") return false;
+  return item.establishment_known
+    ? isWorklistEstablishment(item.establishment)
+    : item.establishment === null;
+}
+
+function isWorklistItemPage(value: unknown): value is WorklistItemPage {
+  if (!value || typeof value !== "object") return false;
+  const page = value as Record<string, unknown>;
+  return hasOnlyKeys(page, ["items", "pagination"]) &&
+    Array.isArray(page.items) && page.items.every(isWorklistItem) &&
+    isRecordWithOnlyPaginationKeys(page.pagination);
+}
 export async function createSavedSearch(params: SavedSearchCreateParams, options?: RequestOptions): Promise<SavedSearch> {
   const response = await postJson("/api/v1/discovery/saved-searches", params, { ...options, acceptedStatuses: [201] });
   if (!isSavedSearch(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
@@ -511,6 +595,38 @@ export async function listSavedSearches(params: { limit: number; offset: number 
 }
 export async function deleteSavedSearch(savedSearchId: string, options?: RequestOptions): Promise<void> {
   return deleteNoContent(`/api/v1/discovery/saved-searches/${encodeURIComponent(savedSearchId)}`, options);
+}
+
+export async function createWorklist(params: WorklistCreateParams, options?: RequestOptions): Promise<Worklist> {
+  const response = await postJson("/api/v1/discovery/worklists", params, { ...options, acceptedStatuses: [201] });
+  if (!isWorklist(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  return response;
+}
+
+export async function listWorklists(
+  params: { limit: number; offset: number },
+  options?: RequestOptions,
+): Promise<WorklistPage> {
+  const response = await getJson(`/api/v1/discovery/worklists?${paginationQuery(params.limit, params.offset)}`, options);
+  if (!isWorklistPage(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  return response;
+}
+
+export async function listWorklistItems(
+  worklistId: string,
+  params: { limit: number; offset: number },
+  options?: RequestOptions,
+): Promise<WorklistItemPage> {
+  const response = await getJson(
+    `/api/v1/discovery/worklists/${encodeURIComponent(worklistId)}/items?${paginationQuery(params.limit, params.offset)}`,
+    options,
+  );
+  if (!isWorklistItemPage(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  return response;
+}
+
+export async function deleteWorklist(worklistId: string, options?: RequestOptions): Promise<void> {
+  return deleteNoContent(`/api/v1/discovery/worklists/${encodeURIComponent(worklistId)}`, options);
 }
 
 export async function createFeedbackEvent(

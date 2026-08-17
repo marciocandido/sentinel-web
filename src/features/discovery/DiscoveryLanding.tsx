@@ -73,6 +73,7 @@ import {
 import { toDiscoveryExportSearch } from "./discoveryExport";
 import { useDiscoveryExport } from "./useDiscoveryExport";
 import { SavedSearchesPanel } from "./SavedSearchesPanel";
+import { WorklistsPanel } from "./WorklistsPanel";
 import type { EditableDiscoverySearch } from "./savedSearches";
 
 type LastRequest =
@@ -790,6 +791,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
         />
         {savedSearchNotice && <p aria-live="polite">{savedSearchNotice}</p>}
         <SavedSearchesPanel search={exportSearch} generation={submittedGeneration} onLoad={loadSavedSearch} />
+        <WorklistsPanel search={exportSearch} generation={submittedGeneration} />
         {mode === "neighbors" ? (
           <NeighborsResults
             state={neighborsState}

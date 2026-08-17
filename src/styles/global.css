@@ -146,6 +146,18 @@ select:disabled { cursor: not-allowed; background: var(--control-disabled-surfac
 .export-actions p { margin: 0; color: var(--text-muted); }
 .export-actions .export-actions__error { color: var(--error-text); }
 .export-actions .export-actions__success { color: var(--success-text); }
+.worklists { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.worklists > p { margin: 8px 0 0; color: var(--text-muted); }
+.worklists__save { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-top: 10px; }
+.worklists__save label { display: grid; gap: 4px; font-weight: 700; }
+.worklists__save p { width: 100%; margin: 0; color: var(--error-text); }
+.worklists__content { margin-top: 14px; }
+.worklists__content h2, .worklists__items h3 { margin: 0 0 10px; font-size: 1rem; }
+.worklists__list { display: grid; gap: 10px; margin: 0; padding-left: 20px; }
+.worklists__list li { padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.worklists__list button + button { margin-left: 6px; }
+.worklists__items { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.worklists__table { min-width: 900px; }
 .empty-state, .loading-state { margin: 0; color: var(--text-muted); }
 .loading-state { display: flex; align-items: center; gap: 9px; }
 .results-error { padding: 12px; border-left: 3px solid var(--danger); background: var(--error-surface); color: var(--error-text); }
