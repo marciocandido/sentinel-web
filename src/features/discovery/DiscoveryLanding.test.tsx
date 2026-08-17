@@ -429,4 +429,48 @@ describe("Discovery search", () => {
     )).toBe(true);
     expect(urls.some((url) => /count|ready|radius|similar/i.test(url))).toBe(false);
   });
+
+  it("saves the submitted snapshot and loads a saved definition without autoexecution", async () => {
+    const saved = { saved_search_id:"2b5b4d78-7a65-4ba8-b12b-1c3cb0fd5498", name:"Região PR", search:{ kind:"REGION", uf:"PR", codigo_tom:null, codigo_ibge:null, municipio_nome:null, segment_id:null, include_discarded:true }, created_at:"2026-08-13T12:00:00Z" };
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      if (url.includes("/saved-searches")) {
+        if (init?.method === "POST") return Promise.resolve(jsonResponse(saved, 201));
+        return Promise.resolve(jsonResponse({items:[saved],pagination:{limit:20,offset:0,returned:1,has_more:false}}));
+      }
+      return defaultApi(input);
+    });
+    render(<App />);
+    await submitSegment(); await screen.findByRole("table");
+    fireEvent.change(screen.getByLabelText("UF"), { target:{value:"SC"} });
+    fireEvent.click(screen.getByRole("button", {name:"Salvar pesquisa"}));
+    fireEvent.change(screen.getByLabelText("Nome da pesquisa"), {target:{value:"Segmento A"}});
+    fireEvent.click(screen.getByRole("button", {name:/^Salvar$/}));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => url.toString().endsWith("/saved-searches") && (init as RequestInit).method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => url.toString().endsWith("/saved-searches") && (init as RequestInit).method === "POST");
+    expect(JSON.parse((post?.[1] as RequestInit).body as string).search).toMatchObject({kind:"SEGMENT",segment_id:"metal-mecanica"});
+    expect(JSON.parse((post?.[1] as RequestInit).body as string).search.uf).toBeUndefined();
+    fireEvent.click(screen.getByRole("button", {name:"Pesquisas salvas"}));
+    await screen.findByText("Região PR");
+    const beforeLoad = searchUrls().length;
+    fireEvent.click(screen.getByRole("button", {name:"Carregar"}));
+    expect(await screen.findByText("Pesquisa carregada. Revise os critérios e clique em Buscar.")).toBeInTheDocument();
+    expect(screen.getByRole("radio", {name:"Por região"})).toBeChecked();
+    expect(screen.getByLabelText("UF")).toHaveValue("PR");
+    expect(searchUrls()).toHaveLength(beforeLoad);
+    fireEvent.click(screen.getByRole("button", {name:"Buscar"}));
+    await waitFor(() => expect(searchUrls().length).toBe(beforeLoad + 1));
+    expect(searchUrls().at(-1)).toContain("/api/v1/discovery/regions/establishments");
+  });
+
+  it("closes an open save attempt after an identical new submit or mode change", async () => {
+    render(<App />); await submitSegment(); await screen.findByRole("table");
+    fireEvent.click(screen.getByRole("button", {name:"Salvar pesquisa"}));
+    expect(screen.getByLabelText("Nome da pesquisa")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name:"Buscar"}));
+    await waitFor(() => expect(screen.queryByLabelText("Nome da pesquisa")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", {name:"Salvar pesquisa"}));
+    fireEvent.click(screen.getByRole("radio", {name:"Por região"}));
+    await waitFor(() => expect(screen.queryByLabelText("Nome da pesquisa")).not.toBeInTheDocument());
+  });
 });

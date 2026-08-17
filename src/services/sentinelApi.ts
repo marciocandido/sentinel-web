@@ -30,7 +30,7 @@ import {
   type BootstrapJobResponse,
   type UpdatePreflightResponse,
 } from "../types/api";
-import { getJson, postBinary, postJson, SentinelApiError, type RequestOptions } from "./apiClient";
+import { deleteNoContent, getJson, postBinary, postJson, SentinelApiError, type RequestOptions } from "./apiClient";
 
 export interface SegmentSearchParams {
   segmentId: string;
@@ -112,36 +112,36 @@ export type DiscoveryExportFormat = "CSV" | "XLSX";
 export interface SegmentExportSearch {
   kind: "SEGMENT";
   segment_id: string;
-  uf?: string;
-  codigo_tom?: string;
-  porte_codigo?: string;
-  capital_min?: string;
-  capital_max?: string;
+  uf?: string | null;
+  codigo_tom?: string | null;
+  porte_codigo?: string | null;
+  capital_min?: string | null;
+  capital_max?: string | null;
   include_discarded?: boolean;
 }
 
 export interface RegionExportSearch {
   kind: "REGION";
-  uf?: string;
-  codigo_tom?: string;
-  codigo_ibge?: string;
-  municipio_nome?: string;
-  segment_id?: string;
+  uf?: string | null;
+  codigo_tom?: string | null;
+  codigo_ibge?: string | null;
+  municipio_nome?: string | null;
+  segment_id?: string | null;
   include_discarded?: boolean;
 }
 
 export interface RadiusExportSearch {
   kind: "RADIUS";
   radius_km: number;
-  origin_lat?: number;
-  origin_lon?: number;
-  origin_cnpj?: string;
-  origin_codigo_tom?: string;
-  origin_codigo_ibge?: string;
-  origin_municipio_nome?: string;
-  origin_uf?: string;
-  segment_id?: string;
-  uf?: string;
+  origin_lat?: number | null;
+  origin_lon?: number | null;
+  origin_cnpj?: string | null;
+  origin_codigo_tom?: string | null;
+  origin_codigo_ibge?: string | null;
+  origin_municipio_nome?: string | null;
+  origin_uf?: string | null;
+  segment_id?: string | null;
+  uf?: string | null;
   include_discarded?: boolean;
 }
 
@@ -149,15 +149,17 @@ export interface NeighborsExportSearch {
   kind: "NEIGHBORS";
   cnpj_full: string;
   radius_km: number;
-  segment_id?: string;
-  uf?: string;
+  segment_id?: string | null;
+  uf?: string | null;
   include_discarded?: boolean;
 }
 
-export type RootBranchesExportSearch = (
-  | { kind: "ROOT_BRANCHES"; cnpj: string }
-  | { kind: "ROOT_BRANCHES"; cnpj_root: string }
-) & { include_discarded?: boolean };
+export interface RootBranchesExportSearch {
+  kind: "ROOT_BRANCHES";
+  cnpj?: string | null;
+  cnpj_root?: string | null;
+  include_discarded?: boolean;
+}
 
 export interface CommercialGroupExportSearch {
   kind: "COMMERCIAL_GROUP";
@@ -168,6 +170,10 @@ export interface CommercialGroupExportSearch {
 export interface SimilarExportSearch {
   kind: "SIMILAR";
   cnpj_full: string;
+  uf?: string | null;
+  codigo_tom?: string | null;
+  segment_id?: string | null;
+  radius_km?: number | null;
   include_discarded?: boolean;
 }
 
@@ -179,6 +185,12 @@ export type DiscoveryExportSearch =
   | RootBranchesExportSearch
   | CommercialGroupExportSearch
   | SimilarExportSearch;
+
+export type DiscoverySearchSpec = DiscoveryExportSearch;
+
+export interface SavedSearch { saved_search_id: string; name: string; search: DiscoverySearchSpec; created_at: string; }
+export interface SavedSearchPage { items: SavedSearch[]; pagination: { limit: number; offset: number; returned: number; has_more: boolean }; }
+export interface SavedSearchCreateParams { name: string; search: DiscoverySearchSpec; }
 
 export interface DiscoveryExportRequest {
   format: DiscoveryExportFormat;
@@ -451,6 +463,54 @@ export async function exportDiscoveryResults(
     filename: exportFilename(response.contentDisposition, request.format, request.search.kind),
     format: request.format,
   };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i;
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]) {
+  return Object.keys(value).every((key) => keys.includes(key));
+}
+function isSavedSearch(value: unknown): value is SavedSearch {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return hasOnlyKeys(item, ["saved_search_id", "name", "search", "created_at"]) &&
+    typeof item.saved_search_id === "string" && UUID.test(item.saved_search_id) &&
+    typeof item.name === "string" && item.name.trim().length > 0 && item.name.length <= 120 &&
+    typeof item.created_at === "string" && ISO.test(item.created_at) && Number.isFinite(Date.parse(item.created_at)) &&
+    isDiscoverySearchSpec(item.search);
+}
+function isDiscoverySearchSpec(value: unknown): value is DiscoverySearchSpec {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const search = value as Record<string, unknown>;
+  const nullableStrings = (keys: string[]) => keys.every((key) => search[key] === undefined || search[key] === null || typeof search[key] === "string");
+  const nullableNumbers = (keys: string[]) => keys.every((key) => search[key] === undefined || search[key] === null || (typeof search[key] === "number" && Number.isFinite(search[key])));
+  const optionalDiscarded = search.include_discarded === undefined || typeof search.include_discarded === "boolean";
+  if (!optionalDiscarded || typeof search.kind !== "string") return false;
+  if (search.kind === "SEGMENT") return hasOnlyKeys(search,["kind","segment_id","uf","codigo_tom","porte_codigo","capital_min","capital_max","include_discarded"]) && typeof search.segment_id === "string" && nullableStrings(["uf","codigo_tom","porte_codigo","capital_min","capital_max"]);
+  if (search.kind === "REGION") return hasOnlyKeys(search,["kind","uf","codigo_tom","codigo_ibge","municipio_nome","segment_id","include_discarded"]) && nullableStrings(["uf","codigo_tom","codigo_ibge","municipio_nome","segment_id"]);
+  if (search.kind === "RADIUS") return hasOnlyKeys(search,["kind","radius_km","origin_lat","origin_lon","origin_cnpj","origin_codigo_tom","origin_codigo_ibge","origin_municipio_nome","origin_uf","segment_id","uf","include_discarded"]) && typeof search.radius_km === "number" && Number.isFinite(search.radius_km) && nullableStrings(["origin_cnpj","origin_codigo_tom","origin_codigo_ibge","origin_municipio_nome","origin_uf","segment_id","uf"]) && nullableNumbers(["origin_lat","origin_lon"]);
+  if (search.kind === "NEIGHBORS") return hasOnlyKeys(search,["kind","cnpj_full","radius_km","segment_id","uf","include_discarded"]) && typeof search.cnpj_full === "string" && typeof search.radius_km === "number" && Number.isFinite(search.radius_km) && nullableStrings(["segment_id","uf"]);
+  if (search.kind === "ROOT_BRANCHES") return hasOnlyKeys(search,["kind","cnpj","cnpj_root","include_discarded"]) && nullableStrings(["cnpj","cnpj_root"]);
+  if (search.kind === "COMMERCIAL_GROUP") return hasOnlyKeys(search,["kind","group_id","include_discarded"]) && typeof search.group_id === "string";
+  return search.kind === "SIMILAR" && hasOnlyKeys(search,["kind","cnpj_full","uf","codigo_tom","segment_id","radius_km","include_discarded"]) && typeof search.cnpj_full === "string" && nullableStrings(["uf","codigo_tom","segment_id"]) && nullableNumbers(["radius_km"]);
+}
+function isSavedSearchPage(value: unknown): value is SavedSearchPage {
+  if (!value || typeof value !== "object") return false;
+  const page = value as Record<string, unknown>; const p = page.pagination as Record<string, unknown>;
+  return hasOnlyKeys(page,["items","pagination"]) && Array.isArray(page.items) && page.items.every(isSavedSearch) && !!p && hasOnlyKeys(p,["limit","offset","returned","has_more"]) && Number.isInteger(p.limit) && (p.limit as number) > 0 && Number.isInteger(p.offset) && (p.offset as number) >= 0 && Number.isInteger(p.returned) && (p.returned as number) >= 0 && typeof p.has_more === "boolean";
+}
+export async function createSavedSearch(params: SavedSearchCreateParams, options?: RequestOptions): Promise<SavedSearch> {
+  const response = await postJson("/api/v1/discovery/saved-searches", params, { ...options, acceptedStatuses: [201] });
+  if (!isSavedSearch(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  return response;
+}
+export async function listSavedSearches(params: { limit: number; offset: number }, options?: RequestOptions): Promise<SavedSearchPage> {
+  const response = await getJson(`/api/v1/discovery/saved-searches?${paginationQuery(params.limit, params.offset)}`, options);
+  if (!isSavedSearchPage(response)) throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
+  return response;
+}
+export async function deleteSavedSearch(savedSearchId: string, options?: RequestOptions): Promise<void> {
+  return deleteNoContent(`/api/v1/discovery/saved-searches/${encodeURIComponent(savedSearchId)}`, options);
 }
 
 export async function createFeedbackEvent(

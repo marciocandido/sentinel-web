@@ -72,6 +72,8 @@ import {
 } from "./commercialGroupUtils";
 import { toDiscoveryExportSearch } from "./discoveryExport";
 import { useDiscoveryExport } from "./useDiscoveryExport";
+import { SavedSearchesPanel } from "./SavedSearchesPanel";
+import type { EditableDiscoverySearch } from "./savedSearches";
 
 type LastRequest =
   | {
@@ -173,6 +175,8 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
   const commercialGroupResultsHeadingRef = useRef<HTMLHeadingElement>(null);
   const discoveryExport = useDiscoveryExport();
   const [exportSearch, setExportSearch] = useState<DiscoveryExportSearch | null>(null);
+  const [savedSearchNotice, setSavedSearchNotice] = useState<string | null>(null);
+  const [submittedGeneration, setSubmittedGeneration] = useState(0);
 
   const beginRequest = () => {
     setSelected(null);
@@ -424,6 +428,8 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     setNeighborsState({ kind: "initial" });
     setRootBranchesState({ kind: "initial" });
     setCommercialGroupState({ kind: "initial" });
+    setSavedSearchNotice(null);
+    setSubmittedGeneration((current) => current + 1);
   };
 
   const submit = () => {
@@ -431,6 +437,8 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     setErrors(validation);
     if (Object.keys(validation).length) return;
     discoveryExport.cancel();
+    setSavedSearchNotice(null);
+    setSubmittedGeneration((current) => current + 1);
     const snapshot = createSnapshot(mode, values, includeDiscarded);
     submittedRef.current = snapshot;
     setExportSearch(toDiscoveryExportSearch({ kind: "standard", snapshot }));
@@ -442,6 +450,8 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     setRadiusErrors(validation);
     if (Object.keys(validation).length) return;
     discoveryExport.cancel();
+    setSavedSearchNotice(null);
+    setSubmittedGeneration((current) => current + 1);
     const snapshot = createRadiusSnapshot(radiusValues, includeDiscarded);
     radiusSubmittedRef.current = snapshot;
     setExportSearch(toDiscoveryExportSearch({ kind: "radius", snapshot }));
@@ -453,6 +463,8 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     setNeighborsErrors(validation);
     if (Object.keys(validation).length) return;
     discoveryExport.cancel();
+    setSavedSearchNotice(null);
+    setSubmittedGeneration((current) => current + 1);
     const snapshot = createNeighborsSnapshot(neighborsValues, includeDiscarded);
     neighborsSubmittedRef.current = snapshot;
     setExportSearch(toDiscoveryExportSearch({ kind: "neighbors", snapshot }));
@@ -464,6 +476,8 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     setRootBranchesErrors(validation);
     if (Object.keys(validation).length) return;
     discoveryExport.cancel();
+    setSavedSearchNotice(null);
+    setSubmittedGeneration((current) => current + 1);
     const snapshot = createRootBranchesSnapshot(rootBranchesValues, includeDiscarded);
     rootBranchesSubmittedRef.current = snapshot;
     setExportSearch(toDiscoveryExportSearch({ kind: "root", snapshot }));
@@ -475,6 +489,8 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     setCommercialGroupErrors(validation);
     if (Object.keys(validation).length) return;
     discoveryExport.cancel();
+    setSavedSearchNotice(null);
+    setSubmittedGeneration((current) => current + 1);
     const snapshot = createCommercialGroupSnapshot(commercialGroupValues, includeDiscarded);
     commercialGroupSubmittedRef.current = snapshot;
     setExportSearch(toDiscoveryExportSearch({ kind: "group", snapshot }));
@@ -629,6 +645,24 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     void executeRootBranches(snapshot, limit, 0);
   };
 
+  const loadSavedSearch = (editable: EditableDiscoverySearch) => {
+    discoveryExport.cancel();
+    requestIdRef.current += 1;
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    submittedRef.current = null; radiusSubmittedRef.current = null; neighborsSubmittedRef.current = null;
+    rootBranchesSubmittedRef.current = null; commercialGroupSubmittedRef.current = null; lastRef.current = null;
+    setExportSearch(null); setSelected(null); setErrors({}); setRadiusErrors({}); setNeighborsErrors({}); setRootBranchesErrors({}); setCommercialGroupErrors({});
+    setState({ kind: "initial" }); setRadiusState({ kind: "initial" }); setNeighborsState({ kind: "initial" }); setRootBranchesState({ kind: "initial" }); setCommercialGroupState({ kind: "initial" });
+    setMode(editable.mode); setIncludeDiscarded(editable.includeDiscarded);
+    if (editable.mode === "segment" || editable.mode === "region") setValues(editable.values);
+    else if (editable.mode === "radius") setRadiusValues(editable.values);
+    else if (editable.mode === "neighbors") setNeighborsValues(editable.values);
+    else if (editable.mode === "root") setRootBranchesValues(editable.values);
+    else if (editable.mode === "group") setCommercialGroupValues(editable.values);
+    setSavedSearchNotice("Pesquisa carregada. Revise os critérios e clique em Buscar.");
+  };
+
   return (
     <section className="discovery" aria-labelledby="discovery-title">
       <div
@@ -754,6 +788,8 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
           state={discoveryExport.state}
           onExport={(format, search) => void discoveryExport.start(format, search)}
         />
+        {savedSearchNotice && <p aria-live="polite">{savedSearchNotice}</p>}
+        <SavedSearchesPanel search={exportSearch} generation={submittedGeneration} onLoad={loadSavedSearch} />
         {mode === "neighbors" ? (
           <NeighborsResults
             state={neighborsState}

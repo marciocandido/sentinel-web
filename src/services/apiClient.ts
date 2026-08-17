@@ -266,3 +266,37 @@ export async function postBinary(
     options.signal?.removeEventListener("abort", forwardAbort);
   }
 }
+
+export async function deleteNoContent(path: string, options: JsonRequestOptions = {}): Promise<void> {
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  let timedOut = false;
+  const forwardAbort = () => controller.abort();
+  if (options.signal?.aborted) controller.abort();
+  else options.signal?.addEventListener("abort", forwardAbort, { once: true });
+  const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
+  try {
+    let response: Response;
+    try {
+      response = await fetch(buildApiUrl(path, options.baseUrl ?? import.meta.env.VITE_SENTINEL_API_URL), {
+        method: "DELETE", headers: { Accept: "application/json", ...options.headers }, signal: controller.signal,
+      });
+    } catch (error) {
+      const abortError = transportAbortError(error, timedOut, controller.signal);
+      if (abortError) throw abortError;
+      throw new SentinelApiError("network_error", "Não foi possível conectar à API.");
+    }
+    const acceptedStatuses = options.acceptedStatuses ?? [204];
+    if (acceptedStatuses.includes(response.status)) return;
+    let payload: unknown = null;
+    try { payload = await response.json(); } catch (error) {
+      const abortError = transportAbortError(error, timedOut, controller.signal);
+      if (abortError) throw abortError;
+    }
+    if (isApiErrorResponse(payload)) throw new SentinelApiError(payload.error.code, payload.error.message, response.status);
+    throw new SentinelApiError("http_error", "A API retornou um erro inesperado.", response.status);
+  } finally {
+    window.clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", forwardAbort);
+  }
+}
