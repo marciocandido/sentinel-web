@@ -1,0 +1,3 @@
+workspace = "martec"
+project = "sentinel-web"
+project_strategy = "repo-root"
