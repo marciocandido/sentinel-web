@@ -107,6 +107,39 @@ describe("Discovery search", () => {
     });
   });
 
+  it("creates a worklist from the submitted snapshot after editable filters change", async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      if (url === "/api/v1/discovery/worklists" && init?.method === "POST") {
+        const body = JSON.parse(init.body as string);
+        return Promise.resolve(jsonResponse({
+          worklist_id: "3b5b4d78-7a65-4ba8-b12b-1c3cb0fd5498",
+          name: body.name,
+          source_search: body.search,
+          item_count: 1,
+          created_at: "2026-08-17T12:00:00Z",
+        }, 201));
+      }
+      return defaultApi(input);
+    });
+    render(<App />);
+    await selectSegment();
+    fireEvent.change(screen.getByLabelText("UF"), { target: { value: "SP" } });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    await screen.findByRole("table", { name: /Empresas encontradas/ });
+    fireEvent.change(screen.getByLabelText("UF"), { target: { value: "RJ" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar como lista de trabalho" }));
+    fireEvent.change(screen.getByLabelText("Nome da lista de trabalho"), { target: { value: "Visitas" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Salvar$/ }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => url === "/api/v1/discovery/worklists" && init?.method === "POST")).toBe(true));
+    const [, init] = fetchMock.mock.calls.find(([url, request]) => url === "/api/v1/discovery/worklists" && request?.method === "POST") as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ name: "Visitas", search: { kind: "SEGMENT", segment_id: "metal-mecanica", uf: "SP" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar como lista de trabalho" }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    await waitFor(() => expect(screen.queryByLabelText("Nome da lista de trabalho")).not.toBeInTheDocument());
+  });
+
   it("requires a regional filter and does not accept segment alone", async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole("radio", { name: "Por região" }));

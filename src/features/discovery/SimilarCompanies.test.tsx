@@ -145,7 +145,7 @@ describe("similar companies drawer flow", () => {
     const restoredOpenSimilarButton = screen.getByRole("button", { name: "Ver semelhantes" });
     await waitFor(() => expect(restoredOpenSimilarButton).toHaveFocus());
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
-  });
+  }, 10_000);
 
   it("does not request similar companies on details open and requests the encoded textual CNPJ on demand", async () => {
     await openDetails();

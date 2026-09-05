@@ -22,6 +22,10 @@ import {
   createSavedSearch,
   listSavedSearches,
   deleteSavedSearch,
+  createWorklist,
+  listWorklists,
+  listWorklistItems,
+  deleteWorklist,
 } from "./sentinelApi";
 
 const fetchMock = vi.fn();
@@ -80,6 +84,73 @@ describe("saved searches", () => {
     await expect(listSavedSearches({ limit:20, offset:0 })).rejects.toMatchObject({ code:"invalid_response" });
     fetchMock.mockResolvedValueOnce(jsonResponse({ items:[], pagination:{ limit:20, offset:0, returned:0, has_more:false, total:0 } }));
     await expect(listSavedSearches({ limit:20, offset:0 })).rejects.toMatchObject({ code:"invalid_response" });
+  });
+});
+
+describe("worklists", () => {
+  const worklistId = "3b5b4d78-7a65-4ba8-b12b-1c3cb0fd5498";
+  const worklist = (source_search: unknown) => ({
+    worklist_id: worklistId,
+    name: "Visitas",
+    source_search,
+    item_count: 2,
+    created_at: "2026-08-17T12:00:00Z",
+  });
+  const worklistPage = (items: unknown[]) => ({ items, pagination: { limit: 20, offset: 0, returned: items.length, has_more: false } });
+
+  it("creates all canonical search kinds without actor_id", async () => {
+    const searches = [
+      { kind: "SEGMENT" as const, segment_id: "metal" },
+      { kind: "REGION" as const, uf: "SP" },
+      { kind: "RADIUS" as const, radius_km: 10, origin_cnpj: "00ABC123000100" },
+      { kind: "NEIGHBORS" as const, cnpj_full: "00ABC123000100", radius_km: 10 },
+      { kind: "ROOT_BRANCHES" as const, cnpj_root: "00ABC123" },
+      { kind: "COMMERCIAL_GROUP" as const, group_id: "grupo-metal" },
+      { kind: "SIMILAR" as const, cnpj_full: "00ABC123000100" },
+    ];
+    for (const search of searches) {
+      fetchMock.mockResolvedValueOnce(jsonResponse(worklist(search), 201));
+      await createWorklist({ name: " Visitas ", search });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+    for (const [, init] of fetchMock.mock.calls) {
+      const body = JSON.parse((init as RequestInit).body as string) as Record<string, unknown>;
+      expect(body).not.toHaveProperty("actor_id");
+      expect((body.search as Record<string, unknown>).cnpj_full ?? "00123456000195").toEqual(expect.any(String));
+    }
+    expect(JSON.parse((fetchMock.mock.calls[2][1] as RequestInit).body as string).search.origin_cnpj).toBe("00ABC123000100");
+  });
+
+  it("lists, reads known and unknown items, and deletes", async () => {
+    const source = { kind: "SEGMENT" as const, segment_id: "metal", include_discarded: true };
+    fetchMock.mockResolvedValueOnce(jsonResponse(worklistPage([worklist(source)])));
+    await expect(listWorklists({ limit: 20, offset: 0 })).resolves.toMatchObject({ items: [{ item_count: 2 }] });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/discovery/worklists?limit=20&offset=0");
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      items: [
+        { ordinal: 0, cnpj_full: "00123456000195", establishment_known: true, establishment: establishment() },
+        { ordinal: 1, cnpj_full: "00ABC123000100", establishment_known: false, establishment: null },
+      ],
+      pagination: { limit: 20, offset: 0, returned: 2, has_more: false },
+    }));
+    const items = await listWorklistItems(worklistId, { limit: 20, offset: 0 });
+    expect(items.items.map((item) => item.cnpj_full)).toEqual(["00123456000195", "00ABC123000100"]);
+    expect(fetchMock.mock.calls[1][0]).toBe(`/api/v1/discovery/worklists/${worklistId}/items?limit=20&offset=0`);
+
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 204, json: vi.fn() } as unknown as Response);
+    await deleteWorklist(worklistId);
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: "DELETE" });
+  });
+
+  it("rejects malformed worklist responses and extra fields", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(worklistPage([{ ...worklist({ kind: "SEGMENT", segment_id: "metal" }), actor_id: "browser" }])));
+    await expect(listWorklists({ limit: 20, offset: 0 })).rejects.toMatchObject({ code: "invalid_response" });
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      items: [{ ordinal: 0, cnpj_full: "00ABC123000100", establishment_known: false, establishment: null, status: "extra" }],
+      pagination: { limit: 20, offset: 0, returned: 1, has_more: false },
+    }));
+    await expect(listWorklistItems(worklistId, { limit: 20, offset: 0 })).rejects.toMatchObject({ code: "invalid_response" });
   });
 });
 

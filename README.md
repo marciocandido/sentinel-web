@@ -155,6 +155,15 @@ visível — e controla o limite operacional. O frontend não pagina para export
 não monta colunas e não gera planilhas localmente. A exportação também preserva
 a política de visibilidade capturada no submit.
 
+### Pesquisas salvas e listas de trabalho
+
+Uma pesquisa salva guarda uma definição reexecutável de filtros. Uma lista de
+trabalho guarda um snapshot materializado de CNPJs: abrir a lista não executa
+novamente sua busca de origem. Os membros permanecem na lista mesmo quando a
+base útil muda; cada leitura apenas enriquece, quando disponível, os dados
+atuais do estabelecimento. Raízes desconhecidas de grupos comerciais não são
+membros da lista.
+
 ### Feedback comercial
 
 As seis tabelas principais de Discovery oferecem um painel expansível de
@@ -270,6 +279,11 @@ não é uma ficha completa da empresa e não consulta endpoint de detalhe.
   `neighbor_group`.
 - `POST /api/v1/discovery/exports` — exportação CSV/XLSX do snapshot completo
   submetido nas sete verticais de Discovery, sem `limit` ou `offset` do cliente.
+- `POST`/`GET` `/api/v1/discovery/worklists` — criação e listagem de snapshots
+  materializados de CNPJs.
+- `GET /api/v1/discovery/worklists/{worklist_id}/items` — membros atuais da
+  lista, sem reexecutar a busca de origem.
+- `DELETE /api/v1/discovery/worklists/{worklist_id}` — exclusão da lista.
 
 ## Escopo atual
 
@@ -281,6 +295,4 @@ a tela; respostas obsoletas são ignoradas.
 
 Ficam para as próximas etapas: ficha completa, endereço, contatos, CNAEs
 secundários detalhados, QSA, filtros de raio/UF/TOM/segmento para semelhantes,
-listas
-salvas, autenticação, ordenação client-side, busca fuzzy e filtros persistidos
-na URL.
+autenticação, ordenação client-side, busca fuzzy e filtros persistidos na URL.
