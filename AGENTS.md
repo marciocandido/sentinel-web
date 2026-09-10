@@ -240,12 +240,26 @@ autoriza ampliar escopo.
 
 ## 16. Publicação e controle humano
 
-Quando autorizado, o agente pode criar branch, implementar, testar, revisar,
-commit, push e abrir/atualizar PR draft. Exigem autorização posterior: ready,
-merge, fechamento manual de issue, release, imagem, deploy ou alteração
-destrutiva. Nunca faça merge automático.
+Quando a solicitação autorizar implementação, o agente pode seguir até criar
+ou reutilizar branch, validar, revisar o diff, fazer commit, push e abrir ou
+atualizar a PR pronta para revisão. Não exija uma autorização separada entre
+essas etapas normais. Correções do mesmo objetivo permanecem na mesma branch e
+PR.
 
-## 17. Relatório final obrigatório
+Merge, release, imagem, deploy, fechamento de issue, dados reais, operações
+destrutivas e operações sensíveis continuam exigindo autoridade explícita
+própria. Nunca faça merge automático. Pedidos explicitamente read-only ou de
+implementação sem publicação limitam essas permissões e devem ser preservados.
+
+## 17. Ferramentas de apoio
+
+Use leitura proporcional ao escopo e o menor diff correto. Quando disponíveis,
+ai-memory apoia continuidade histórica; CBM apoia descoberta estrutural; corpus
+de referências apoia comparação técnica; Agent Mail apoia coordenação de
+trabalho concorrente. Nenhuma dessas ferramentas substitui o checkout, os
+contratos ou a documentação canônica, nem fixa detalhes de transporte.
+
+## 18. Relatório final obrigatório
 
 Informe repo, branch, issue/objetivo, arquivos e decisões, validações feitas e
 omitidas, escopo não alterado, riscos/pendências, estado para revisão humana e
