@@ -1,10 +1,12 @@
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { Search } from "lucide-react";
 import { SegmentSelect } from "../../components/SegmentSelect";
+import { SearchMoreFilters } from "./SearchMoreFilters";
 import type { NeighborsFormValues, NeighborsValidationErrors } from "./neighborsTypes";
 
-interface Props { values: NeighborsFormValues; errors: NeighborsValidationErrors; searching: boolean; onChange: (field: keyof NeighborsFormValues, value: string) => void; onSubmit: () => void; }
+interface Props { values: NeighborsFormValues; errors: NeighborsValidationErrors; searching: boolean; options?: ReactNode; optionsFilled?: number; onChange: (field: keyof NeighborsFormValues, value: string) => void; onSubmit: () => void; }
 
-export function NeighborsSearchForm({ values, errors, searching, onChange, onSubmit }: Props) {
+export function NeighborsSearchForm({ values, errors, searching, options, optionsFilled = 0, onChange, onSubmit }: Props) {
   const field = (fieldName: "cnpj" | "radiusKm" | "resultUf", label: string) => (
     <div className="field-group">
       <label htmlFor={`neighbors-${fieldName}`}>{label}</label>
@@ -13,13 +15,19 @@ export function NeighborsSearchForm({ values, errors, searching, onChange, onSub
     </div>
   );
   const submit = (event: FormEvent) => { event.preventDefault(); onSubmit(); };
+  const filled = [values.segmentId, values.resultUf].filter((value) => value.trim() !== "").length + optionsFilled;
   return <form className="discovery-form" aria-label="Formulário de busca por vizinhos" onSubmit={submit} noValidate>
     <div className="form-grid">
       {field("cnpj", "CNPJ de referência")}
       {field("radiusKm", "Raio em quilômetros")}
-      <div className="field-group"><label htmlFor="segment">Segmento <span className="optional-label">opcional</span></label><SegmentSelect value={values.segmentId} onChange={(value) => onChange("segmentId", value)} /></div>
-      {field("resultUf", "UF dos resultados — opcional")}
     </div>
-    <div className="search-actions"><button className="primary-button" type="submit" disabled={searching}>{searching ? "Buscando..." : "Buscar vizinhos"}</button></div>
+    <SearchMoreFilters filled={filled}>
+      <div className="form-grid form-grid--tight">
+        <div className="field-group"><label htmlFor="segment">Segmento <span className="optional-label">opcional</span></label><SegmentSelect value={values.segmentId} onChange={(value) => onChange("segmentId", value)} /></div>
+        {field("resultUf", "UF dos resultados — opcional")}
+      </div>
+      {options}
+    </SearchMoreFilters>
+    <div className="search-actions"><button className="primary-button" type="submit" disabled={searching}><Search aria-hidden="true" size={16} />{searching ? "Buscando..." : "Buscar vizinhos"}</button></div>
   </form>;
 }

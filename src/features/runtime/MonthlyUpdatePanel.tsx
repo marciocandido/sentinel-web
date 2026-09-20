@@ -1,10 +1,11 @@
+import { CircleCheck } from "lucide-react";
 import { useRef, useState } from "react";
 import type { UpdatePreflightResponse } from "../../types/api";
 import type { RuntimeLifecycleView } from "./runtimeTypes";
 import { MonthlyUpdateConfirmDialog } from "./MonthlyUpdateConfirmDialog";
 import { MonthlyUpdateProgress } from "./MonthlyUpdateProgress";
 import { formatRuntimeTimestamp, updateBlockerLabel, updateFailureLabel, updatePreflightDetails, updateStageLabel } from "./monthlyUpdatePresentation";
-import { useMonthlyUpdate } from "./useMonthlyUpdate";
+import { availableCompetenceOffer, useMonthlyUpdate } from "./useMonthlyUpdate";
 
 function PreflightDetails({ preflight }: { preflight: UpdatePreflightResponse }) {
   return <dl>{updatePreflightDetails(preflight).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
@@ -20,6 +21,14 @@ function publicRequestError(code: string | null) {
   if (code === "invalid_request") return "A competência informada não é válida.";
   if (code === "update_blocked" || code === "update_conflict") return "A atualização não pode ser iniciada neste momento.";
   return "Não foi possível atualizar as condições da nova competência.";
+}
+
+function BaseCompetenceChip({ competence }: { competence: string | null }) {
+  return <p className="base-competence">
+    <CircleCheck className="base-competence__icon" aria-hidden="true" size={15} />
+    <span>Receita {competence ?? "não confirmada"}</span>
+    <span className="sr-only">Base atualizada. Nenhuma nova competência disponível.</span>
+  </p>;
 }
 
 export function MonthlyUpdatePanel({ runtime }: { runtime: RuntimeLifecycleView }) {
@@ -72,20 +81,28 @@ export function MonthlyUpdatePanel({ runtime }: { runtime: RuntimeLifecycleView 
     {monthly.preflight?.can_start && runtime.transportState === "fresh" && <button type="button" onClick={openConfirm}>Tentar novamente</button>}
   </section>;
 
-  if (update.status === "SUCCEEDED" && !base.available_competence) return <section className="monthly-update-panel monthly-update-panel--success" aria-labelledby="monthly-update-title" aria-live="polite">
+  if (update.status === "SUCCEEDED" && !availableCompetenceOffer(runtime)) return <section className="monthly-update-panel monthly-update-panel--success" aria-labelledby="monthly-update-title" aria-live="polite">
     <h2 id="monthly-update-title">Base da Receita atualizada</h2><dl><div><dt>Competência ativa</dt><dd>{base.active_competence ?? "Não confirmada"}</dd></div><div><dt>Promoção concluída</dt><dd>{formatRuntimeTimestamp(update.promoted_at)}</dd></div><div><dt>Atualização finalizada</dt><dd>{formatRuntimeTimestamp(update.finished_at)}</dd></div></dl>
   </section>;
 
   if (!monthly.target) {
-    if (base.last_metadata_check_result !== "SOURCE_UNAVAILABLE") return null;
-    return <section className="monthly-update-panel monthly-update-panel--attention" role="status" aria-labelledby="monthly-update-title"><h2 id="monthly-update-title">Verificação de novas versões</h2><p>Não foi possível verificar novas versões da base. A competência ativa continua disponível.</p></section>;
+    if (base.last_metadata_check_result !== "SOURCE_UNAVAILABLE") return <BaseCompetenceChip competence={base.active_competence} />;
+    return <section className="monthly-update-panel monthly-update-panel--attention monthly-update-panel--compact" role="status" aria-labelledby="monthly-update-title"><h2 id="monthly-update-title">Verificação de novas versões</h2><p>Não foi possível verificar novas versões da base. A competência ativa continua disponível.</p></section>;
   }
 
-  if (runtime.transportState !== "fresh") return <section className="monthly-update-panel monthly-update-panel--attention" aria-labelledby="monthly-update-title"><h2 id="monthly-update-title">Nova base da Receita disponível</h2><p>As informações estão desatualizadas. Verifique o estado antes de autorizar.</p><button type="button" onClick={runtime.refreshNow} disabled={runtime.checking} aria-busy={runtime.checking}>Verificar novamente</button></section>;
-  if (monthly.loadingPreflight && !monthly.preflight) return <section className="monthly-update-panel" role="status" aria-labelledby="monthly-update-title"><h2 id="monthly-update-title">Nova base da Receita disponível</h2><p>Verificando recursos necessários...</p></section>;
-  if (!monthly.preflight) return <section className="monthly-update-panel monthly-update-panel--attention" aria-labelledby="monthly-update-title"><h2 id="monthly-update-title">Nova base da Receita disponível</h2><p role="alert">{publicRequestError(monthly.error)}</p><button type="button" onClick={() => void monthly.reload()} disabled={monthly.loadingPreflight}>Verificar novamente</button></section>;
-  return <section className="monthly-update-panel" aria-labelledby="monthly-update-title">
-    {dialog}<h2 id="monthly-update-title">Nova base da Receita disponível</h2><PreflightDetails preflight={monthly.preflight} />
-    {monthly.preflight.can_start ? <button type="button" onClick={openConfirm}>Atualizar agora</button> : <><PreflightBlockers blockers={monthly.preflight.blockers} /><button type="button" onClick={() => void monthly.reload()} disabled={monthly.loadingPreflight}>Verificar novamente</button></>}
+  if (runtime.transportState !== "fresh") return <section className="monthly-update-panel monthly-update-panel--attention monthly-update-panel--compact" aria-labelledby="monthly-update-title"><h2 id="monthly-update-title">Nova base da Receita disponível</h2><p>As informações estão desatualizadas. Verifique o estado antes de autorizar.</p><button type="button" onClick={runtime.refreshNow} disabled={runtime.checking} aria-busy={runtime.checking}>Verificar novamente</button></section>;
+  if (monthly.loadingPreflight && !monthly.preflight) return <section className="monthly-update-panel monthly-update-panel--compact" role="status" aria-labelledby="monthly-update-title"><h2 id="monthly-update-title">Nova base da Receita disponível</h2><p>Verificando recursos necessários...</p></section>;
+  if (!monthly.preflight) return <section className="monthly-update-panel monthly-update-panel--attention monthly-update-panel--compact" aria-labelledby="monthly-update-title"><h2 id="monthly-update-title">Nova base da Receita disponível</h2><p role="alert">{publicRequestError(monthly.error)}</p><button type="button" onClick={() => void monthly.reload()} disabled={monthly.loadingPreflight}>Verificar novamente</button></section>;
+  return <section className="monthly-update-panel monthly-update-panel--offer" aria-labelledby="monthly-update-title">
+    {dialog}
+    <div className="monthly-update-panel__headline">
+      <div className="monthly-update-panel__headline-text">
+        <h2 id="monthly-update-title">Nova base da Receita disponível</h2>
+        <p className="monthly-update-panel__competence">Competência {monthly.target}</p>
+      </div>
+      {monthly.preflight.can_start && <button className="primary-button" type="button" onClick={openConfirm}>Atualizar agora</button>}
+    </div>
+    <details className="monthly-update-panel__details"><summary>Ver detalhes</summary><PreflightDetails preflight={monthly.preflight} /></details>
+    {!monthly.preflight.can_start && <><PreflightBlockers blockers={monthly.preflight.blockers} /><button type="button" onClick={() => void monthly.reload()} disabled={monthly.loadingPreflight}>Verificar novamente</button></>}
   </section>;
 }

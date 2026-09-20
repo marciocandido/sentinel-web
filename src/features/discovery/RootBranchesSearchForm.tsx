@@ -1,4 +1,6 @@
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { Search } from "lucide-react";
+import { SearchMoreFilters } from "./SearchMoreFilters";
 import type {
   RootBranchesFormValues,
   RootBranchesValidationErrors,
@@ -8,6 +10,8 @@ interface RootBranchesSearchFormProps {
   values: RootBranchesFormValues;
   errors: RootBranchesValidationErrors;
   searching: boolean;
+  options?: ReactNode;
+  optionsFilled?: number;
   onChange: <Field extends keyof RootBranchesFormValues>(
     field: Field,
     value: RootBranchesFormValues[Field],
@@ -19,6 +23,8 @@ export function RootBranchesSearchForm({
   values,
   errors,
   searching,
+  options,
+  optionsFilled = 0,
   onChange,
   onSubmit,
 }: RootBranchesSearchFormProps) {
@@ -90,11 +96,14 @@ export function RootBranchesSearchForm({
         </div>
       </div>
 
+      {options && <SearchMoreFilters filled={optionsFilled}>{options}</SearchMoreFilters>}
+
       <div className="search-actions">
         <button className="primary-button" type="submit" disabled={searching}>
+          <Search aria-hidden="true" size={16} />
           {searching ? "Buscando..." : "Buscar raiz e filiais"}
         </button>
-        <p>Os resultados seguem a ordem definida pelo backend.</p>
+        <p className="search-actions__note">Os resultados seguem a ordem definida pelo backend.</p>
       </div>
     </form>
   );

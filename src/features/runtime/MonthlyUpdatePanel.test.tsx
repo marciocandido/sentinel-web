@@ -79,6 +79,30 @@ describe("MonthlyUpdatePanel", () => {
     expect(screen.getByText("A competência anterior foi restaurada com sucesso.")).toBeInTheDocument();
   });
 
+  it("replaces the panel with a compact indicator when the announced competence is already active", async () => {
+    render(<MonthlyUpdatePanel runtime={view(runtimeStatus({ base: { active_competence: "2026-08", available_competence: "2026-08", last_metadata_check_result: "UPDATE_AVAILABLE" } }))} />);
+    expect(await screen.findByText("Receita 2026-08")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Nova base da Receita disponível" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Atualizar agora" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Nenhuma nova competência disponível/)).toBeInTheDocument();
+    expect(preflightRequest).not.toHaveBeenCalled();
+  });
+
+  it("keeps the compact indicator for a READY base without any announced competence", async () => {
+    render(<MonthlyUpdatePanel runtime={view(runtimeStatus())} />);
+    expect(await screen.findByText("Receita 2026-07")).toBeInTheDocument();
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(preflightRequest).not.toHaveBeenCalled();
+  });
+
+  it("offers a real new competence compactly and keeps the preflight details collapsed", async () => {
+    render(<MonthlyUpdatePanel runtime={view()} />);
+    expect(await screen.findByRole("button", { name: "Atualizar agora" })).toBeInTheDocument();
+    expect(screen.getByText("Competência 2026-08")).toBeInTheDocument();
+    expect(screen.getByText("Ver detalhes").closest("details")).not.toHaveAttribute("open");
+    expect(screen.queryByText("Receita 2026-07")).not.toBeInTheDocument();
+  });
+
   it("keeps SOURCE_UNAVAILABLE as a warning over a READY base", () => {
     render(<MonthlyUpdatePanel runtime={view(runtimeStatus({ base: { last_metadata_check_result: "SOURCE_UNAVAILABLE" } }))} />);
     expect(screen.getByText(/A competência ativa continua disponível\./)).toBeInTheDocument();

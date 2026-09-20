@@ -664,6 +664,24 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     setSavedSearchNotice("Pesquisa carregada. Revise os critérios e clique em Buscar.");
   };
 
+  const discardedControl = (
+    <div className="discarded-visibility-control">
+      <label htmlFor="include-discarded">
+        <input
+          id="include-discarded"
+          type="checkbox"
+          checked={includeDiscarded}
+          aria-describedby="include-discarded-help"
+          onChange={(event) => setIncludeDiscarded(event.target.checked)}
+        />
+        <span>Mostrar descartados</span>
+      </label>
+      <p id="include-discarded-help">
+        Inclui empresas que você já descartou anteriormente.
+      </p>
+    </div>
+  );
+
   return (
     <section className="discovery" aria-labelledby="discovery-title">
       <div
@@ -672,7 +690,6 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
         aria-hidden={selected ? true : undefined}
       >
         <div className="page-intro">
-          <p className="eyebrow">Discovery</p>
           <h1 id="discovery-title">Buscar empresas</h1>
           <p>
             Pesquise por segmento, região, raio geográfico, vizinhos, raiz ou grupo
@@ -680,35 +697,15 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
           </p>
         </div>
         <article className="search-card" aria-labelledby="search-card-title">
-          <div>
-            <h2 id="search-card-title">Critérios da busca</h2>
-            <p className="muted">
-              Informe apenas filtros suportados pelo modo selecionado.
-            </p>
-          </div>
-          <div className="discovery-form">
-            <DiscoveryModeSwitcher mode={mode} onChange={changeMode} />
-          </div>
-          <div className="discarded-visibility-control">
-            <label htmlFor="include-discarded">
-              <input
-                id="include-discarded"
-                type="checkbox"
-                checked={includeDiscarded}
-                aria-describedby="include-discarded-help"
-                onChange={(event) => setIncludeDiscarded(event.target.checked)}
-              />
-              <span>Mostrar descartados</span>
-            </label>
-            <p id="include-discarded-help">
-              Inclui empresas que você já descartou anteriormente.
-            </p>
-          </div>
+          <h2 id="search-card-title" className="sr-only">Critérios da busca</h2>
+          <DiscoveryModeSwitcher mode={mode} onChange={changeMode} />
           {mode === "neighbors" ? (
             <NeighborsSearchForm
               values={neighborsValues}
               errors={neighborsErrors}
               searching={neighborsState.kind === "loading"}
+              options={discardedControl}
+              optionsFilled={includeDiscarded ? 1 : 0}
               onChange={(field, value) => {
                 setNeighborsValues((current) => ({ ...current, [field]: value }));
                 setNeighborsErrors((current) => ({ ...current, [field]: undefined }));
@@ -720,6 +717,8 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
               values={commercialGroupValues}
               errors={commercialGroupErrors}
               searching={commercialGroupState.kind === "loading"}
+              options={discardedControl}
+              optionsFilled={includeDiscarded ? 1 : 0}
               onChange={(field, value) => {
                 setCommercialGroupValues((current) => ({
                   ...current,
@@ -737,6 +736,8 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
               values={radiusValues}
               errors={radiusErrors}
               searching={radiusState.kind === "loading"}
+              options={discardedControl}
+              optionsFilled={includeDiscarded ? 1 : 0}
               onChange={(field, value) => {
                 setRadiusValues(
                   (current) =>
@@ -754,6 +755,8 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
               values={rootBranchesValues}
               errors={rootBranchesErrors}
               searching={rootBranchesState.kind === "loading"}
+              options={discardedControl}
+              optionsFilled={includeDiscarded ? 1 : 0}
               onChange={(field, value) => {
                 setRootBranchesValues((current) => ({
                   ...current,
@@ -772,6 +775,8 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
               values={values}
               errors={errors}
               searching={state.kind === "loading"}
+              options={discardedControl}
+              optionsFilled={includeDiscarded ? 1 : 0}
               onValueChange={(field, value) => {
                 setValues((current) => ({ ...current, [field]: value }));
                 setErrors((current) => ({

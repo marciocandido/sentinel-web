@@ -4,7 +4,7 @@ import type { RuntimeLifecycleView } from "../features/runtime/runtimeTypes";
 
 type IconName = "discovery" | "companies" | "lists" | "admin";
 function NavigationIcon({ name }: { name: IconName }) {
-  const common = { width: 18, height: 18, viewBox: "0 0 24 24", "aria-hidden": true };
+  const common = { width: 19, height: 19, viewBox: "0 0 24 24", "aria-hidden": true };
   if (name === "discovery") return <svg {...common}><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>;
   if (name === "companies") return <svg {...common}><path d="M3 21h18M5 21V5l7-3v19M19 21V9l-7-3M8 8h1M8 12h1M15 12h1M15 16h1" /></svg>;
   if (name === "lists") return <svg {...common}><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>;
@@ -13,7 +13,8 @@ function NavigationIcon({ name }: { name: IconName }) {
 const navigation = [{ label: "Discovery", icon: "discovery" as const, current: true }, { label: "Empresas", icon: "companies" as const, current: false }, { label: "Listas", icon: "lists" as const, current: false }, { label: "Administração", icon: "admin" as const, current: false }];
 export function Sidebar({ runtime, mobileOpen, drawerRef }: { runtime: RuntimeLifecycleView; mobileOpen: boolean; drawerRef: RefObject<HTMLElement | null> }) {
   return <aside ref={drawerRef} id="main-navigation" className={`sidebar ${mobileOpen ? "sidebar--mobile-open" : ""}`} aria-label="Navegação principal">
-    <div className="brand-mark" aria-hidden="true">S</div><nav><ul className="sidebar-nav">{navigation.map((item) => <li key={item.label}><button type="button" className={`nav-item ${item.current ? "nav-item--active" : ""}`} aria-current={item.current ? "page" : undefined} disabled={!item.current}><NavigationIcon name={item.icon} /><span>{item.label}</span>{!item.current && <span className="future-label">Em breve</span>}</button></li>)}</ul></nav>
+    <div className="sidebar__brand"><span className="brand-mark" aria-hidden="true">S</span></div>
+    <nav className="sidebar__nav"><ul className="sidebar-nav">{navigation.map((item) => <li key={item.label}><button type="button" className={`nav-item ${item.current ? "nav-item--active" : ""}`} title={item.current ? item.label : `${item.label} — em breve`} aria-current={item.current ? "page" : undefined} disabled={!item.current}><NavigationIcon name={item.icon} /><span className="nav-item__label">{item.label}</span>{!item.current && <span className="future-label">Em breve</span>}</button></li>)}</ul></nav>
     <RuntimeHealthSidebar runtime={runtime} />
   </aside>;
 }
