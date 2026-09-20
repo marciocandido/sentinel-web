@@ -81,10 +81,13 @@ atualização mensal quando o backend detecta uma nova competência. A autoriza�
 envia somente a competência confirmada para `POST /api/v1/base/update`. Durante
 download, processamento, candidate, backup e promoção, Discovery continua
 disponível enquanto o backend mantiver a base `READY`. O painel mostra apenas
-progresso real retornado pela API, além dos resultados de sucesso, falha e
-rollback. Quando a competência anunciada é a mesma já ativa, não existe
-atualização a autorizar: a interface mostra somente um indicador compacto da
-competência vigente. Uma competência realmente nova aparece como aviso compacto
+progresso real retornado pela API, além dos resultados de falha e rollback. Uma
+atualização concluída não mantém painel terminal sobre o Discovery: a conclusão
+aparece no indicador compacto da competência ativa, com data de promoção no
+texto acessível. Quando a competência anunciada é a mesma já ativa, também não
+existe atualização a autorizar e a interface mostra somente esse indicador.
+O indicador não afirma que uma verificação descartou uma nova competência: isso
+só é dito quando o backend reporta `UP_TO_DATE`. Uma competência realmente nova aparece como aviso compacto
 com a ação de atualização, e os detalhes do preflight ficam recolhidos até
 serem solicitados. Atualização em andamento, falha, rollback, indisponibilidade
 da fonte e ação requerida continuam visíveis. Falhas de recuperação que tornam a base indisponível bloqueiam

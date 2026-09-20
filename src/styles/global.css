@@ -321,6 +321,7 @@ select:disabled { cursor: not-allowed; background: var(--control-disabled-surfac
 .bootstrap-dialog-layer section > button + button { margin-left: 8px; }
 .base-competence { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-muted); font-size: .76rem; font-weight: 600; }
 .base-competence__icon { flex: 0 0 auto; color: var(--success-text); }
+.base-competence--unconfirmed { border-color: var(--warning-border); color: var(--warning-strong-text); }
 .monthly-update-panel { width: 100%; margin: 0 0 12px; padding: 13px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-primary); box-shadow: 0 1px 3px var(--shadow-soft); }
 .monthly-update-panel--offer { border-left: 4px solid var(--brand); }
 .monthly-update-panel--compact { padding: 11px 14px; }

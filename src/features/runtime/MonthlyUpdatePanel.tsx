@@ -1,11 +1,11 @@
 import { CircleCheck } from "lucide-react";
 import { useRef, useState } from "react";
-import type { UpdatePreflightResponse } from "../../types/api";
+import type { RuntimeBase, RuntimeUpdate, UpdatePreflightResponse } from "../../types/api";
 import type { RuntimeLifecycleView } from "./runtimeTypes";
 import { MonthlyUpdateConfirmDialog } from "./MonthlyUpdateConfirmDialog";
 import { MonthlyUpdateProgress } from "./MonthlyUpdateProgress";
 import { formatRuntimeTimestamp, updateBlockerLabel, updateFailureLabel, updatePreflightDetails, updateStageLabel } from "./monthlyUpdatePresentation";
-import { availableCompetenceOffer, useMonthlyUpdate } from "./useMonthlyUpdate";
+import { useMonthlyUpdate } from "./useMonthlyUpdate";
 
 function PreflightDetails({ preflight }: { preflight: UpdatePreflightResponse }) {
   return <dl>{updatePreflightDetails(preflight).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
@@ -23,11 +23,39 @@ function publicRequestError(code: string | null) {
   return "Não foi possível atualizar as condições da nova competência.";
 }
 
-function BaseCompetenceChip({ competence }: { competence: string | null }) {
+/**
+ * Texto acessível do estado compacto da base. Nada é afirmado sem evidência:
+ * `available_competence` nulo apenas não anuncia uma competência e não prova
+ * que uma verificação ocorreu; só `UP_TO_DATE` é uma verificação concluída
+ * pelo backend, e só `SUCCEEDED` confirma a conclusão de uma atualização.
+ */
+function baseCompetenceNote(base: RuntimeBase, update: RuntimeUpdate) {
+  if (update.status === "SUCCEEDED") {
+    const concluded = update.promoted_at ?? update.finished_at;
+    return concluded
+      ? `Atualização concluída em ${formatRuntimeTimestamp(concluded)}.`
+      : "Atualização concluída.";
+  }
+  if (base.available_competence && base.available_competence === base.active_competence) {
+    return "A competência anunciada pela Receita já é a ativa. Não há atualização a autorizar.";
+  }
+  if (base.last_metadata_check_result === "UP_TO_DATE") {
+    return "A última verificação da Receita não encontrou uma nova competência.";
+  }
+  return "Competência ativa da base da Receita.";
+}
+
+function BaseCompetenceChip({ base, update }: { base: RuntimeBase; update: RuntimeUpdate }) {
+  if (!base.active_competence) {
+    return <p className="base-competence base-competence--unconfirmed">
+      <span>Receita não confirmada</span>
+      <span className="sr-only">A competência ativa da base ainda não foi confirmada.</span>
+    </p>;
+  }
   return <p className="base-competence">
     <CircleCheck className="base-competence__icon" aria-hidden="true" size={15} />
-    <span>Receita {competence ?? "não confirmada"}</span>
-    <span className="sr-only">Base atualizada. Nenhuma nova competência disponível.</span>
+    <span>Receita {base.active_competence}</span>
+    <span className="sr-only">{baseCompetenceNote(base, update)}</span>
   </p>;
 }
 
@@ -81,12 +109,8 @@ export function MonthlyUpdatePanel({ runtime }: { runtime: RuntimeLifecycleView 
     {monthly.preflight?.can_start && runtime.transportState === "fresh" && <button type="button" onClick={openConfirm}>Tentar novamente</button>}
   </section>;
 
-  if (update.status === "SUCCEEDED" && !availableCompetenceOffer(runtime)) return <section className="monthly-update-panel monthly-update-panel--success" aria-labelledby="monthly-update-title" aria-live="polite">
-    <h2 id="monthly-update-title">Base da Receita atualizada</h2><dl><div><dt>Competência ativa</dt><dd>{base.active_competence ?? "Não confirmada"}</dd></div><div><dt>Promoção concluída</dt><dd>{formatRuntimeTimestamp(update.promoted_at)}</dd></div><div><dt>Atualização finalizada</dt><dd>{formatRuntimeTimestamp(update.finished_at)}</dd></div></dl>
-  </section>;
-
   if (!monthly.target) {
-    if (base.last_metadata_check_result !== "SOURCE_UNAVAILABLE") return <BaseCompetenceChip competence={base.active_competence} />;
+    if (base.last_metadata_check_result !== "SOURCE_UNAVAILABLE") return <BaseCompetenceChip base={base} update={update} />;
     return <section className="monthly-update-panel monthly-update-panel--attention monthly-update-panel--compact" role="status" aria-labelledby="monthly-update-title"><h2 id="monthly-update-title">Verificação de novas versões</h2><p>Não foi possível verificar novas versões da base. A competência ativa continua disponível.</p></section>;
   }
 
