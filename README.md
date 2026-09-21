@@ -64,7 +64,12 @@ indicação de que o catálogo esteja configurado.
 A sidebar consulta `GET /api/v1/runtime/status` como fonte única de saúde da
 API, banco, worker e base. Ela é um trilho compacto fixo na viewport: a
 navegação fica no topo e a saúde operacional permanece ancorada no rodapé, com
-API, banco e worker sempre visíveis, sem expandir nada. Cada componente combina
+API, banco e worker sempre visíveis, sem expandir nada. No desktop o trilho
+expande temporariamente ao receber o ponteiro ou foco de teclado, mostrando os
+nomes dos destinos e o texto de cada estado; a expansão é sobreposta, não
+altera a largura nem a posição do conteúdo principal e recolhe ao sair com o
+ponteiro, ao perder o foco ou com `Escape`. Não há preferência persistida,
+pin/unpin ou sidebar à direita. Em viewport estreita vale o drawer existente. Cada componente combina
 ícone de estado e texto acessível — saudável, atenção, indisponível ou
 verificando —, de modo que nada essencial depende apenas de cor. O monitor usa
 timeout de 4 s, reduz polling quando o runtime está estável e pausa em abas
@@ -151,6 +156,11 @@ Os tiles podem ser configurados pelas variáveis `VITE_SENTINEL_MAP_TILE_URL` e
 O padrão usa tiles raster do OpenStreetMap. Não há Google Maps, API paga,
 geocodificação, prefetch, download offline ou cache manual de tiles. Uma falha
 do mapa-base não remove os resultados textuais.
+
+A UF é sempre um seletor com as 27 unidades federativas e uma opção vazia,
+compartilhado entre busca padrão, origem e resultados do raio e resultados de
+vizinhos. A lista é estática, o valor permanece a sigla textual enviada ao
+backend e as validações atuais de cada modo continuam valendo.
 
 Os critérios da busca seguem quatro blocos: modo de busca, filtros principais
 do modo selecionado, **Mais filtros e opções** — recolhido por padrão, com os

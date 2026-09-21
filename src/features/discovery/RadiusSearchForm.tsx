@@ -1,6 +1,7 @@
 import type { FormEvent, ReactNode } from "react";
 import { Search } from "lucide-react";
 import { SegmentSelect } from "../../components/SegmentSelect";
+import { UfSelect } from "../../components/UfSelect";
 import { SearchMoreFilters } from "./SearchMoreFilters";
 import type {
   RadiusFormValues,
@@ -44,6 +45,25 @@ export function RadiusSearchForm({
     </div>
   );
 
+  const ufField = (id: "originUf" | "resultUf", label: string, emptyLabel: string): ReactNode => (
+    <div className="field-group">
+      <label htmlFor={`radius-${id}`}>{label}</label>
+      <UfSelect
+        id={`radius-${id}`}
+        value={values[id]}
+        emptyLabel={emptyLabel}
+        invalid={Boolean(errors[id])}
+        describedBy={errors[id] ? `radius-${id}-error` : undefined}
+        onChange={(value) => onChange(id, value)}
+      />
+      {errors[id] && (
+        <p id={`radius-${id}-error`} className="validation-message">
+          {errors[id]}
+        </p>
+      )}
+    </div>
+  );
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
     onSubmit();
@@ -77,7 +97,7 @@ export function RadiusSearchForm({
         {values.originKind === "municipality" && (
           <>
             {field("originMunicipioNome", "Nome do município")}
-            {field("originUf", "UF da origem")}
+            {ufField("originUf", "UF da origem", "Selecione a UF")}
           </>
         )}
         {values.originKind === "cnpj" &&
@@ -106,7 +126,7 @@ export function RadiusSearchForm({
               onChange={(value) => onChange("segmentId", value)}
             />
           </div>
-          {field("resultUf", "UF dos resultados")}
+          {ufField("resultUf", "UF dos resultados", "Todas")}
         </div>
         {options}
       </SearchMoreFilters>
