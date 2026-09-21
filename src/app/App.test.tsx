@@ -42,6 +42,11 @@ describe("Sentinel Web foundation", () => {
     expect(screen.getByRole("button", { name: /Administração/ })).toBeDisabled();
     expect(await screen.findByRole("button", { name: "Buscar" })).toBeEnabled();
     await waitFor(() => expect(screen.getByText("Sistema disponível")).toBeInTheDocument());
+    const health = within(screen.getByLabelText("Saúde operacional"));
+    expect(health.getByText("API")).toBeInTheDocument();
+    expect(health.getByText("Banco")).toBeInTheDocument();
+    expect(health.getByText("Worker")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /detalhes da saúde/i })).not.toBeInTheDocument();
   });
 
   it("does not mount Discovery before the first runtime confirmation", () => {
@@ -50,7 +55,7 @@ describe("Sentinel Web foundation", () => {
     expect(screen.getByText("Verificação pendente")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
     expect(screen.getByText("Verificando estado do Sentinel")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Mostrar detalhes da saúde" }));
+    expect(screen.queryByRole("button", { name: /detalhes da saúde/i })).not.toBeInTheDocument();
     expect(screen.getByText("API").parentElement).toHaveTextContent("APIVerificando");
     expect(screen.getByText("Banco").parentElement).toHaveTextContent("BancoVerificando");
     expect(screen.getByText("Worker").parentElement).toHaveTextContent("WorkerVerificando");
@@ -164,6 +169,27 @@ describe("Sentinel Web foundation", () => {
     expect(drawer).not.toHaveClass("sidebar--mobile-open");
     expect(document.getElementById("app-content")).not.toHaveAttribute("inert");
     expect(menu).toHaveFocus();
+  });
+
+  it("keeps navigation at the top of the sidebar and operational health anchored at its footer", async () => {
+    render(<App />);
+    const sidebar = screen.getByLabelText("Navegação principal");
+    const health = screen.getByLabelText("Saúde operacional");
+    const navigation = sidebar.querySelector("nav");
+    expect(sidebar.contains(health)).toBe(true);
+    expect(sidebar.lastElementChild).toBe(health);
+    expect(navigation).not.toBeNull();
+    expect(navigation!.compareDocumentPosition(health) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(health).getByText("API")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Sistema disponível")).toBeInTheDocument());
+  });
+
+  it("keeps the destination names accessible while the desktop rail shows icons", () => {
+    render(<App />);
+    const discovery = screen.getByRole("button", { name: "Discovery" });
+    expect(discovery).toHaveAttribute("title", "Discovery");
+    expect(discovery.querySelector(".nav-item__label")).toHaveTextContent("Discovery");
+    expect(screen.getByRole("button", { name: /Administração/ })).toHaveAttribute("title", "Administração — em breve");
   });
 
   it("normalizes base URLs and uses a relative URL when it is empty", () => {

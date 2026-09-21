@@ -8,10 +8,22 @@ type StartResult = "accepted" | "uncertain" | "blocked" | "failed" | "in_progres
 type UncertainAttempt = { target: string; confirmationVersion: number; baselineJobId: string | null };
 const UNCERTAIN_CODES = new Set(["request_timeout", "network_error", "invalid_response", "invalid_json"]);
 
+/**
+ * Uma competência anunciada igual à ativa não é uma atualização: o backend
+ * continua sendo a autoridade sobre o valor, a interface apenas deixa de
+ * apresentar uma oferta inexistente.
+ */
+export function availableCompetenceOffer(view: RuntimeLifecycleView) {
+  const base = view.runtime?.base;
+  if (!base?.available_competence) return null;
+  return base.available_competence === base.active_competence ? null : base.available_competence;
+}
+
 export function monthlyUpdateTarget(view: RuntimeLifecycleView) {
   const snapshot = view.runtime;
   if (!snapshot || snapshot.base.state !== "READY") return null;
-  if (snapshot.base.available_competence) return snapshot.base.available_competence;
+  const offer = availableCompetenceOffer(view);
+  if (offer) return offer;
   return snapshot.update.status === "FAILED" || snapshot.update.status === "ROLLED_BACK"
     ? snapshot.update.target_competence
     : null;
@@ -22,7 +34,7 @@ export function useMonthlyUpdate(view: RuntimeLifecycleView) {
   const terminalRetry = view.runtime?.update.status === "FAILED" || view.runtime?.update.status === "ROLLED_BACK";
   const activeUpdate = view.runtime?.update.status === "AUTHORIZED" || view.runtime?.update.status === "RUNNING";
   const shouldPreflight = view.transportState === "fresh" && Boolean(target) &&
-    !activeUpdate && (Boolean(view.runtime?.base.available_competence) || terminalRetry);
+    !activeUpdate && (Boolean(availableCompetenceOffer(view)) || terminalRetry);
   const [preflight, setPreflight] = useState<UpdatePreflightResponse | null>(null);
   const [loadingPreflight, setLoadingPreflight] = useState(false);
   const [submitting, setSubmitting] = useState(false);

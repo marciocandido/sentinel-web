@@ -2,26 +2,56 @@ import type { RuntimeLifecycleView } from "./runtimeTypes";
 
 export type RuntimeSummaryLabel = "Verificação pendente" | "Configuração necessária" | "Sistema inicializando" | "Sistema disponível" | "Sistema com restrição" | "Sistema indisponível" | "Dados desatualizados";
 export type RuntimeTone = "neutral" | "success" | "attention" | "danger";
-export interface RuntimePresentation { summary: RuntimeSummaryLabel; tone: RuntimeTone; api: string; database: string; worker: string; canRetry: boolean; }
+export type RuntimeComponentTone = "checking" | "ok" | "attention" | "danger";
+export interface RuntimeComponentTones { api: RuntimeComponentTone; database: RuntimeComponentTone; worker: RuntimeComponentTone; }
+export interface RuntimePresentation { summary: RuntimeSummaryLabel; tone: RuntimeTone; api: string; database: string; worker: string; tones: RuntimeComponentTones; canRetry: boolean; }
 
-function componentLabels(view: RuntimeLifecycleView) {
-  if (view.transportState === "stale") return { api: "Desatualizado", database: "Desatualizado", worker: "Desatualizado" };
+interface ComponentView { label: string; tone: RuntimeComponentTone; }
+type ComponentViews = Record<"api" | "database" | "worker", ComponentView>;
+
+const uniform = (label: string, tone: RuntimeComponentTone): ComponentViews => ({ api: { label, tone }, database: { label, tone }, worker: { label, tone } });
+
+function componentViews(view: RuntimeLifecycleView): ComponentViews {
+  if (view.transportState === "stale") return uniform("Desatualizado", "attention");
   if (!view.runtime) {
-    if (view.transportState === "pending") return { api: "Verificando", database: "Verificando", worker: "Verificando" };
-    if (view.lastErrorCode === "database_unavailable") return { api: "Disponível", database: "Indisponível", worker: "Desconhecido" };
-    return { api: "Indisponível", database: "Desconhecido", worker: "Desconhecido" };
+    if (view.transportState === "pending") return uniform("Verificando", "checking");
+    if (view.lastErrorCode === "database_unavailable") {
+      return { api: { label: "Disponível", tone: "ok" }, database: { label: "Indisponível", tone: "danger" }, worker: { label: "Desconhecido", tone: "danger" } };
+    }
+    return { api: { label: "Indisponível", tone: "danger" }, database: { label: "Desconhecido", tone: "danger" }, worker: { label: "Desconhecido", tone: "danger" } };
   }
   const { components, update } = view.runtime;
-  const api = components.api.state === "AVAILABLE" ? "Disponível" : "Indisponível";
-  const database = components.database.state === "AVAILABLE" && components.database.schema_current === true ? "Disponível" : components.database.state === "UNAVAILABLE" ? "Indisponível" : "Desconhecido";
-  const worker = update.status === "AUTHORIZED" || update.status === "RUNNING"
-    ? update.stage === "PROMOTION_WAITING" && components.worker.state === "IDLE" ? "Atualização aguardando retomada" : "Atualizando base"
-    : components.worker.state === "IDLE" ? "Disponível" : components.worker.state === "RUNNING" ? "Em execução" : components.worker.state === "STALE" ? "Sem confirmação recente" : components.worker.state === "UNAVAILABLE" ? "Indisponível" : "Desconhecido";
+  const api: ComponentView = components.api.state === "AVAILABLE"
+    ? { label: "Disponível", tone: "ok" }
+    : { label: "Indisponível", tone: "danger" };
+  const database: ComponentView = components.database.state === "AVAILABLE" && components.database.schema_current === true
+    ? { label: "Disponível", tone: "ok" }
+    : components.database.state === "UNAVAILABLE"
+      ? { label: "Indisponível", tone: "danger" }
+      : { label: "Desconhecido", tone: "attention" };
+  const updating = update.status === "AUTHORIZED" || update.status === "RUNNING";
+  const worker: ComponentView = updating
+    ? { label: update.stage === "PROMOTION_WAITING" && components.worker.state === "IDLE" ? "Atualização aguardando retomada" : "Atualizando base", tone: "attention" }
+    : components.worker.state === "IDLE"
+      ? { label: "Disponível", tone: "ok" }
+      : components.worker.state === "RUNNING"
+        ? { label: "Em execução", tone: "attention" }
+        : components.worker.state === "STALE"
+          ? { label: "Sem confirmação recente", tone: "attention" }
+          : components.worker.state === "UNAVAILABLE"
+            ? { label: "Indisponível", tone: "danger" }
+            : { label: "Desconhecido", tone: "attention" };
   return { api, database, worker };
 }
 
 export function presentRuntime(view: RuntimeLifecycleView): RuntimePresentation {
-  const labels = componentLabels(view);
+  const views = componentViews(view);
+  const labels = {
+    api: views.api.label,
+    database: views.database.label,
+    worker: views.worker.label,
+    tones: { api: views.api.tone, database: views.database.tone, worker: views.worker.tone },
+  };
   if (view.transportState === "pending") return { summary: "Verificação pendente", tone: "neutral", ...labels, canRetry: false };
   if (view.transportState === "stale") return { summary: "Dados desatualizados", tone: "attention", ...labels, canRetry: true };
   if (!view.runtime) return { summary: "Sistema indisponível", tone: "danger", ...labels, canRetry: true };

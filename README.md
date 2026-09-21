@@ -62,8 +62,13 @@ banco, a liveness ainda pode ficar online e o catálogo pode retornar 503 com
 indicação de que o catálogo esteja configurado.
 
 A sidebar consulta `GET /api/v1/runtime/status` como fonte única de saúde da
-API, banco, worker e base. O monitor usa timeout de 4 s, reduz polling quando
-o runtime está estável e pausa em abas ocultas. A primeira configuração da base
+API, banco, worker e base. Ela é um trilho compacto fixo na viewport: a
+navegação fica no topo e a saúde operacional permanece ancorada no rodapé, com
+API, banco e worker sempre visíveis, sem expandir nada. Cada componente combina
+ícone de estado e texto acessível — saudável, atenção, indisponível ou
+verificando —, de modo que nada essencial depende apenas de cor. O monitor usa
+timeout de 4 s, reduz polling quando o runtime está estável e pausa em abas
+ocultas. A primeira configuração da base
 é guiada por preflight e confirmação: a preparação ocorre no servidor e
 continua se a página for fechada. A interface mostra fases públicas do
 bootstrap, permite nova tentativa somente quando o preflight autoriza e libera
@@ -76,8 +81,16 @@ atualização mensal quando o backend detecta uma nova competência. A autoriza�
 envia somente a competência confirmada para `POST /api/v1/base/update`. Durante
 download, processamento, candidate, backup e promoção, Discovery continua
 disponível enquanto o backend mantiver a base `READY`. O painel mostra apenas
-progresso real retornado pela API, além dos resultados de sucesso, falha e
-rollback. Falhas de recuperação que tornam a base indisponível bloqueiam
+progresso real retornado pela API, além dos resultados de falha e rollback. Uma
+atualização concluída não mantém painel terminal sobre o Discovery: a conclusão
+aparece no indicador compacto da competência ativa, com data de promoção no
+texto acessível. Quando a competência anunciada é a mesma já ativa, também não
+existe atualização a autorizar e a interface mostra somente esse indicador.
+O indicador não afirma que uma verificação descartou uma nova competência: isso
+só é dito quando o backend reporta `UP_TO_DATE`. Uma competência realmente nova aparece como aviso compacto
+com a ação de atualização, e os detalhes do preflight ficam recolhidos até
+serem solicitados. Atualização em andamento, falha, rollback, indisponibilidade
+da fonte e ação requerida continuam visíveis. Falhas de recuperação que tornam a base indisponível bloqueiam
 Discovery e exigem atuação operacional, sem oferecer bootstrap ou restore no
 navegador.
 
@@ -138,6 +151,12 @@ Os tiles podem ser configurados pelas variáveis `VITE_SENTINEL_MAP_TILE_URL` e
 O padrão usa tiles raster do OpenStreetMap. Não há Google Maps, API paga,
 geocodificação, prefetch, download offline ou cache manual de tiles. Uma falha
 do mapa-base não remove os resultados textuais.
+
+Os critérios da busca seguem quatro blocos: modo de busca, filtros principais
+do modo selecionado, **Mais filtros e opções** — recolhido por padrão, com os
+filtros complementares e o controle **Mostrar descartados** — e a ação
+**Buscar**. Recolher ou abrir os filtros complementares não descarta valores
+digitados, e o payload e a validação de cada modo permanecem inalterados.
 
 O formulário valida apenas condições obviamente inválidas, como ausência do
 filtro obrigatório, decimal malformado e capital mínimo maior que o máximo. O

@@ -1,5 +1,7 @@
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { Search } from "lucide-react";
 import { SegmentSelect } from "../../components/SegmentSelect";
+import { SearchMoreFilters } from "./SearchMoreFilters";
 import type {
   DiscoveryFormValues,
   SearchMode,
@@ -11,6 +13,8 @@ interface DiscoverySearchFormProps {
   values: DiscoveryFormValues;
   errors: ValidationErrors;
   searching: boolean;
+  options?: ReactNode;
+  optionsFilled?: number;
   onValueChange: (field: keyof DiscoveryFormValues, value: string) => void;
   onSubmit: () => void;
 }
@@ -25,6 +29,8 @@ export function DiscoverySearchForm({
   values,
   errors,
   searching,
+  options,
+  optionsFilled = 0,
   onValueChange,
   onSubmit,
 }: DiscoverySearchFormProps) {
@@ -32,6 +38,11 @@ export function DiscoverySearchForm({
     event.preventDefault();
     onSubmit();
   };
+
+  const advancedValues = mode === "region"
+    ? [values.codigoTom, values.codigoIbge]
+    : [values.codigoTom, values.porteCodigo, values.capitalMin, values.capitalMax];
+  const filled = advancedValues.filter((value) => value.trim() !== "").length + optionsFilled;
 
   return (
     <form className="discovery-form" aria-label="Formulário de busca" onSubmit={submit} noValidate>
@@ -77,9 +88,8 @@ export function DiscoverySearchForm({
         )}
       </div>
 
-      <details className="advanced-filters" open>
-        <summary>Filtros complementares</summary>
-        <div className="form-grid">
+      <SearchMoreFilters filled={filled}>
+        <div className="form-grid form-grid--tight">
           <div className="field-group">
             <label htmlFor="codigo-tom">Código TOM</label>
             <input
@@ -142,15 +152,17 @@ export function DiscoverySearchForm({
             </>
           )}
         </div>
-      </details>
+        {options}
+      </SearchMoreFilters>
 
       <FieldError id="region-error" message={errors.region} />
 
       <div className="search-actions">
         <button className="primary-button" type="submit" disabled={searching}>
+          <Search aria-hidden="true" size={16} />
           {searching ? "Buscando..." : "Buscar"}
         </button>
-        <p>Os resultados seguem a ordem definida pelo backend.</p>
+        <p className="search-actions__note">Os resultados seguem a ordem definida pelo backend.</p>
       </div>
     </form>
   );

@@ -70,13 +70,71 @@ describe("MonthlyUpdatePanel", () => {
     expect(await screen.findByText("Não há espaço livre suficiente para preparar a atualização.")).toBeInTheDocument();
   });
 
-  it("presents success and rollback as available terminal outcomes", () => {
-    const succeeded = runtimeStatus({ base: { active_competence: "2026-08" }, update: { job_id: "job", status: "SUCCEEDED", stage: "SUCCEEDED", target_competence: "2026-08", promoted_at: "2026-08-11T12:20:00Z", finished_at: "2026-08-11T12:21:00Z" } });
-    const { rerender } = render(<MonthlyUpdatePanel runtime={view(succeeded)} />);
-    expect(screen.getByRole("heading", { name: "Base da Receita atualizada" })).toBeInTheDocument();
-    rerender(<MonthlyUpdatePanel runtime={view(runtimeStatus({ base: { active_competence: "2026-07" }, update: { job_id: "job", status: "ROLLED_BACK", stage: "ROLLED_BACK", target_competence: "2026-08", rolled_back_at: "2026-08-11T12:30:00Z" } }))} />);
+  it("keeps rollback as a visible terminal outcome", () => {
+    render(<MonthlyUpdatePanel runtime={view(runtimeStatus({ base: { active_competence: "2026-07" }, update: { job_id: "job", status: "ROLLED_BACK", stage: "ROLLED_BACK", target_competence: "2026-08", rolled_back_at: "2026-08-11T12:30:00Z" } }))} />);
     expect(screen.getByRole("heading", { name: "Atualização revertida" })).toBeInTheDocument();
     expect(screen.getByText("A competência anterior foi restaurada com sucesso.")).toBeInTheDocument();
+  });
+
+  it.each([null, "2026-08"] as const)("reduces a concluded update to the compact indicator (available=%s)", async (available) => {
+    render(<MonthlyUpdatePanel runtime={view(runtimeStatus({ base: { active_competence: "2026-08", available_competence: available }, update: { job_id: "job", status: "SUCCEEDED", stage: "SUCCEEDED", target_competence: "2026-08", promoted_at: "2026-08-11T12:20:00Z", finished_at: "2026-08-11T12:21:00Z" } }))} />);
+    expect(await screen.findByText("Receita 2026-08")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Base da Receita atualizada" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Nova base da Receita disponível" })).not.toBeInTheDocument();
+    expect(document.querySelector(".monthly-update-panel")).toBeNull();
+    expect(screen.getByText(/Atualização concluída em/)).toBeInTheDocument();
+    expect(preflightRequest).not.toHaveBeenCalled();
+  });
+
+  it("keeps a concluded update visible while a newer competence is announced", async () => {
+    render(<MonthlyUpdatePanel runtime={view(runtimeStatus({ base: { active_competence: "2026-08", available_competence: "2026-09" }, update: { job_id: "job", status: "SUCCEEDED", stage: "SUCCEEDED", target_competence: "2026-08", promoted_at: "2026-08-11T12:20:00Z" } }))} />);
+    expect(await screen.findByRole("button", { name: "Atualizar agora" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Nova base da Receita disponível" })).toBeInTheDocument();
+    expect(screen.getByText("Competência 2026-09")).toBeInTheDocument();
+  });
+
+  it("replaces the panel with a compact indicator when the announced competence is already active", async () => {
+    render(<MonthlyUpdatePanel runtime={view(runtimeStatus({ base: { active_competence: "2026-08", available_competence: "2026-08", last_metadata_check_result: "UPDATE_AVAILABLE" } }))} />);
+    expect(await screen.findByText("Receita 2026-08")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Nova base da Receita disponível" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Atualizar agora" })).not.toBeInTheDocument();
+    expect(screen.getByText("A competência anunciada pela Receita já é a ativa. Não há atualização a autorizar.")).toBeInTheDocument();
+    expect(preflightRequest).not.toHaveBeenCalled();
+  });
+
+  it("keeps the compact indicator for a READY base without any announced competence", async () => {
+    render(<MonthlyUpdatePanel runtime={view(runtimeStatus())} />);
+    expect(await screen.findByText("Receita 2026-07")).toBeInTheDocument();
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(preflightRequest).not.toHaveBeenCalled();
+  });
+
+  it("offers a real new competence compactly and keeps the preflight details collapsed", async () => {
+    render(<MonthlyUpdatePanel runtime={view()} />);
+    expect(await screen.findByRole("button", { name: "Atualizar agora" })).toBeInTheDocument();
+    expect(screen.getByText("Competência 2026-08")).toBeInTheDocument();
+    expect(screen.getByText("Ver detalhes").closest("details")).not.toHaveAttribute("open");
+    expect(screen.queryByText("Receita 2026-07")).not.toBeInTheDocument();
+  });
+
+  it("does not claim an absent update without evidence", async () => {
+    const { rerender } = render(<MonthlyUpdatePanel runtime={view(runtimeStatus({ base: { active_competence: "2026-08", last_metadata_check_result: null } }))} />);
+    expect(await screen.findByText("Receita 2026-08")).toBeInTheDocument();
+    expect(screen.getByText("Competência ativa da base da Receita.")).toBeInTheDocument();
+    expect(screen.queryByText(/Nenhuma nova competência/)).not.toBeInTheDocument();
+
+    rerender(<MonthlyUpdatePanel runtime={view(runtimeStatus({ base: { active_competence: "2026-08", last_metadata_check_result: "UP_TO_DATE" } }))} />);
+    expect(screen.getByText("A última verificação da Receita não encontrou uma nova competência.")).toBeInTheDocument();
+
+    rerender(<MonthlyUpdatePanel runtime={view(runtimeStatus({ base: { active_competence: "2026-08", available_competence: "2026-08", last_metadata_check_result: "UPDATE_AVAILABLE" } }))} />);
+    expect(screen.getByText("A competência anunciada pela Receita já é a ativa. Não há atualização a autorizar.")).toBeInTheDocument();
+  });
+
+  it("does not present an unconfirmed competence as a healthy base", async () => {
+    render(<MonthlyUpdatePanel runtime={view(runtimeStatus({ base: { active_competence: null, last_metadata_check_result: "UP_TO_DATE" } }))} />);
+    expect(await screen.findByText("Receita não confirmada")).toBeInTheDocument();
+    expect(screen.getByText("A competência ativa da base ainda não foi confirmada.")).toBeInTheDocument();
+    expect(document.querySelector(".base-competence__icon")).toBeNull();
   });
 
   it("keeps SOURCE_UNAVAILABLE as a warning over a READY base", () => {

@@ -1,27 +1,37 @@
-import { Activity, ChevronDown, ChevronUp, Database, LoaderCircle, Server } from "lucide-react";
-import { useState } from "react";
+import { CircleCheck, CircleX, LoaderCircle, TriangleAlert } from "lucide-react";
+import type { RuntimeComponentTone } from "./runtimePresentation";
 import type { RuntimeLifecycleView } from "./runtimeTypes";
 import { presentRuntime } from "./runtimePresentation";
 
+const TONE_ICON = { checking: LoaderCircle, ok: CircleCheck, attention: TriangleAlert, danger: CircleX };
+
+function ComponentStateIcon({ tone }: { tone: RuntimeComponentTone }) {
+  const Icon = TONE_ICON[tone];
+  const className = tone === "checking"
+    ? "runtime-health__checking-icon"
+    : `runtime-health__component-icon runtime-health__component-icon--${tone}`;
+  return <Icon className={className} aria-hidden="true" size={15} />;
+}
+
 export function RuntimeHealthSidebar({ runtime }: { runtime: RuntimeLifecycleView }) {
-  const [expanded, setExpanded] = useState(false);
   const presentation = presentRuntime(runtime);
-  const panelId = "runtime-health-details";
-  const initialPending = runtime.transportState === "pending" && runtime.runtime === null;
   const components = [
-    { label: "API", value: presentation.api, Icon: initialPending ? LoaderCircle : Server },
-    { label: "Banco", value: presentation.database, Icon: initialPending ? LoaderCircle : Database },
-    { label: "Worker", value: presentation.worker, Icon: initialPending ? LoaderCircle : Activity },
+    { label: "API", value: presentation.api, tone: presentation.tones.api },
+    { label: "Banco", value: presentation.database, tone: presentation.tones.database },
+    { label: "Worker", value: presentation.worker, tone: presentation.tones.worker },
   ];
   return <section className={`runtime-health runtime-health--${presentation.tone}`} aria-label="Saúde operacional">
-    <div className="runtime-health__summary" aria-live="polite">
+    <p className="runtime-health__summary" aria-live="polite" title={presentation.summary}>
+      <span className="runtime-health__dot" aria-hidden="true" />
       <span className="runtime-health__label">{presentation.summary}</span>
-      <button type="button" className="runtime-health__toggle" aria-expanded={expanded} aria-controls={panelId} onClick={() => setExpanded((value) => !value)}>
-        <span className="sr-only">{expanded ? "Ocultar detalhes da saúde" : "Mostrar detalhes da saúde"}</span>
-        {expanded ? <ChevronUp aria-hidden="true" size={16} /> : <ChevronDown aria-hidden="true" size={16} />}
-      </button>
-    </div>
-    {expanded && <div id={panelId} className="runtime-health__details">{components.map(({ label, value, Icon }) => <p key={label}><Icon className={initialPending ? "runtime-health__checking-icon" : "runtime-health__component-icon"} aria-hidden="true" size={16} /><span>{label}</span><strong>{value}</strong></p>)}</div>}
+    </p>
+    <ul className="runtime-health__components">
+      {components.map(({ label, value, tone }) => <li key={label} className="runtime-health__component" title={`${label}: ${value}`}>
+        <span className="runtime-health__component-label">{label}</span>
+        <ComponentStateIcon tone={tone} />
+        <span className="sr-only">{value}</span>
+      </li>)}
+    </ul>
     {presentation.canRetry && <button type="button" className="runtime-health__retry" onClick={runtime.refreshNow} disabled={runtime.checking} aria-busy={runtime.checking}>Verificar novamente</button>}
   </section>;
 }
