@@ -1,6 +1,7 @@
 import type { FormEvent, ReactNode } from "react";
 import { Search } from "lucide-react";
 import { SegmentSelect } from "../../components/SegmentSelect";
+import { UfSelect } from "../../components/UfSelect";
 import { SearchMoreFilters } from "./SearchMoreFilters";
 import type {
   DiscoveryFormValues,
@@ -62,14 +63,12 @@ export function DiscoverySearchForm({
 
         <div className="field-group">
           <label htmlFor="uf">UF</label>
-          <input
+          <UfSelect
             id="uf"
             name="uf"
             value={values.uf}
-            maxLength={2}
-            autoComplete="address-level1"
-            onChange={(event) => onValueChange("uf", event.target.value)}
-            aria-describedby={mode === "region" && errors.region ? "region-error" : undefined}
+            onChange={(value) => onValueChange("uf", value)}
+            describedBy={mode === "region" && errors.region ? "region-error" : undefined}
           />
         </div>
 

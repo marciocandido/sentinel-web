@@ -28,8 +28,8 @@ export function RuntimeHealthSidebar({ runtime }: { runtime: RuntimeLifecycleVie
     <ul className="runtime-health__components">
       {components.map(({ label, value, tone }) => <li key={label} className="runtime-health__component" title={`${label}: ${value}`}>
         <span className="runtime-health__component-label">{label}</span>
+        <span className="runtime-health__component-state">{value}</span>
         <ComponentStateIcon tone={tone} />
-        <span className="sr-only">{value}</span>
       </li>)}
     </ul>
     {presentation.canRetry && <button type="button" className="runtime-health__retry" onClick={runtime.refreshNow} disabled={runtime.checking} aria-busy={runtime.checking}>Verificar novamente</button>}

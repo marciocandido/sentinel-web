@@ -1,6 +1,7 @@
 import type { FormEvent, ReactNode } from "react";
 import { Search } from "lucide-react";
 import { SegmentSelect } from "../../components/SegmentSelect";
+import { UfSelect } from "../../components/UfSelect";
 import { SearchMoreFilters } from "./SearchMoreFilters";
 import type { NeighborsFormValues, NeighborsValidationErrors } from "./neighborsTypes";
 
@@ -24,7 +25,10 @@ export function NeighborsSearchForm({ values, errors, searching, options, option
     <SearchMoreFilters filled={filled}>
       <div className="form-grid form-grid--tight">
         <div className="field-group"><label htmlFor="segment">Segmento <span className="optional-label">opcional</span></label><SegmentSelect value={values.segmentId} onChange={(value) => onChange("segmentId", value)} /></div>
-        {field("resultUf", "UF dos resultados — opcional")}
+        <div className="field-group">
+          <label htmlFor="neighbors-resultUf">UF dos resultados — opcional</label>
+          <UfSelect id="neighbors-resultUf" value={values.resultUf} onChange={(value) => onChange("resultUf", value)} />
+        </div>
       </div>
       {options}
     </SearchMoreFilters>
