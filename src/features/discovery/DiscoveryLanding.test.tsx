@@ -128,6 +128,7 @@ describe("Discovery search", () => {
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
     await screen.findByRole("table", { name: /Empresas encontradas/ });
     fireEvent.change(screen.getByLabelText("UF"), { target: { value: "RJ" } });
+    fireEvent.click(screen.getByRole("button", { name: "Listas de trabalho" }));
     fireEvent.click(screen.getByRole("button", { name: "Salvar como lista de trabalho" }));
     fireEvent.change(screen.getByLabelText("Nome da lista de trabalho"), { target: { value: "Visitas" } });
     fireEvent.click(screen.getByRole("button", { name: /^Salvar$/ }));
@@ -476,14 +477,14 @@ describe("Discovery search", () => {
     render(<App />);
     await submitSegment(); await screen.findByRole("table");
     fireEvent.change(screen.getByLabelText("UF"), { target:{value:"SC"} });
-    fireEvent.click(screen.getByRole("button", {name:"Salvar pesquisa"}));
+    fireEvent.click(screen.getByRole("button", {name:"Pesquisas salvas"}));
+    fireEvent.click(await screen.findByRole("button", {name:"Salvar pesquisa"}));
     fireEvent.change(screen.getByLabelText("Nome da pesquisa"), {target:{value:"Segmento A"}});
     fireEvent.click(screen.getByRole("button", {name:/^Salvar$/}));
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => url.toString().endsWith("/saved-searches") && (init as RequestInit).method === "POST")).toBe(true));
     const post = fetchMock.mock.calls.find(([url, init]) => url.toString().endsWith("/saved-searches") && (init as RequestInit).method === "POST");
     expect(JSON.parse((post?.[1] as RequestInit).body as string).search).toMatchObject({kind:"SEGMENT",segment_id:"metal-mecanica"});
     expect(JSON.parse((post?.[1] as RequestInit).body as string).search.uf).toBeUndefined();
-    fireEvent.click(screen.getByRole("button", {name:"Pesquisas salvas"}));
     await screen.findByText("Região PR");
     const beforeLoad = searchUrls().length;
     fireEvent.click(screen.getByRole("button", {name:"Carregar"}));
@@ -498,7 +499,8 @@ describe("Discovery search", () => {
 
   it("closes an open save attempt after an identical new submit or mode change", async () => {
     render(<App />); await submitSegment(); await screen.findByRole("table");
-    fireEvent.click(screen.getByRole("button", {name:"Salvar pesquisa"}));
+    fireEvent.click(screen.getByRole("button", {name:"Pesquisas salvas"}));
+    fireEvent.click(await screen.findByRole("button", {name:"Salvar pesquisa"}));
     expect(screen.getByLabelText("Nome da pesquisa")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", {name:"Buscar"}));
     await waitFor(() => expect(screen.queryByLabelText("Nome da pesquisa")).not.toBeInTheDocument());

@@ -1,6 +1,6 @@
 import type { FormEvent, ReactNode } from "react";
-import { Search } from "lucide-react";
 import { SearchMoreFilters } from "./SearchMoreFilters";
+import { SearchSubmitAction } from "./SearchSubmitAction";
 import type {
   CommercialGroupFormValues,
   CommercialGroupValidationErrors,
@@ -38,6 +38,8 @@ export function CommercialGroupSearchForm({
       noValidate
     >
       <div className="form-grid commercial-group-field">
+        <SearchSubmitAction searching={searching} label="Buscar grupo" />
+
         <div className="field-group field-group--wide">
           <label htmlFor="commercial-group-id">ID do grupo</label>
           <input
@@ -66,14 +68,6 @@ export function CommercialGroupSearchForm({
       </div>
 
       {options && <SearchMoreFilters filled={optionsFilled}>{options}</SearchMoreFilters>}
-
-      <div className="search-actions">
-        <button className="primary-button" type="submit" disabled={searching}>
-          <Search aria-hidden="true" size={16} />
-          {searching ? "Buscando..." : "Buscar grupo"}
-        </button>
-        <p className="search-actions__note">Os resultados seguem a ordem definida pelo backend.</p>
-      </div>
     </form>
   );
 }

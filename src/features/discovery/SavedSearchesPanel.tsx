@@ -24,12 +24,17 @@ function publicSavedSearchError(code: string): string {
   return messages[code] ?? "Não foi possível concluir a operação.";
 }
 
-export function SavedSearchesPanel({ search, generation, onLoad }: {
+export function SavedSearchesPanel({ search, generation, onLoad, open: openProp, panelId }: {
   search: DiscoverySearchSpec | null;
   generation: number;
   onLoad: (editable: EditableDiscoverySearch) => void;
+  /** Quando informado, a abertura é controlada pela toolbar da busca. */
+  open?: boolean;
+  panelId?: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const controlled = openProp !== undefined;
+  const [selfOpen, setSelfOpen] = useState(false);
+  const open = controlled ? openProp : selfOpen;
   const [items, setItems] = useState<SavedSearch[]>([]);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -40,6 +45,7 @@ export function SavedSearchesPanel({ search, generation, onLoad }: {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<SavedSearch | null>(null);
+  const openedRef = useRef(open);
   const readRef = useRef<AbortController | null>(null);
   const mutationRef = useRef<AbortController | null>(null);
   const aliveRef = useRef(true);
@@ -70,6 +76,16 @@ export function SavedSearchesPanel({ search, generation, onLoad }: {
       readRef.current?.abort(); mutationRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (openedRef.current === open) return;
+    openedRef.current = open;
+    // Só a abertura vinda da toolbar carrega por efeito, adiada para não
+    // disparar estado de forma síncrona. O caminho próprio carrega no evento.
+    if (controlled && open) queueMicrotask(() => { if (aliveRef.current) void load(0); });
+    // `load` é recriado a cada render e a dependência real é apenas a abertura.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (generationRef.current === generation) return;
@@ -111,11 +127,14 @@ export function SavedSearchesPanel({ search, generation, onLoad }: {
     } finally { if (!controller.signal.aborted && aliveRef.current) setMutating(false); }
   };
 
-  return <section className="saved-searches" aria-label="Pesquisas salvas">
-    <div className="export-actions__buttons">
-      {search && <button className="secondary-button" type="button" onClick={() => { setSaveOpen(true); setError(null); }}>Salvar pesquisa</button>}
-      <button className="secondary-button" type="button" onClick={() => { const next = !open; setOpen(next); if (next) void load(0); }}>Pesquisas salvas</button>
-    </div>
+  const saveButton = search && <button className="secondary-button" type="button" onClick={() => { setSaveOpen(true); setError(null); }}>Salvar pesquisa</button>;
+  if (controlled && !open) return null;
+
+  return <section className="saved-searches" id={panelId} aria-label="Pesquisas salvas">
+    {!controlled && <div className="export-actions__buttons">
+      {saveButton}
+      <button className="secondary-button" type="button" aria-expanded={open} onClick={() => { const next = !open; setSelfOpen(next); if (next) void load(0); }}>Pesquisas salvas</button>
+    </div>}
     {notice && <p aria-live="polite">{notice}</p>}
     {saveOpen && error && <p role="alert">{error}</p>}
     {saveOpen && <div className="saved-searches__save">
@@ -125,6 +144,7 @@ export function SavedSearchesPanel({ search, generation, onLoad }: {
       <button type="button" onClick={() => setSaveOpen(false)} disabled={mutating}>Cancelar</button>
     </div>}
     {open && <div>
+      {controlled && saveButton && <div className="export-actions__buttons">{saveButton}</div>}
       <h2>Pesquisas salvas</h2>
       {loading && <p role="status">Carregando pesquisas salvas...</p>}
       {error && !saveOpen && <p role="alert">{error}</p>}

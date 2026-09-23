@@ -54,6 +54,41 @@ describe("RuntimeHealthSidebar", () => {
     expect(screen.getByRole("button", { name: "Verificar novamente" })).toBeInTheDocument();
   });
 
+  it("shows the Receita competence right after API, Banco and Worker", () => {
+    render(<RuntimeHealthSidebar runtime={{ ...base, runtime: runtimeStatus({ base: { active_competence: "2026-08", last_metadata_check_result: "UP_TO_DATE" } }) }} />);
+    const health = screen.getByLabelText("Saúde operacional");
+    const badge = health.querySelector(".runtime-base") as HTMLElement;
+    expect(badge).not.toBeNull();
+    expect(badge.textContent).toContain("Receita");
+    expect(badge.textContent).toContain("2026-08");
+    expect(badge.previousElementSibling).toBe(health.querySelector(".runtime-health__components"));
+    expect(screen.getByText("Worker").closest(".runtime-health__components")).toBe(badge.previousElementSibling);
+    expect(badge).toHaveClass("runtime-base--ok");
+    expect(badge).toHaveAttribute("title", expect.stringContaining("2026-08"));
+  });
+
+  it("changes the Receita tone with the runtime evidence", () => {
+    const cases = [
+      [runtimeStatus({ base: { active_competence: "2026-08", available_competence: "2026-09" } }), "runtime-base--info"],
+      [runtimeStatus({ base: { active_competence: "2026-08", last_metadata_check_result: "SOURCE_UNAVAILABLE" } }), "runtime-base--attention"],
+      [runtimeStatus({ base: { state: "UNAVAILABLE", active_competence: "2026-08" } }), "runtime-base--danger"],
+      [runtimeStatus({ base: { active_competence: "2026-08", last_metadata_check_result: null } }), "runtime-base--neutral"],
+    ] as const;
+    for (const [runtime, expected] of cases) {
+      const { container, unmount } = render(<RuntimeHealthSidebar runtime={{ ...base, runtime }} />);
+      expect(container.querySelector(".runtime-base")).toHaveClass(expected);
+      unmount();
+    }
+  });
+
+  it("keeps an unconfirmed competence readable without inventing a value", () => {
+    render(<RuntimeHealthSidebar runtime={{ ...base, runtime: runtimeStatus({ base: { active_competence: null } }) }} />);
+    const badge = document.querySelector(".runtime-base") as HTMLElement;
+    expect(badge.querySelector(".runtime-base__value")).toHaveTextContent("—");
+    expect(badge).toHaveClass("runtime-base--attention");
+    expect(badge.textContent).toContain("não confirmada");
+  });
+
   it("marks a database restriction without turning the API red", () => {
     const restricted = { ...base, runtime: runtimeStatus({ summary: "RESTRICTED", components: { database: { state: "AVAILABLE", schema_current: false } } }) };
     const { container } = render(<RuntimeHealthSidebar runtime={restricted} />);

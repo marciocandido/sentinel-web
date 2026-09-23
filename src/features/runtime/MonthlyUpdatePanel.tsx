@@ -1,6 +1,5 @@
-import { CircleCheck } from "lucide-react";
 import { useRef, useState } from "react";
-import type { RuntimeBase, RuntimeUpdate, UpdatePreflightResponse } from "../../types/api";
+import type { UpdatePreflightResponse } from "../../types/api";
 import type { RuntimeLifecycleView } from "./runtimeTypes";
 import { MonthlyUpdateConfirmDialog } from "./MonthlyUpdateConfirmDialog";
 import { MonthlyUpdateProgress } from "./MonthlyUpdateProgress";
@@ -21,42 +20,6 @@ function publicRequestError(code: string | null) {
   if (code === "invalid_request") return "A competência informada não é válida.";
   if (code === "update_blocked" || code === "update_conflict") return "A atualização não pode ser iniciada neste momento.";
   return "Não foi possível atualizar as condições da nova competência.";
-}
-
-/**
- * Texto acessível do estado compacto da base. Nada é afirmado sem evidência:
- * `available_competence` nulo apenas não anuncia uma competência e não prova
- * que uma verificação ocorreu; só `UP_TO_DATE` é uma verificação concluída
- * pelo backend, e só `SUCCEEDED` confirma a conclusão de uma atualização.
- */
-function baseCompetenceNote(base: RuntimeBase, update: RuntimeUpdate) {
-  if (update.status === "SUCCEEDED") {
-    const concluded = update.promoted_at ?? update.finished_at;
-    return concluded
-      ? `Atualização concluída em ${formatRuntimeTimestamp(concluded)}.`
-      : "Atualização concluída.";
-  }
-  if (base.available_competence && base.available_competence === base.active_competence) {
-    return "A competência anunciada pela Receita já é a ativa. Não há atualização a autorizar.";
-  }
-  if (base.last_metadata_check_result === "UP_TO_DATE") {
-    return "A última verificação da Receita não encontrou uma nova competência.";
-  }
-  return "Competência ativa da base da Receita.";
-}
-
-function BaseCompetenceChip({ base, update }: { base: RuntimeBase; update: RuntimeUpdate }) {
-  if (!base.active_competence) {
-    return <p className="base-competence base-competence--unconfirmed">
-      <span>Receita não confirmada</span>
-      <span className="sr-only">A competência ativa da base ainda não foi confirmada.</span>
-    </p>;
-  }
-  return <p className="base-competence">
-    <CircleCheck className="base-competence__icon" aria-hidden="true" size={15} />
-    <span>Receita {base.active_competence}</span>
-    <span className="sr-only">{baseCompetenceNote(base, update)}</span>
-  </p>;
 }
 
 export function MonthlyUpdatePanel({ runtime }: { runtime: RuntimeLifecycleView }) {
@@ -110,7 +73,8 @@ export function MonthlyUpdatePanel({ runtime }: { runtime: RuntimeLifecycleView 
   </section>;
 
   if (!monthly.target) {
-    if (base.last_metadata_check_result !== "SOURCE_UNAVAILABLE") return <BaseCompetenceChip base={base} update={update} />;
+    /* O estado normal da competência vive no rodapé da sidebar; aqui só restam estados acionáveis. */
+    if (base.last_metadata_check_result !== "SOURCE_UNAVAILABLE") return null;
     return <section className="monthly-update-panel monthly-update-panel--attention monthly-update-panel--compact" role="status" aria-labelledby="monthly-update-title"><h2 id="monthly-update-title">Verificação de novas versões</h2><p>Não foi possível verificar novas versões da base. A competência ativa continua disponível.</p></section>;
   }
 

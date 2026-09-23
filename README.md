@@ -69,7 +69,16 @@ expande temporariamente ao receber o ponteiro ou foco de teclado, mostrando os
 nomes dos destinos e o texto de cada estado; a expansão é sobreposta, não
 altera a largura nem a posição do conteúdo principal e recolhe ao sair com o
 ponteiro, ao perder o foco ou com `Escape`. Não há preferência persistida,
-pin/unpin ou sidebar à direita. Em viewport estreita vale o drawer existente. Cada componente combina
+pin/unpin ou sidebar à direita. Em viewport estreita vale o drawer existente.
+
+Abaixo de API, banco e worker, o rodapé mostra a competência ativa da Receita.
+O tom depende apenas de evidência do runtime: verde quando a competência
+vigente é confirmada (`UP_TO_DATE`, competência anunciada igual à ativa ou
+atualização concluída para ela), azul quando existe competência nova ou
+atualização em andamento, amarelo em estado desatualizado, fonte indisponível,
+falha de atualização ou competência não confirmada, vermelho quando a base está
+indisponível e neutro quando a competência é conhecida mas nada comprova que
+ela ainda é a mais recente. O texto acessível explica o motivo do tom. Cada componente combina
 ícone de estado e texto acessível — saudável, atenção, indisponível ou
 verificando —, de modo que nada essencial depende apenas de cor. O monitor usa
 timeout de 4 s, reduz polling quando o runtime está estável e pausa em abas
@@ -162,11 +171,17 @@ compartilhado entre busca padrão, origem e resultados do raio e resultados de
 vizinhos. A lista é estática, o valor permanece a sigla textual enviada ao
 backend e as validações atuais de cada modo continuam valendo.
 
-Os critérios da busca seguem quatro blocos: modo de busca, filtros principais
-do modo selecionado, **Mais filtros e opções** — recolhido por padrão, com os
-filtros complementares e o controle **Mostrar descartados** — e a ação
-**Buscar**. Recolher ou abrir os filtros complementares não descarta valores
-digitados, e o payload e a validação de cada modo permanecem inalterados.
+Os critérios da busca seguem três blocos: a faixa de modos, a linha principal
+de filtros — iniciada pela ação **Buscar**, que é o `submit` do formulário em
+todos os modos — e **Mais filtros e opções**, recolhido por padrão, com os
+filtros complementares e o controle **Mostrar descartados**. Recolher ou abrir
+os filtros complementares não descarta valores digitados, e o payload e a
+validação de cada modo permanecem inalterados.
+
+Na mesma faixa dos seis modos, separadas visualmente, ficam as ações
+**Pesquisas salvas** e **Listas de trabalho**. Elas são botões, não modos de
+busca, e abrem ou recolhem o painel correspondente; enquanto estão fechadas,
+nada ocupa espaço entre os critérios e os resultados.
 
 O formulário valida apenas condições obviamente inválidas, como ausência do
 filtro obrigatório, decimal malformado e capital mínimo maior que o máximo. O

@@ -1,3 +1,4 @@
+import { Bookmark, ListChecks } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { SentinelApiError } from "../../services/apiClient";
 import {
@@ -178,6 +179,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
   const [exportSearch, setExportSearch] = useState<DiscoveryExportSearch | null>(null);
   const [savedSearchNotice, setSavedSearchNotice] = useState<string | null>(null);
   const [submittedGeneration, setSubmittedGeneration] = useState(0);
+  const [utilityPanel, setUtilityPanel] = useState<"saved" | "worklists" | null>(null);
 
   const beginRequest = () => {
     setSelected(null);
@@ -661,6 +663,7 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     else if (editable.mode === "neighbors") setNeighborsValues(editable.values);
     else if (editable.mode === "root") setRootBranchesValues(editable.values);
     else if (editable.mode === "group") setCommercialGroupValues(editable.values);
+    setUtilityPanel(null);
     setSavedSearchNotice("Pesquisa carregada. Revise os critérios e clique em Buscar.");
   };
 
@@ -691,14 +694,38 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
       >
         <div className="page-intro">
           <h1 id="discovery-title">Buscar empresas</h1>
-          <p>
+          <p className="page-intro__hint">
             Pesquise por segmento, região, raio geográfico, vizinhos, raiz ou grupo
             comercial registrado.
           </p>
         </div>
         <article className="search-card" aria-labelledby="search-card-title">
           <h2 id="search-card-title" className="sr-only">Critérios da busca</h2>
-          <DiscoveryModeSwitcher mode={mode} onChange={changeMode} />
+          <div className="search-toolbar">
+            <DiscoveryModeSwitcher mode={mode} onChange={changeMode} />
+            <div className="search-toolbar__utilities" role="group" aria-label="Ações da busca">
+              <button
+                type="button"
+                className={`toolbar-action ${utilityPanel === "saved" ? "toolbar-action--active" : ""}`}
+                aria-expanded={utilityPanel === "saved"}
+                aria-controls="saved-searches-panel"
+                onClick={() => setUtilityPanel((current) => (current === "saved" ? null : "saved"))}
+              >
+                <Bookmark aria-hidden="true" size={16} />
+                <span>Pesquisas salvas</span>
+              </button>
+              <button
+                type="button"
+                className={`toolbar-action ${utilityPanel === "worklists" ? "toolbar-action--active" : ""}`}
+                aria-expanded={utilityPanel === "worklists"}
+                aria-controls="worklists-panel"
+                onClick={() => setUtilityPanel((current) => (current === "worklists" ? null : "worklists"))}
+              >
+                <ListChecks aria-hidden="true" size={16} />
+                <span>Listas de trabalho</span>
+              </button>
+            </div>
+          </div>
           {mode === "neighbors" ? (
             <NeighborsSearchForm
               values={neighborsValues}
@@ -795,8 +822,19 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
           onExport={(format, search) => void discoveryExport.start(format, search)}
         />
         {savedSearchNotice && <p aria-live="polite">{savedSearchNotice}</p>}
-        <SavedSearchesPanel search={exportSearch} generation={submittedGeneration} onLoad={loadSavedSearch} />
-        <WorklistsPanel search={exportSearch} generation={submittedGeneration} />
+        <SavedSearchesPanel
+          search={exportSearch}
+          generation={submittedGeneration}
+          onLoad={loadSavedSearch}
+          open={utilityPanel === "saved"}
+          panelId="saved-searches-panel"
+        />
+        <WorklistsPanel
+          search={exportSearch}
+          generation={submittedGeneration}
+          open={utilityPanel === "worklists"}
+          panelId="worklists-panel"
+        />
         {mode === "neighbors" ? (
           <NeighborsResults
             state={neighborsState}

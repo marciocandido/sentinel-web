@@ -1,4 +1,5 @@
 import { CircleCheck, CircleX, LoaderCircle, TriangleAlert } from "lucide-react";
+import { presentBaseCompetence } from "./baseCompetencePresentation";
 import type { RuntimeComponentTone } from "./runtimePresentation";
 import type { RuntimeLifecycleView } from "./runtimeTypes";
 import { presentRuntime } from "./runtimePresentation";
@@ -15,6 +16,7 @@ function ComponentStateIcon({ tone }: { tone: RuntimeComponentTone }) {
 
 export function RuntimeHealthSidebar({ runtime }: { runtime: RuntimeLifecycleView }) {
   const presentation = presentRuntime(runtime);
+  const base = presentBaseCompetence(runtime);
   const components = [
     { label: "API", value: presentation.api, tone: presentation.tones.api },
     { label: "Banco", value: presentation.database, tone: presentation.tones.database },
@@ -32,6 +34,11 @@ export function RuntimeHealthSidebar({ runtime }: { runtime: RuntimeLifecycleVie
         <ComponentStateIcon tone={tone} />
       </li>)}
     </ul>
+    <p className={`runtime-base runtime-base--${base.tone}`} title={base.note}>
+      <span className="runtime-base__word">Receita</span>
+      <span className="runtime-base__value">{base.competence ?? "—"}</span>
+      <span className="sr-only">{base.note}</span>
+    </p>
     {presentation.canRetry && <button type="button" className="runtime-health__retry" onClick={runtime.refreshNow} disabled={runtime.checking} aria-busy={runtime.checking}>Verificar novamente</button>}
   </section>;
 }
