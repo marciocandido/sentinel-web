@@ -172,7 +172,7 @@ describe("similar companies drawer flow", () => {
     render(<App />);
     const toggle = await screen.findByRole("checkbox", { name: "Mostrar descartados" });
     fireEvent.click(toggle);
-    fireEvent.change(screen.getByLabelText(/Segmento/), { target: { value: "metal-mecanica" } });
+    fireEvent.change(await screen.findByLabelText(/Segmento/), { target: { value: "metal-mecanica" } });
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
     const details = await screen.findAllByRole("button", { name: "Ver detalhes" });
     fireEvent.click(toggle);
