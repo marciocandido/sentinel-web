@@ -1,8 +1,8 @@
 import type { FormEvent, ReactNode } from "react";
-import { Search } from "lucide-react";
 import { SegmentSelect } from "../../components/SegmentSelect";
 import { UfSelect } from "../../components/UfSelect";
 import { SearchMoreFilters } from "./SearchMoreFilters";
+import { SearchSubmitAction } from "./SearchSubmitAction";
 import type {
   RadiusFormValues,
   RadiusValidationErrors,
@@ -79,6 +79,8 @@ export function RadiusSearchForm({
       noValidate
     >
       <div className="form-grid">
+        <SearchSubmitAction searching={searching} label="Buscar por raio" />
+
         <div className="field-group">
           <label htmlFor="radius-origin-kind">Tipo de origem</label>
           <select
@@ -130,14 +132,6 @@ export function RadiusSearchForm({
         </div>
         {options}
       </SearchMoreFilters>
-
-      <div className="search-actions">
-        <button className="primary-button" type="submit" disabled={searching}>
-          <Search aria-hidden="true" size={16} />
-          {searching ? "Buscando..." : "Buscar por raio"}
-        </button>
-        <p className="search-actions__note">Somente a origem selecionada será enviada.</p>
-      </div>
     </form>
   );
 }

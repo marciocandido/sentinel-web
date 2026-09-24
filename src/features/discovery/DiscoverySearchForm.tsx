@@ -1,8 +1,8 @@
 import type { FormEvent, ReactNode } from "react";
-import { Search } from "lucide-react";
 import { SegmentSelect } from "../../components/SegmentSelect";
 import { UfSelect } from "../../components/UfSelect";
 import { SearchMoreFilters } from "./SearchMoreFilters";
+import { SearchSubmitAction } from "./SearchSubmitAction";
 import type {
   DiscoveryFormValues,
   SearchMode,
@@ -48,6 +48,8 @@ export function DiscoverySearchForm({
   return (
     <form className="discovery-form" aria-label="Formulário de busca" onSubmit={submit} noValidate>
       <div className="form-grid">
+        <SearchSubmitAction searching={searching} />
+
         <div className="field-group">
           <label htmlFor="segment">
             Segmento {mode === "segment" ? <span aria-hidden="true">*</span> : <span className="optional-label">opcional</span>}
@@ -155,14 +157,6 @@ export function DiscoverySearchForm({
       </SearchMoreFilters>
 
       <FieldError id="region-error" message={errors.region} />
-
-      <div className="search-actions">
-        <button className="primary-button" type="submit" disabled={searching}>
-          <Search aria-hidden="true" size={16} />
-          {searching ? "Buscando..." : "Buscar"}
-        </button>
-        <p className="search-actions__note">Os resultados seguem a ordem definida pelo backend.</p>
-      </div>
     </form>
   );
 }

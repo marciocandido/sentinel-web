@@ -1,8 +1,8 @@
 import type { FormEvent, ReactNode } from "react";
-import { Search } from "lucide-react";
 import { SegmentSelect } from "../../components/SegmentSelect";
 import { UfSelect } from "../../components/UfSelect";
 import { SearchMoreFilters } from "./SearchMoreFilters";
+import { SearchSubmitAction } from "./SearchSubmitAction";
 import type { NeighborsFormValues, NeighborsValidationErrors } from "./neighborsTypes";
 
 interface Props { values: NeighborsFormValues; errors: NeighborsValidationErrors; searching: boolean; options?: ReactNode; optionsFilled?: number; onChange: (field: keyof NeighborsFormValues, value: string) => void; onSubmit: () => void; }
@@ -19,6 +19,7 @@ export function NeighborsSearchForm({ values, errors, searching, options, option
   const filled = [values.segmentId, values.resultUf].filter((value) => value.trim() !== "").length + optionsFilled;
   return <form className="discovery-form" aria-label="Formulário de busca por vizinhos" onSubmit={submit} noValidate>
     <div className="form-grid">
+      <SearchSubmitAction searching={searching} label="Buscar vizinhos" />
       {field("cnpj", "CNPJ de referência")}
       {field("radiusKm", "Raio em quilômetros")}
     </div>
@@ -32,6 +33,5 @@ export function NeighborsSearchForm({ values, errors, searching, options, option
       </div>
       {options}
     </SearchMoreFilters>
-    <div className="search-actions"><button className="primary-button" type="submit" disabled={searching}><Search aria-hidden="true" size={16} />{searching ? "Buscando..." : "Buscar vizinhos"}</button></div>
   </form>;
 }

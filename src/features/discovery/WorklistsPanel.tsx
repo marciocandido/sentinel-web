@@ -24,12 +24,17 @@ function display(value: string | null): string {
   return value ?? "—";
 }
 
-export function WorklistsPanel({ search, generation, showList = true }: {
+export function WorklistsPanel({ search, generation, showList = true, open: openProp, panelId }: {
   search: DiscoverySearchSpec | null;
   generation: number;
   showList?: boolean;
+  /** Quando informado, a abertura é controlada pela toolbar da busca. */
+  open?: boolean;
+  panelId?: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const controlled = openProp !== undefined;
+  const [selfOpen, setSelfOpen] = useState(false);
+  const open = controlled ? openProp : selfOpen;
   const [saveOpen, setSaveOpen] = useState(false);
   const [pendingSearch, setPendingSearch] = useState<DiscoverySearchSpec | null>(null);
   const [name, setName] = useState("");
@@ -40,6 +45,7 @@ export function WorklistsPanel({ search, generation, showList = true }: {
   const [mutating, setMutating] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const openedRef = useRef(open);
   const readControllerRef = useRef<AbortController | null>(null);
   const mutationControllerRef = useRef<AbortController | null>(null);
   const readIdRef = useRef(0);
@@ -102,6 +108,15 @@ export function WorklistsPanel({ search, generation, showList = true }: {
       mutationControllerRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (openedRef.current === open) return;
+    openedRef.current = open;
+    // Só a abertura vinda da toolbar carrega por efeito, adiada para não
+    // disparar estado de forma síncrona. O caminho próprio carrega no evento.
+    if (controlled && open && showList) queueMicrotask(() => { if (mountedRef.current) void loadWorklists(0); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, showList]);
 
   useEffect(() => {
     if (generationRef.current === generation) return;
@@ -187,19 +202,18 @@ export function WorklistsPanel({ search, generation, showList = true }: {
   const listPage = listState.kind === "success" ? listState.page : null;
   const itemPage = itemsState.kind === "success" ? itemsState.page : null;
 
-  return <section className="worklists" aria-label="Listas de trabalho">
-    <div className="export-actions__buttons">
-      {search && <button className="secondary-button" type="button" onClick={() => {
-        setPendingSearch(search);
-        setSaveOpen(true);
-        setMutationError(null);
-      }}>Salvar como lista de trabalho</button>}
-      {showList && <button className="secondary-button" type="button" aria-expanded={open} onClick={() => {
-        const next = !open;
-        setOpen(next);
-        if (next) void loadWorklists(0);
-      }}>Listas de trabalho</button>}
-    </div>
+  const saveButton = search && <button className="secondary-button" type="button" onClick={() => {
+    setPendingSearch(search);
+    setSaveOpen(true);
+    setMutationError(null);
+  }}>Salvar como lista de trabalho</button>;
+  if (controlled && !open) return null;
+
+  return <section className="worklists" id={panelId} aria-label="Listas de trabalho">
+    {!controlled && <div className="export-actions__buttons">
+      {saveButton}
+      {showList && <button className="secondary-button" type="button" aria-expanded={open} onClick={() => { const next = !open; setSelfOpen(next); if (next) void loadWorklists(0); }}>Listas de trabalho</button>}
+    </div>}
     {notice && <p aria-live="polite">{notice}</p>}
     {saveOpen && <div className="worklists__save">
       <label htmlFor="worklist-name">Nome da lista de trabalho</label>
@@ -209,6 +223,7 @@ export function WorklistsPanel({ search, generation, showList = true }: {
       <button type="button" onClick={() => { setSaveOpen(false); setPendingSearch(null); setName(""); }} disabled={mutating}>Cancelar</button>
     </div>}
     {open && <div className="worklists__content">
+      {controlled && saveButton && <div className="export-actions__buttons">{saveButton}</div>}
       <h2>Listas de trabalho</h2>
       {listState.kind === "loading" && <p role="status">Carregando listas de trabalho...</p>}
       {listState.kind === "error" && <p role="alert">{listState.message}</p>}
