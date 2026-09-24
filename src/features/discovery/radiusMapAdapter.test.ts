@@ -26,7 +26,7 @@ vi.mock("leaflet", () => {
     bindTooltip: mocks.bindTooltip,
     getLatLng: () => ({ lat: 1, lng: 1 }),
   };
-  const circle = { ...layer, getBounds: () => bounds };
+  const circle = { ...layer };
   const tile = {
     addTo: vi.fn(),
     on: vi.fn((name: string, callback: () => void) =>
@@ -50,7 +50,7 @@ vi.mock("leaflet", () => {
         }),
         clearLayers: mocks.clearLayers,
       })),
-      latLng: vi.fn((lat, lng) => ({ lat, lng })),
+      latLng: vi.fn((lat, lng) => ({ lat, lng, toBounds: () => bounds })),
       circleMarker: vi.fn(() => layer),
       circle: vi.fn((_center: unknown, options: { radius: number }) => {
         mocks.radius(options.radius);

@@ -22,6 +22,7 @@ import { RadiusResults } from "./RadiusResults";
 import { RadiusSearchForm } from "./RadiusSearchForm";
 import { NeighborsResults } from "./NeighborsResults";
 import { NeighborsSearchForm } from "./NeighborsSearchForm";
+import { ResultsErrorBoundary } from "./ResultsErrorBoundary";
 import { RootBranchesResults } from "./RootBranchesResults";
 import { RootBranchesSearchForm } from "./RootBranchesSearchForm";
 import {
@@ -500,6 +501,17 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
     void executeCommercialGroup(snapshot, limit, 0);
   };
 
+  const activeResultsState =
+    mode === "neighbors"
+      ? neighborsState
+      : mode === "group"
+        ? commercialGroupState
+        : mode === "radius"
+          ? radiusState
+          : mode === "root"
+            ? rootBranchesState
+            : state;
+
   const retry = () => {
     const request = lastRef.current;
     if (!request) return;
@@ -835,53 +847,78 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
           open={utilityPanel === "worklists"}
           panelId="worklists-panel"
         />
-        {mode === "neighbors" ? (
-          <NeighborsResults
-            state={neighborsState}
-            onRetry={retry}
-            onPrevious={() => paginate(-1)}
-            onNext={() => paginate(1)}
-            onLimitChange={changeLimit}
-          />
-        ) : mode === "group" ? (
-          <CommercialGroupResults
-            state={commercialGroupState}
-            focusRef={commercialGroupResultsHeadingRef}
-            onRetry={retry}
-            onPrevious={() => paginate(-1)}
-            onNext={() => paginate(1)}
-            onLimitChange={changeLimit}
-            onSelect={openDetails}
-          />
-        ) : mode === "radius" ? (
-          <RadiusResults
-            state={radiusState}
-            onRetry={retry}
-            onPrevious={() => paginate(-1)}
-            onNext={() => paginate(1)}
-            onLimitChange={changeLimit}
-            onSelect={openDetails}
-          />
-        ) : mode === "root" ? (
-          <RootBranchesResults
-            state={rootBranchesState}
-            focusRef={rootResultsHeadingRef}
-            onRetry={retry}
-            onPrevious={() => paginate(-1)}
-            onNext={() => paginate(1)}
-            onLimitChange={changeLimit}
-            onSelect={openDetails}
-          />
-        ) : (
-          <DiscoveryResults
-            state={state}
-            onRetry={retry}
-            onPrevious={() => paginate(-1)}
-            onNext={() => paginate(1)}
-            onLimitChange={changeLimit}
-            onSelectEstablishment={openDetails}
-          />
-        )}
+        <ResultsErrorBoundary
+          resetKey={activeResultsState}
+          fallback={(reset) => (
+            <section className="results-section" aria-labelledby="results-failure-title">
+              <h2 id="results-failure-title">Resultados</h2>
+              <div className="results-error" role="alert">
+                <p>
+                  Não foi possível exibir os resultados desta busca. Os filtros
+                  foram preservados.
+                </p>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => {
+                    reset();
+                    retry();
+                  }}
+                >
+                  Tentar novamente
+                </button>
+              </div>
+            </section>
+          )}
+        >
+          {mode === "neighbors" ? (
+            <NeighborsResults
+              state={neighborsState}
+              onRetry={retry}
+              onPrevious={() => paginate(-1)}
+              onNext={() => paginate(1)}
+              onLimitChange={changeLimit}
+            />
+          ) : mode === "group" ? (
+            <CommercialGroupResults
+              state={commercialGroupState}
+              focusRef={commercialGroupResultsHeadingRef}
+              onRetry={retry}
+              onPrevious={() => paginate(-1)}
+              onNext={() => paginate(1)}
+              onLimitChange={changeLimit}
+              onSelect={openDetails}
+            />
+          ) : mode === "radius" ? (
+            <RadiusResults
+              state={radiusState}
+              onRetry={retry}
+              onPrevious={() => paginate(-1)}
+              onNext={() => paginate(1)}
+              onLimitChange={changeLimit}
+              onSelect={openDetails}
+            />
+          ) : mode === "root" ? (
+            <RootBranchesResults
+              state={rootBranchesState}
+              focusRef={rootResultsHeadingRef}
+              onRetry={retry}
+              onPrevious={() => paginate(-1)}
+              onNext={() => paginate(1)}
+              onLimitChange={changeLimit}
+              onSelect={openDetails}
+            />
+          ) : (
+            <DiscoveryResults
+              state={state}
+              onRetry={retry}
+              onPrevious={() => paginate(-1)}
+              onNext={() => paginate(1)}
+              onLimitChange={changeLimit}
+              onSelectEstablishment={openDetails}
+            />
+          )}
+        </ResultsErrorBoundary>
       </div>
       {selected && (
         <DiscoveryDetailsDrawer

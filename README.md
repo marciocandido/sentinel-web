@@ -164,7 +164,10 @@ Os tiles podem ser configurados pelas variáveis `VITE_SENTINEL_MAP_TILE_URL` e
 `VITE_SENTINEL_MAP_ATTRIBUTION`; a atribuição é obrigatória e permanece visível.
 O padrão usa tiles raster do OpenStreetMap. Não há Google Maps, API paga,
 geocodificação, prefetch, download offline ou cache manual de tiles. Uma falha
-do mapa-base não remove os resultados textuais.
+do mapa-base não remove os resultados textuais. Uma falha ao desenhar o mapa é
+contida no próprio painel do mapa, mantendo origem e tabela; uma falha ao
+exibir a área de resultados mostra um aviso com **Tentar novamente**, sem
+desmontar shell, sidebar ou filtros.
 
 A UF é sempre um seletor com as 27 unidades federativas e uma opção vazia,
 compartilhado entre busca padrão, origem e resultados do raio e resultados de
