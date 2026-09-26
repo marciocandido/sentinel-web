@@ -5,8 +5,33 @@ import {
   type RadiusMapData,
 } from "./radiusMapAdapter";
 import { radiusMapOptions } from "./radiusMapConfig";
+import { ResultsErrorBoundary } from "./ResultsErrorBoundary";
 
-export function RadiusMap({ data, accessibleName = "Mapa da busca por raio" }: { data: RadiusMapData; accessibleName?: string }) {
+interface RadiusMapProps {
+  data: RadiusMapData;
+  accessibleName?: string;
+}
+
+// O mapa é complementar: uma falha dele não pode remover a tabela vizinha.
+export function RadiusMap(props: RadiusMapProps) {
+  return (
+    <ResultsErrorBoundary
+      resetKey={props.data.items}
+      fallback={() => (
+        <div className="radius-map-panel">
+          <p className="map-warning" role="status">
+            O mapa não pôde ser exibido. Os resultados e posições continuam
+            disponíveis na tabela.
+          </p>
+        </div>
+      )}
+    >
+      <RadiusMapCanvas {...props} />
+    </ResultsErrorBoundary>
+  );
+}
+
+function RadiusMapCanvas({ data, accessibleName = "Mapa da busca por raio" }: RadiusMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<RadiusMapController | null>(null);
   const [tileFailed, setTileFailed] = useState(false);

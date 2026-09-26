@@ -60,12 +60,15 @@ export function createRadiusMapController(
       }).addTo(layers);
       origin.bindTooltip("Origem resolvida");
 
-      const circle = L.circle(center, {
-        radius: data.radiusKm * 1000,
+      const radiusMeters = data.radiusKm * 1000;
+      L.circle(center, {
+        radius: radiusMeters,
         color: "#175cd3",
         fillOpacity: 0.06,
       }).addTo(layers);
-      const bounds = circle.getBounds();
+      // Circle#getBounds exige o layer já projetado no mapa, o que só ocorre
+      // depois da primeira view; os limites do raio são geométricos.
+      const bounds = center.toBounds(radiusMeters * 2);
       bounds.extend(center);
 
       for (const item of data.items) {
