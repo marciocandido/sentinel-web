@@ -58,6 +58,25 @@ export interface RegionSearchParams {
   offset: number;
 }
 
+/**
+ * Busca combinada `GET /api/v1/discovery/establishments` (#207). Todos os
+ * filtros são opcionais, mas o backend exige ao menos um filtro material e os
+ * combina por AND. Capital e códigos permanecem texto.
+ */
+export interface FilteredSearchParams {
+  segmentId?: string;
+  uf?: string;
+  municipioNome?: string;
+  codigoTom?: string;
+  codigoIbge?: string;
+  porteCodigo?: string;
+  capitalMin?: string;
+  capitalMax?: string;
+  includeDiscarded?: boolean;
+  limit: number;
+  offset: number;
+}
+
 export interface SimilarCompaniesParams {
   cnpjFull: string;
   includeDiscarded?: boolean;
@@ -111,6 +130,19 @@ export interface CommercialGroupSearchParams {
 }
 
 export type DiscoveryExportFormat = "CSV" | "XLSX";
+
+export interface FilteredExportSearch {
+  kind: "FILTERED";
+  segment_id?: string | null;
+  uf?: string | null;
+  municipio_nome?: string | null;
+  codigo_tom?: string | null;
+  codigo_ibge?: string | null;
+  porte_codigo?: string | null;
+  capital_min?: string | null;
+  capital_max?: string | null;
+  include_discarded?: boolean;
+}
 
 export interface SegmentExportSearch {
   kind: "SEGMENT";
@@ -181,6 +213,7 @@ export interface SimilarExportSearch {
 }
 
 export type DiscoveryExportSearch =
+  | FilteredExportSearch
   | SegmentExportSearch
   | RegionExportSearch
   | RadiusExportSearch
@@ -319,6 +352,24 @@ export async function listSegments(options?: RequestOptions): Promise<SegmentCat
     throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
   }
   return response;
+}
+
+export async function searchFilteredEstablishments(
+  params: FilteredSearchParams,
+  options?: RequestOptions,
+): Promise<DiscoveryEstablishmentPage> {
+  const query = paginationQuery(params.limit, params.offset);
+  setIfPresent(query, "segment_id", params.segmentId);
+  setIfPresent(query, "uf", params.uf);
+  setIfPresent(query, "municipio_nome", params.municipioNome);
+  setIfPresent(query, "codigo_tom", params.codigoTom);
+  setIfPresent(query, "codigo_ibge", params.codigoIbge);
+  setIfPresent(query, "porte_codigo", params.porteCodigo);
+  setIfPresent(query, "capital_min", params.capitalMin);
+  setIfPresent(query, "capital_max", params.capitalMax);
+  setIncludeDiscarded(query, params.includeDiscarded);
+  const response = await getJson(`/api/v1/discovery/establishments?${query}`, options);
+  return assertDiscoveryPage(response);
 }
 
 export async function searchEstablishmentsBySegment(
@@ -516,6 +567,11 @@ function isDiscoverySearchSpec(value: unknown): value is DiscoverySearchSpec {
   const nullableNumbers = (keys: string[]) => keys.every((key) => search[key] === undefined || search[key] === null || (typeof search[key] === "number" && Number.isFinite(search[key])));
   const optionalDiscarded = search.include_discarded === undefined || typeof search.include_discarded === "boolean";
   if (!optionalDiscarded || typeof search.kind !== "string") return false;
+  if (search.kind === "FILTERED") {
+    const filters = ["segment_id","uf","municipio_nome","codigo_tom","codigo_ibge","porte_codigo","capital_min","capital_max"];
+    return hasOnlyKeys(search, ["kind", ...filters, "include_discarded"]) && nullableStrings(filters) &&
+      filters.some((key) => typeof search[key] === "string" && (search[key] as string).trim() !== "");
+  }
   if (search.kind === "SEGMENT") return hasOnlyKeys(search,["kind","segment_id","uf","codigo_tom","porte_codigo","capital_min","capital_max","include_discarded"]) && typeof search.segment_id === "string" && nullableStrings(["uf","codigo_tom","porte_codigo","capital_min","capital_max"]);
   if (search.kind === "REGION") return hasOnlyKeys(search,["kind","uf","codigo_tom","codigo_ibge","municipio_nome","segment_id","include_discarded"]) && nullableStrings(["uf","codigo_tom","codigo_ibge","municipio_nome","segment_id"]);
   if (search.kind === "RADIUS") return hasOnlyKeys(search,["kind","radius_km","origin_lat","origin_lon","origin_cnpj","origin_codigo_tom","origin_codigo_ibge","origin_municipio_nome","origin_uf","segment_id","uf","include_discarded"]) && typeof search.radius_km === "number" && Number.isFinite(search.radius_km) && nullableStrings(["origin_cnpj","origin_codigo_tom","origin_codigo_ibge","origin_municipio_nome","origin_uf","segment_id","uf"]) && nullableNumbers(["origin_lat","origin_lon"]);

@@ -9,6 +9,7 @@ import {
   similarCompanyPage,
 } from "../test/fixtures";
 import {
+  searchFilteredEstablishments,
   searchEstablishmentsByRegion,
   searchEstablishmentsBySegment,
   searchEstablishmentsByRadius,
@@ -61,6 +62,88 @@ beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockResolvedValue(jsonResponse(discoveryPage()));
   vi.stubGlobal("fetch", fetchMock);
+});
+
+describe("FILTERED — busca combinada (#207)", () => {
+  const saved = (search: unknown) => ({ saved_search_id: "2b5b4d78-7a65-4ba8-b12b-1c3cb0fd5498", name: "Pesquisa", search, created_at: "2026-08-13T12:00:00Z" });
+  const page = (items: unknown[]) => ({ items, pagination: { limit: 20, offset: 0, returned: items.length, has_more: false } });
+
+  it("mounts the canonical route with all eight filters as text, include_discarded and pagination", async () => {
+    await searchFilteredEstablishments({
+      segmentId: "metal-mecanica",
+      uf: "SP",
+      municipioNome: " SÃO PAULO ",
+      codigoTom: "0012",
+      codigoIbge: "03550308",
+      porteCodigo: "03",
+      capitalMin: "000100.50",
+      capitalMax: "900",
+      includeDiscarded: true,
+      limit: 25,
+      offset: 50,
+    });
+    const url = new URL(fetchMock.mock.calls[0][0].toString(), "http://sentinel.local");
+    expect(url.pathname).toBe("/api/v1/discovery/establishments");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      limit: "25",
+      offset: "50",
+      segment_id: "metal-mecanica",
+      uf: "SP",
+      municipio_nome: "SÃO PAULO",
+      codigo_tom: "0012",
+      codigo_ibge: "03550308",
+      porte_codigo: "03",
+      capital_min: "000100.50",
+      capital_max: "900",
+      include_discarded: "true",
+    });
+  });
+
+  it("omits blank filters and include_discarded=false, sending only one material filter", async () => {
+    await searchFilteredEstablishments({ segmentId: "", uf: "  ", porteCodigo: "05", includeDiscarded: false, limit: 50, offset: 0 });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/discovery/establishments?limit=50&offset=0&porte_codigo=05");
+  });
+
+  it("rejects a malformed HTTP 200 page instead of returning an empty list", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ items: [{ ...establishment(), capital_social: 5000.5 }], pagination: { limit: 1, offset: 0, returned: 1, has_more: false } }));
+    await expect(searchFilteredEstablishments({ uf: "SP", limit: 1, offset: 0 })).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it("accepts a strict FILTERED saved search with textual capital and zero-padded codes", async () => {
+    const filtered = { kind: "FILTERED", segment_id: null, uf: null, municipio_nome: null, codigo_tom: "0001", codigo_ibge: "0410000", porte_codigo: "03", capital_min: "100000.00", capital_max: null, include_discarded: false };
+    fetchMock.mockResolvedValueOnce(jsonResponse(page([saved(filtered)])));
+    const result = await listSavedSearches({ limit: 20, offset: 0 });
+    expect(result.items[0].search).toEqual(filtered);
+  });
+
+  it.each([
+    ["an extra field", { kind: "FILTERED", uf: "SP", limit: 10 }],
+    ["actor_id", { kind: "FILTERED", uf: "SP", actor_id: "browser" }],
+    ["numeric capital", { kind: "FILTERED", capital_min: 100000 }],
+    ["numeric codes", { kind: "FILTERED", codigo_ibge: 410000 }],
+    ["no material filter", { kind: "FILTERED", include_discarded: true }],
+    ["only blank filters", { kind: "FILTERED", uf: "  ", segment_id: "" }],
+  ])("rejects a FILTERED definition with %s", async (_name, search) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(page([saved(search)])));
+    await expect(listSavedSearches({ limit: 20, offset: 0 })).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it("creates FILTERED saved searches and worklists and accepts them in worklist responses", async () => {
+    const search = { kind: "FILTERED" as const, municipio_nome: "CAMPINAS", capital_min: "100000" };
+    fetchMock.mockResolvedValueOnce(jsonResponse(saved(search), 201));
+    await createSavedSearch({ name: "Campinas", search });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ name: "Campinas", search });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ worklist_id: "3b5b4d78-7a65-4ba8-b12b-1c3cb0fd5498", name: "Campinas", source_search: search, item_count: 3, created_at: "2026-08-17T12:00:00Z" }, 201));
+    await expect(createWorklist({ name: "Campinas", search })).resolves.toMatchObject({ source_search: search });
+  });
+
+  it("exports FILTERED and validates the kind-specific server filename", async () => {
+    fetchMock.mockResolvedValueOnce(exportResponse("CSV", "sentinel-filtered-20260926T190000Z.csv"));
+    const search = { kind: "FILTERED" as const, uf: "SP" };
+    await expect(exportDiscoveryResults({ format: "CSV", search })).resolves.toMatchObject({ filename: "sentinel-filtered-20260926T190000Z.csv" });
+    fetchMock.mockResolvedValueOnce(exportResponse("CSV", "sentinel-segment-20260926T190000Z.csv"));
+    await expect(exportDiscoveryResults({ format: "CSV", search })).rejects.toMatchObject({ code: "invalid_response" });
+  });
 });
 
 describe("saved searches", () => {

@@ -1,14 +1,7 @@
 import type { DiscoverySearchSpec } from "../../services/sentinelApi";
+import { savedSearchKindLabel } from "./savedSearches";
 
-export const worklistSearchKindLabel: Record<DiscoverySearchSpec["kind"], string> = {
-  SEGMENT: "Segmento",
-  REGION: "Região",
-  RADIUS: "Raio",
-  NEIGHBORS: "Vizinhos",
-  ROOT_BRANCHES: "Raiz/filiais",
-  COMMERCIAL_GROUP: "Grupo comercial",
-  SIMILAR: "Semelhantes",
-};
+export const worklistSearchKindLabel: Record<DiscoverySearchSpec["kind"], string> = savedSearchKindLabel;
 
 export function publicWorklistError(code: string): string {
   const messages: Record<string, string> = {

@@ -3,13 +3,13 @@ import type {
   DiscoveryExportSearch,
 } from "../../services/sentinelApi";
 import type { CommercialGroupSearchSnapshot } from "./commercialGroupTypes";
-import type { DiscoverySearchSnapshot } from "./discoveryTypes";
+import type { FilteredSearchSnapshot } from "./discoveryTypes";
 import type { NeighborsSearchSnapshot } from "./neighborsTypes";
 import type { RadiusSearchSnapshot } from "./radiusTypes";
 import type { RootBranchesSearchSnapshot } from "./rootBranchesTypes";
 
 export type DiscoveryExportSnapshot =
-  | { kind: "standard"; snapshot: DiscoverySearchSnapshot }
+  | { kind: "filtered"; snapshot: FilteredSearchSnapshot }
   | { kind: "radius"; snapshot: RadiusSearchSnapshot }
   | { kind: "neighbors"; snapshot: NeighborsSearchSnapshot }
   | { kind: "root"; snapshot: RootBranchesSearchSnapshot }
@@ -27,27 +27,18 @@ function includeDiscarded(value: boolean): true | undefined {
 export function toDiscoveryExportSearch(
   input: DiscoveryExportSnapshot,
 ): DiscoveryExportSearch {
-  if (input.kind === "standard") {
+  if (input.kind === "filtered") {
     const snapshot = input.snapshot;
-    if (snapshot.mode === "segment") {
-      return {
-        kind: "SEGMENT",
-        segment_id: snapshot.segmentId,
-        uf: present(snapshot.uf),
-        codigo_tom: present(snapshot.codigoTom),
-        porte_codigo: present(snapshot.porteCodigo),
-        capital_min: present(snapshot.capitalMin),
-        capital_max: present(snapshot.capitalMax),
-        include_discarded: includeDiscarded(snapshot.includeDiscarded),
-      };
-    }
     return {
-      kind: "REGION",
+      kind: "FILTERED",
+      segment_id: present(snapshot.segmentId),
       uf: present(snapshot.uf),
+      municipio_nome: present(snapshot.municipioNome),
       codigo_tom: present(snapshot.codigoTom),
       codigo_ibge: present(snapshot.codigoIbge),
-      municipio_nome: present(snapshot.municipioNome),
-      segment_id: present(snapshot.segmentId),
+      porte_codigo: present(snapshot.porteCodigo),
+      capital_min: present(snapshot.capitalMin),
+      capital_max: present(snapshot.capitalMax),
       include_discarded: includeDiscarded(snapshot.includeDiscarded),
     };
   }

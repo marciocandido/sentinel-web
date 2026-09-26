@@ -55,7 +55,3 @@ export function rootBranchRoleLabel(role: string): string {
   if (role === "FILIAL") return "Filial";
   return "Desconhecido";
 }
-
-export function rootBranchValue(value: string | null): string {
-  return value === null || value === "" ? "—" : value;
-}

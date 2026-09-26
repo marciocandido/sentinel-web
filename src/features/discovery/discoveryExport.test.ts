@@ -6,53 +6,50 @@ import {
 } from "./discoveryExport";
 
 describe("Discovery export snapshots", () => {
-  it("converts segment and region snapshots without pagination or identifier coercion", () => {
-    const segment = toDiscoveryExportSearch({
-      kind: "standard",
+  it("converts every Filtros submission into FILTERED without pagination or identifier coercion", () => {
+    const filtered = toDiscoveryExportSearch({
+      kind: "filtered",
       snapshot: {
-        mode: "segment",
         segmentId: "0123456",
         uf: "PR",
+        municipioNome: "CURITIBA",
         codigoTom: "0001",
+        codigoIbge: "0410000",
         porteCodigo: "03",
         capitalMin: "000100.50",
         capitalMax: "",
         includeDiscarded: false,
       },
     });
-    expect(segment).toEqual({
-      kind: "SEGMENT",
+    expect(filtered).toEqual({
+      kind: "FILTERED",
       segment_id: "0123456",
       uf: "PR",
+      municipio_nome: "CURITIBA",
       codigo_tom: "0001",
+      codigo_ibge: "0410000",
       porte_codigo: "03",
       capital_min: "000100.50",
       capital_max: undefined,
       include_discarded: undefined,
     });
-    expect(segment).not.toHaveProperty("limit");
-    expect(segment).not.toHaveProperty("offset");
+    expect(filtered).not.toHaveProperty("limit");
+    expect(filtered).not.toHaveProperty("offset");
 
     expect(toDiscoveryExportSearch({
-      kind: "standard",
+      kind: "filtered",
       snapshot: {
-        mode: "region",
-        segmentId: "0123456",
-        uf: "PR",
-        codigoTom: "0001",
-        codigoIbge: "0410000",
-        municipioNome: "CURITIBA",
+        segmentId: "",
+        uf: "",
+        municipioNome: "",
+        codigoTom: "",
+        codigoIbge: "",
+        porteCodigo: "05",
+        capitalMin: "",
+        capitalMax: "",
         includeDiscarded: true,
       },
-    })).toEqual({
-      kind: "REGION",
-      uf: "PR",
-      codigo_tom: "0001",
-      codigo_ibge: "0410000",
-      municipio_nome: "CURITIBA",
-      segment_id: "0123456",
-      include_discarded: true,
-    });
+    })).toEqual(expect.objectContaining({ kind: "FILTERED", porte_codigo: "05", segment_id: undefined, include_discarded: true }));
   });
 
   it.each([

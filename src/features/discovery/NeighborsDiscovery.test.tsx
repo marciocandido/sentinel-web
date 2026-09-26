@@ -5,6 +5,7 @@ import { runtimeStatus } from "../../test/runtimeFixtures";
 import { neighborEstablishment, neighborSearchPage } from "../../test/fixtures";
 import { isNeighborSearchPage } from "../../types/api";
 import { createNeighborsSnapshot, validateNeighbors } from "./neighborsUtils";
+import { chooseProximity } from "../../test/discoveryUi";
 
 vi.mock("./RadiusMap", () => ({
   RadiusMap: ({ accessibleName }: { accessibleName?: string }) => (
@@ -45,10 +46,10 @@ describe("vizinhos", () => {
       return Promise.resolve(response(neighborSearchPage([neighborEstablishment({ razao_social: "PRIMEIRA" }), neighborEstablishment({ cnpj_full: "0002", razao_social: "SEGUNDA" })])));
     });
     render(<App />);
-    fireEvent.click(await screen.findByRole("radio", { name: "Por vizinhos" }));
+    await chooseProximity("Vizinhos de um CNPJ");
     fireEvent.change(screen.getByLabelText("CNPJ de referência"), { target: { value: "00.ABC/0001-55" } });
-    fireEvent.change(screen.getByLabelText("Raio em quilômetros"), { target: { value: "15" } });
-    fireEvent.submit(screen.getByRole("form", { name: "Formulário de busca por vizinhos" }));
+    fireEvent.change(screen.getByLabelText("Raio (km)"), { target: { value: "15" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Critérios da busca" }));
     await screen.findByText("PRIMEIRA");
     const url = new URL(fetchMock.mock.calls.find(([input]) => input.toString().includes("/neighbors"))![0], "http://local");
     expect(url.pathname).toBe("/api/v1/discovery/establishments/00.ABC%2F0001-55/neighbors");
@@ -56,7 +57,8 @@ describe("vizinhos", () => {
     const rows = screen.getAllByRole("row");
     expect(rows[1]).toHaveTextContent("PRIMEIRA");
     expect(rows[2]).toHaveTextContent("SEGUNDA");
-    expect(screen.queryByText(/porte|capital|prospect/i)).not.toBeInTheDocument();
+    const table = screen.getByRole("table");
+    expect(table).not.toHaveTextContent(/porte|capital|prospect/i);
     expect(screen.getByRole("region", { name: "Mapa dos estabelecimentos vizinhos" })).toBeInTheDocument();
   });
 
@@ -78,9 +80,9 @@ describe("vizinhos", () => {
       return Promise.resolve(response(neighborSearchPage(undefined, { offset: Number(parsed.searchParams.get("offset")), has_more: Number(parsed.searchParams.get("offset")) === 0 })));
     });
     render(<App />);
-    fireEvent.click(await screen.findByRole("radio", { name: "Por vizinhos" }));
+    await chooseProximity("Vizinhos de um CNPJ");
     fireEvent.change(screen.getByLabelText("CNPJ de referência"), { target: { value: "001" } });
-    fireEvent.submit(screen.getByRole("form", { name: "Formulário de busca por vizinhos" }));
+    fireEvent.submit(screen.getByRole("form", { name: "Critérios da busca" }));
     await screen.findByRole("table");
     fireEvent.change(screen.getByLabelText("CNPJ de referência"), { target: { value: "002" } });
     fireEvent.click(screen.getByRole("button", { name: "Próxima" }));

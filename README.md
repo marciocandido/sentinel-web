@@ -138,22 +138,71 @@ exemplos de leitura em [docs/deployment/01-web-container.md](docs/deployment/01-
 
 ## Discovery
 
-A tela principal possui seis modos explícitos:
+A tela principal organiza a busca em **três famílias** mutuamente exclusivas.
+Trocar de família não executa busca: apenas aborta uma request em voo e
+preserva o último resultado submetido e o rascunho próprio de cada família.
 
-- **Por segmento** — exige segmento e aceita UF, código TOM, porte, capital
-  mínimo e capital máximo como filtros opcionais;
-- **Por região** — exige ao menos UF, código TOM, código IBGE ou nome do
-  município. O segmento pode ser usado como filtro adicional, mas não valida
-  sozinho uma busca regional.
-- **Por raio** — aceita origem por município + UF, CNPJ, TOM, IBGE ou
-  coordenadas, além de raio obrigatório, segmento e UF dos resultados opcionais.
-  A UF da origem identifica o município; a UF dos resultados filtra a resposta.
-- **Por raiz/filiais** — consulta por CNPJ completo ou raiz e apresenta somente
-  os estabelecimentos conhecidos na base útil do Sentinel.
-- **Por grupo** — consulta exclusivamente pelo `group_id` textual de um grupo
-  previamente registrado.
-- **Por vizinhos** — consulta por CNPJ de referência, raio e filtros opcionais,
-  exibindo a origem resolvida, tabela e mapa complementar.
+- **Filtros** — segmento, UF e município (nome exato, sem busca aproximada) na
+  linha principal; código TOM, código IBGE, porte, capital mínimo, capital
+  máximo e **Mostrar descartados** em **Mais filtros**. Qualquer combinação com
+  ao menos um filtro material é válida e enviada por `AND` à busca canônica
+  `GET /api/v1/discovery/establishments` (kind `FILTERED`, #207).
+- **Proximidade** — tipo explícito **Raio a partir de uma origem** (origem por
+  município + UF, CNPJ, TOM, IBGE ou coordenadas; raio por CNPJ pode incluir a
+  própria origem) ou **Vizinhos de um CNPJ** (sempre exclui a origem), com
+  segmento e UF dos resultados opcionais. Os contratos `RADIUS` e `NEIGHBORS`
+  permanecem distintos.
+- **Estrutura** — **Raiz e filiais** por CNPJ completo ou raiz
+  (`ROOT_BRANCHES`) ou **Grupo comercial registrado** pelo `group_id` textual
+  (`COMMERCIAL_GROUP`), sem busca por nome ou sócios.
+
+Os nomes técnicos (`FILTERED`, `SEGMENT`, `REGION` etc.) não são exibidos ao
+operador. O formulário valida apenas condições obviamente inválidas — nenhum
+filtro material, decimal malformado, capital mínimo maior que o máximo e campos
+obrigatórios de Proximidade/Estrutura. O backend continua sendo a autoridade
+sobre normalização e regras de domínio.
+
+**Buscar** é o `submit` do formulário, em posição estável no rodapé dos
+critérios, ao lado de **Mais filtros** (recolhido por padrão, com contador de
+filtros complementares ativos; recolher não descarta valores). No mobile o
+rodapé fica fixo na base da viewport, respeitando a safe area.
+
+### Formulário editável × consulta submetida
+
+O formulário é um rascunho; cada **Buscar** cria uma consulta submetida
+imutável. Resultados, paginação, retry, mudança de limite, drawer, exportação,
+pesquisa salva e lista de trabalho usam sempre essa consulta, nunca os valores
+atuais do formulário. A área de resultados mostra o **recibo** da consulta —
+família, horário, visibilidade de descartados e critérios — sem afirmar a
+competência da Receita que respondeu a request (o indicador de competência
+permanece no shell).
+
+Quando o rascunho da mesma família/tipo diverge da consulta submetida, cada
+campo alterado recebe a marcação textual `alterado` com o valor pesquisado, o
+recibo marca `não pesquisado` e um aviso oferece **Desfazer alterações**
+(restaura o rascunho à consulta) ou **Buscar com alterações** (nova consulta).
+Nada depende apenas de cor.
+
+### Resultados
+
+Os resultados preservam a ordem da API. No desktop, cada família usa uma tabela
+comercial compacta com a primeira coluna fixa no scroll horizontal:
+
+- Filtros: empresa (nome fantasia, razão social, CNPJ), localização (município/UF
+  e IBGE), atividade (CNAE e correspondência principal/secundária informada pela
+  API), porte e capital formatado para leitura, status comercial e ações;
+- Proximidade: empresa, município, distância aproximada, atividade, status e
+  ações, com a origem resolvida e o mapa Leaflet complementar;
+- Estrutura/raiz: estabelecimento, papel, situação cadastral, localização,
+  início de atividade, atividade, status e ações;
+- Estrutura/grupo: estabelecimento e raiz, relação registrada, fonte,
+  confiança como texto do registro, localização, status e ações.
+
+Em viewport estreita os mesmos itens aparecem em cards, com ações e paginação
+explícitas, sem tabela horizontal. CNPJ, CNAE, TOM, IBGE, porte e capital
+permanecem texto; o status `UNKNOWN`/`none` aparece como **Desconhecido · sem
+ERP**. Antes da primeira busca, a área mostra um estado vazio com as três
+famílias e acesso a pesquisas salvas e listas.
 
 O modo por raio consome `GET /api/v1/discovery/radius/establishments` e exibe a
 origem resolvida, tabela e mapa Leaflet. Coordenadas, distância, filtros e ordem
@@ -169,40 +218,27 @@ contida no próprio painel do mapa, mantendo origem e tabela; uma falha ao
 exibir a área de resultados mostra um aviso com **Tentar novamente**, sem
 desmontar shell, sidebar ou filtros.
 
-A UF é sempre um seletor com as 27 unidades federativas e uma opção vazia,
-compartilhado entre busca padrão, origem e resultados do raio e resultados de
-vizinhos. A lista é estática, o valor permanece a sigla textual enviada ao
-backend e as validações atuais de cada modo continuam valendo.
+A UF é sempre um seletor com as 27 unidades federativas e uma opção vazia. A
+lista é estática e o valor permanece a sigla textual enviada ao backend.
 
-Os critérios da busca seguem três blocos: a faixa de modos, a linha principal
-de filtros — iniciada pela ação **Buscar**, que é o `submit` do formulário em
-todos os modos — e **Mais filtros e opções**, recolhido por padrão, com os
-filtros complementares e o controle **Mostrar descartados**. Recolher ou abrir
-os filtros complementares não descarta valores digitados, e o payload e a
-validação de cada modo permanecem inalterados.
-
-Na mesma faixa dos seis modos, separadas visualmente, ficam as ações
-**Pesquisas salvas** e **Listas de trabalho**. Elas são botões, não modos de
-busca, e abrem ou recolhem o painel correspondente; enquanto estão fechadas,
-nada ocupa espaço entre os critérios e os resultados.
-
-O formulário valida apenas condições obviamente inválidas, como ausência do
-filtro obrigatório, decimal malformado e capital mínimo maior que o máximo. O
-backend continua sendo a autoridade sobre normalização e regras de domínio.
-
-Os resultados são exibidos na ordem retornada pela API, em uma tabela com
-scroll horizontal em telas estreitas. CNPJ, CNAE, TOM, IBGE, porte e capital
-permanecem texto. Valores ausentes aparecem como `—`, e o status comercial
-`UNKNOWN`/`none` é apresentado explicitamente como desconhecido e provisório.
-
-Após uma busca submetida, os resultados das sete verticais podem ser exportados
-em CSV ou Excel. O navegador envia o mesmo snapshot efetivamente pesquisado ao
-backend, que gera o arquivo sobre o resultado completo — não somente a página
-visível — e controla o limite operacional. O frontend não pagina para exportar,
-não monta colunas e não gera planilhas localmente. A exportação também preserva
-a política de visibilidade capturada no submit.
+Com uma consulta submetida bem-sucedida, as ações **CSV**, **Excel**, **Salvar
+pesquisa** e **Criar lista de trabalho** ficam junto ao recibo. O navegador
+envia a mesma definição submetida ao backend, que gera o arquivo sobre o
+resultado completo — não somente a página visível — e controla o limite
+operacional. O frontend não pagina para exportar, não monta colunas e não gera
+planilhas localmente.
 
 ### Pesquisas salvas e listas de trabalho
+
+**Pesquisas salvas** abre um painel lateral modal (foco contido, Escape e
+retorno de foco) com nome, família, resumo dos critérios, data, **Carregar
+critérios** e **Excluir** com confirmação. Carregar apenas preenche o editor e
+nunca executa a busca. Definições antigas `SEGMENT` e `REGION` abrem a família
+Filtros (rotuladas como “Filtros · Segmento” ou “Filtros · Região”) sem
+reescrever o registro salvo; a próxima busca manual cria uma consulta
+`FILTERED`. `RADIUS`/`NEIGHBORS` abrem Proximidade e `ROOT_BRANCHES`/
+`COMMERCIAL_GROUP` abrem Estrutura. `SIMILAR` continua listada e excluível, mas
+não é carregada no editor principal.
 
 Uma pesquisa salva guarda uma definição reexecutável de filtros. Uma lista de
 trabalho guarda um snapshot materializado de CNPJs: abrir a lista não executa
@@ -213,13 +249,15 @@ membros da lista.
 
 ### Feedback comercial
 
-As seis tabelas principais de Discovery oferecem um painel expansível de
+As tabelas e cards principais de Discovery oferecem um painel expansível de
 **Feedback** por estabelecimento conhecido. O painel registra uma das sete
 ações (Útil, Descartar, Já conheço, Contato ruim, Virou visita, Virou orçamento
 e Virou venda informado) e consulta o histórico append-only do CNPJ. Não há
 notas, edição ou exclusão; o ator retornado é provisório e `Virou venda
 (informado)` não confirma venda ou pedido no ERP. Registrar `Descartar` não
-remove resultados já exibidos nem muda seu status comercial. Nas consultas
+remove resultados já exibidos nem muda seu status comercial. Como o contrato de
+feedback não conhece `FILTERED`, resultados de Filtros registram origem
+`SEGMENT` quando a consulta tinha segmento e nenhuma origem nos demais casos. Nas consultas
 seguintes, o backend oculta descartados por padrão; o único controle **Mostrar
 descartados** inclui esses itens somente depois de uma nova busca. Paginação,
 retry, mudança de limite, drawer e exportação continuam usando o snapshot
@@ -310,9 +348,8 @@ não é uma ficha completa da empresa e não consulta endpoint de detalhe.
 - `GET /api/v1/base/update/preflight` — validação da atualização mensal;
 - `POST /api/v1/base/update` — autorização explícita por competência;
 - `GET /api/v1/catalog/segments` — seletor de segmentos.
-- `GET /api/v1/discovery/segments/{segment_id}/establishments` — busca por
-  segmento;
-- `GET /api/v1/discovery/regions/establishments` — busca por região.
+- `GET /api/v1/discovery/establishments` — busca combinada da família Filtros
+  (`FILTERED`), com os oito filtros opcionais e ao menos um obrigatório.
 - `GET /api/v1/discovery/establishments/{cnpj_full}/similar` — empresas
   semelhantes, com `limit=25` e paginação por `offset`, sem total geral.
 - `GET /api/v1/discovery/radius/establishments` — busca por raio com origem
@@ -325,7 +362,7 @@ não é uma ficha completa da empresa e não consulta endpoint de detalhe.
   um CNPJ de referência, com status comercial provisório `UNKNOWN`/`none`, sem
   `neighbor_group`.
 - `POST /api/v1/discovery/exports` — exportação CSV/XLSX do snapshot completo
-  submetido nas sete verticais de Discovery, sem `limit` ou `offset` do cliente.
+  submetido das verticais de Discovery, incluindo `FILTERED`, sem `limit` ou `offset` do cliente.
 - `POST`/`GET` `/api/v1/discovery/worklists` — criação e listagem de snapshots
   materializados de CNPJs.
 - `GET /api/v1/discovery/worklists/{worklist_id}/items` — membros atuais da
@@ -334,11 +371,12 @@ não é uma ficha completa da empresa e não consulta endpoint de detalhe.
 
 ## Escopo atual
 
-A tela entrega o shell desktop-first do Sentinel, busca funcional por segmento,
-região, raio, raiz/filiais conhecidas ou grupo comercial registrado, estados de
-validação/carregamento/erro, retry manual e tabela paginada. Requisições
-anteriores são canceladas ao iniciar uma nova busca, trocar o modo ou desmontar
-a tela; respostas obsoletas são ignoradas.
+A tela entrega o shell do Sentinel e o Discovery em três famílias (Filtros,
+Proximidade e Estrutura), com consulta submetida separada do formulário,
+estados de validação/carregamento/erro/cancelamento, retry manual, tabela
+paginada no desktop e cards no mobile. Requisições anteriores são canceladas ao
+iniciar uma nova busca, trocar a família ou desmontar a tela; respostas
+obsoletas são ignoradas.
 
 Ficam para as próximas etapas: ficha completa, endereço, contatos, CNAEs
 secundários detalhados, QSA, filtros de raio/UF/TOM/segmento para semelhantes,

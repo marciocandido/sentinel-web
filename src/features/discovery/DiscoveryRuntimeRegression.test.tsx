@@ -13,6 +13,7 @@ import {
   isNeighborSearchPage,
   isRadiusSearchPage,
 } from "../../types/api";
+import { chooseFamily, chooseProximity, chooseRadiusOrigin } from "../../test/discoveryUi";
 
 // Issue #50: sem mock de RadiusMap nem de Leaflet, exceto quando o teste força
 // explicitamente uma falha para verificar o isolamento.
@@ -37,13 +38,13 @@ vi.mock("./radiusMapAdapter", async (importOriginal) => {
   };
 });
 
-vi.mock("./DiscoveryTable", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./DiscoveryTable")>();
+vi.mock("./ResultsCollection", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./ResultsCollection")>();
   return {
     ...actual,
-    DiscoveryTable: (props: Parameters<typeof actual.DiscoveryTable>[0]) => {
+    ResultsCollection: (props: Parameters<typeof actual.ResultsCollection>[0]) => {
       if (failures.table) throw new Error("falha forçada da tabela");
-      return <actual.DiscoveryTable {...props} />;
+      return <actual.ResultsCollection {...props} />;
     },
   };
 });
@@ -58,7 +59,7 @@ function api(input: RequestInfo | URL): Promise<Response> {
   const url = input.toString();
   if (url.includes("/api/v1/runtime/status")) return Promise.resolve(response(runtimeStatus()));
   if (url.includes("catalog/segments")) return Promise.resolve(response({ items: [] }));
-  if (url.includes("/regions/establishments")) return Promise.resolve(response(runtimeRegionPage()));
+  if (url.includes("/discovery/establishments?")) return Promise.resolve(response(runtimeRegionPage()));
   if (url.includes("origin_cnpj=")) {
     return Promise.resolve(
       response(runtimeRadiusPage(runtimeRadiusOrigin({ kind: "CNPJ", cnpj_full: "00A00002000120" }))),
@@ -76,34 +77,34 @@ function discoveryCalls(fragment: string) {
 function expectShellAndFiltersMounted() {
   expect(screen.getByRole("complementary", { name: "Navegação principal" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Buscar empresas" })).toBeInTheDocument();
-  expect(screen.getByRole("group", { name: "Modo de busca" })).toBeInTheDocument();
+  expect(screen.getByRole("radiogroup", { name: "Tipo de busca" })).toBeInTheDocument();
 }
 
 async function searchRegion() {
-  fireEvent.click(await screen.findByRole("radio", { name: "Por região" }));
-  fireEvent.change(screen.getByLabelText("UF"), { target: { value: "SP" } });
-  fireEvent.change(screen.getByLabelText("Nome do município"), { target: { value: "Campinas" } });
+  await chooseFamily("Filtros");
+  fireEvent.change(screen.getByLabelText(/^UF \(opcional\)/), { target: { value: "SP" } });
+  fireEvent.change(screen.getByLabelText(/^Município/), { target: { value: "Campinas" } });
   fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
 }
 
 async function searchRadius(origin: "municipality" | "cnpj") {
-  fireEvent.click(await screen.findByRole("radio", { name: "Por raio" }));
+  await chooseProximity("Raio a partir de uma origem");
   if (origin === "cnpj") {
-    fireEvent.change(screen.getByLabelText("Tipo de origem"), { target: { value: "cnpj" } });
+    chooseRadiusOrigin("CNPJ");
     fireEvent.change(screen.getByLabelText("CNPJ de origem"), { target: { value: "00A00002000120" } });
   } else {
-    fireEvent.change(screen.getByLabelText("Nome do município"), { target: { value: "Campinas" } });
+    fireEvent.change(screen.getByLabelText("Município de origem"), { target: { value: "Campinas" } });
     fireEvent.change(screen.getByLabelText("UF da origem"), { target: { value: "SP" } });
   }
-  fireEvent.change(screen.getByLabelText("Raio em quilômetros"), { target: { value: "10" } });
-  fireEvent.click(screen.getByRole("button", { name: "Buscar por raio" }));
+  fireEvent.change(screen.getByLabelText("Raio (km)"), { target: { value: "10" } });
+  fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
 }
 
 async function searchNeighbors() {
-  fireEvent.click(await screen.findByRole("radio", { name: "Por vizinhos" }));
+  await chooseProximity("Vizinhos de um CNPJ");
   fireEvent.change(screen.getByLabelText("CNPJ de referência"), { target: { value: "00A00002000120" } });
-  fireEvent.change(screen.getByLabelText("Raio em quilômetros"), { target: { value: "10" } });
-  fireEvent.submit(screen.getByRole("form", { name: "Formulário de busca por vizinhos" }));
+  fireEvent.change(screen.getByLabelText("Raio (km)"), { target: { value: "10" } });
+  fireEvent.submit(screen.getByRole("form", { name: "Critérios da busca" }));
 }
 
 beforeEach(() => {
@@ -124,7 +125,7 @@ describe("Discovery com payloads reais do runtime (issue #50)", () => {
   it("renders a realistic region result", async () => {
     render(<App />);
     await searchRegion();
-    expect(await screen.findByText("00.A00.001 EMPRESA INDIVIDUAL SINTETICA")).toBeInTheDocument();
+    expect((await screen.findAllByText("00.A00.001 EMPRESA INDIVIDUAL SINTETICA")).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("row")).toHaveLength(4);
     expectShellAndFiltersMounted();
   });
@@ -158,7 +159,7 @@ describe("Discovery com payloads reais do runtime (issue #50)", () => {
     await searchRadius("municipality");
     expect(await screen.findByText(/O mapa não pôde ser exibido/)).toBeInTheDocument();
     expect(screen.getByText("019 REGIAO SINTETICA SERVICOS LTDA")).toBeInTheDocument();
-    expect(screen.getByText("Origem resolvida")).toBeInTheDocument();
+    expect(screen.getByLabelText("Origem resolvida")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Mapa da busca por raio" })).not.toBeInTheDocument();
     expectShellAndFiltersMounted();
   });
@@ -182,16 +183,16 @@ describe("Discovery com payloads reais do runtime (issue #50)", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Não foi possível exibir os resultados desta busca");
     expectShellAndFiltersMounted();
-    expect(screen.getByLabelText("UF")).toHaveValue("SP");
-    expect(screen.getByLabelText("Nome do município")).toHaveValue("Campinas");
-    expect(discoveryCalls("/regions/establishments")).toHaveLength(1);
+    expect(screen.getByLabelText(/^UF \(opcional\)/)).toHaveValue("SP");
+    expect(screen.getByLabelText(/^Município/)).toHaveValue("Campinas");
+    expect(discoveryCalls("/discovery/establishments?")).toHaveLength(1);
 
     failures.table = false;
     fireEvent.click(within(alert).getByRole("button", { name: "Tentar novamente" }));
-    expect(await screen.findByText("00.A00.001 EMPRESA INDIVIDUAL SINTETICA")).toBeInTheDocument();
-    expect(discoveryCalls("/regions/establishments")).toHaveLength(2);
-    expect(discoveryCalls("/regions/establishments")[1][0].toString()).toBe(
-      discoveryCalls("/regions/establishments")[0][0].toString(),
+    expect((await screen.findAllByText("00.A00.001 EMPRESA INDIVIDUAL SINTETICA")).length).toBeGreaterThan(0);
+    expect(discoveryCalls("/discovery/establishments?")).toHaveLength(2);
+    expect(discoveryCalls("/discovery/establishments?")[1][0].toString()).toBe(
+      discoveryCalls("/discovery/establishments?")[0][0].toString(),
     );
   });
 });

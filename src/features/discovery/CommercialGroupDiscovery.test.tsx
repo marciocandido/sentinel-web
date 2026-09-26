@@ -32,6 +32,7 @@ import {
   publicCommercialGroupError,
   validateCommercialGroup,
 } from "./commercialGroupUtils";
+import { chooseFamily, chooseStructure } from "../../test/discoveryUi";
 
 vi.mock("./RadiusMap", () => ({
   RadiusMap: () => (
@@ -90,21 +91,21 @@ function groupUrl(index: number): URL {
 }
 
 async function selectGroupMode() {
-  fireEvent.click(await screen.findByRole("radio", { name: "Por grupo" }));
+  await chooseStructure("Grupo comercial registrado");
 }
 
 function groupInput() {
-  return screen.getByRole("textbox", { name: "ID do grupo" });
+  return screen.getByRole("textbox", { name: "ID do grupo registrado" });
 }
 
 function submitGroup() {
-  fireEvent.click(screen.getByRole("button", { name: "Buscar grupo" }));
+  fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
 }
 
 function submitGroupForm() {
   fireEvent.submit(
     screen.getByRole("form", {
-      name: "Formulário de busca por grupo comercial",
+      name: "Critérios da busca",
     }),
   );
 }
@@ -131,24 +132,16 @@ afterEach(() => {
 });
 
 describe("modo grupo comercial", () => {
-  it("shows the fifth accessible mode and preserves the four previous modes", async () => {
+  it("offers Grupo comercial registrado as a Estrutura type without searching", async () => {
     render(<App />);
-    await screen.findByRole("radio", { name: "Por segmento" });
-    for (const name of [
-      "Por segmento",
-      "Por região",
-      "Por raio",
-      "Por raiz/filiais",
-      "Por grupo",
-    ]) {
-      expect(screen.getByRole("radio", { name })).toBeInTheDocument();
-    }
+    await chooseFamily("Estrutura");
+    const types = screen.getByRole("radiogroup", { name: "Tipo" });
+    expect(within(types).getAllByRole("radio").map((radio) => radio.getAttribute("value"))).toEqual(["root", "group"]);
+    expect(within(types).getByRole("radio", { name: "Raiz e filiais" })).toBeChecked();
 
     await selectGroupMode();
     expect(groupInput()).toHaveAttribute("type", "text");
-    expect(
-      screen.getByText(/grupo previamente registrado no Sentinel/i),
-    ).toBeInTheDocument();
+    expect(groupInput()).toHaveAccessibleDescription(/Só grupos registrados no Sentinel. Não busca por nome nem por sócios./);
     expect(groupCalls()).toHaveLength(0);
   });
 
@@ -200,9 +193,9 @@ describe("modo grupo comercial", () => {
 
     expect(screen.getByRole("button", { name: "Buscando..." })).toBeDisabled();
     expect(
-      screen.getByRole("region", { name: "Resultados por grupo comercial" }),
+      screen.getByRole("region", { name: "Resultados" }),
     ).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByText("Buscando raízes registradas...")).toHaveAttribute(
+    expect(screen.getByText("Buscando empresas...")).toHaveAttribute(
       "role",
       "status",
     );
@@ -252,39 +245,41 @@ describe("modo grupo comercial", () => {
     expect(context).toHaveTextContent("Grupo Metal Registrado");
     expect(context).toHaveTextContent("REGISTERED");
     expect(context).toHaveTextContent("BASE_UTIL");
-    expect(screen.getByRole("note")).toHaveTextContent(
-      "Esta consulta mostra somente raízes explicitamente registradas no grupo.",
-    );
+    expect(context).toHaveTextContent("Somente raízes explicitamente registradas no grupo");
+    expect(context).toHaveTextContent("Não representa a estrutura societária completa");
+    expect(within(screen.getByRole("table")).getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+      "Estabelecimento e raiz", "Relação registrada", "Fonte", "Confiança (texto do registro)", "Localização", "Status comercial", "Ações",
+    ]);
 
     const rows = screen.getAllByRole("row");
     expect(rows[1]).toHaveTextContent("00000001");
     expect(rows[1]).toHaveTextContent(
-      "Estabelecimento não disponível na base útil",
+      "Registrada no grupo, sem estabelecimento na base útil.",
     );
+    expect(rows[1]).toHaveTextContent("não informada");
     expect(rows[1]).toHaveTextContent("manual-link");
     expect(rows[1]).toHaveTextContent("curadoria");
-    expect(rows[1]).toHaveTextContent("—");
-    expect(rows[1]).not.toHaveTextContent("Ver detalhes");
+    expect(rows[1]).toHaveTextContent("Sem detalhes");
     expect(rows[2]).toHaveTextContent("SEGUNDO DA API");
-    expect(rows[2]).toHaveTextContent("Filial");
-    expect(rows[2]).toHaveTextContent("Código Receita: 02");
+    expect(rows[2]).toHaveTextContent("00AB345600019X");
+    expect(rows[2]).toHaveTextContent("raiz 00AB3456");
     expect(rows[2]).toHaveTextContent("registered");
     expect(rows[2]).toHaveTextContent("manual");
-    expect(rows[2]).toHaveTextContent("Confiança cadastrada: 0.8200");
-    expect(rows[2]).toHaveTextContent("Desconhecido (provisório)");
+    expect(within(rows[2]).getAllByRole("cell")[3]).toHaveTextContent(/^0\.8200$/);
+    expect(rows[2]).toHaveTextContent("Desconhecido");
     expect(rows[2]).not.toHaveTextContent("%");
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByText(/baixa|média|alta/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/score|probabilidade|grupo confirmado/i)).not.toBeInTheDocument();
 
     expect(
-      within(rows[1]).queryByRole("button", { name: "Ver detalhes" }),
+      within(rows[1]).queryByRole("button", { name: /^Detalhes de/ }),
     ).not.toBeInTheDocument();
     expect(
-      within(rows[1]).queryByRole("button", { name: "Feedback" }),
+      within(rows[1]).queryByRole("button", { name: /^Feedback de/ }),
     ).not.toBeInTheDocument();
     const detailButton = within(rows[2]).getByRole("button", {
-      name: "Ver detalhes",
+      name: "Detalhes de SEGUNDO DA API",
     });
     detailButton.focus();
     fireEvent.click(detailButton);
@@ -322,9 +317,9 @@ describe("modo grupo comercial", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Contexto do grupo comercial")).toHaveTextContent(
-      "Nome do grupo—",
+      "Grupo sem nome",
     );
-    expect(screen.getByRole("note")).toHaveTextContent("base útil");
+    expect(screen.getByLabelText("Contexto do grupo comercial")).toHaveTextContent("base útil");
     expect(screen.getByLabelText("Paginação dos resultados")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -446,7 +441,7 @@ describe("modo grupo comercial", () => {
     submitGroupForm();
     expect(signals[0].aborted).toBe(true);
 
-    fireEvent.click(screen.getByRole("radio", { name: "Por segmento" }));
+    await chooseFamily("Filtros");
     expect(signals[1].aborted).toBe(true);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
