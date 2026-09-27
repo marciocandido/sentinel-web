@@ -1,114 +1,42 @@
 import { Bookmark, ListChecks } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSegmentCatalog } from "../../components/segmentCatalog";
 import { SentinelApiError } from "../../services/apiClient";
-import {
-  searchEstablishmentsByRadius,
-  searchEstablishmentsByRegion,
-  searchEstablishmentsBySegment,
-  searchCommercialGroup,
-  searchNeighboringEstablishments,
-  searchRootBranches,
-  type DiscoveryExportSearch,
-} from "../../services/sentinelApi";
+import type { SavedSearch } from "../../services/sentinelApi";
 import type { DiscoveryEstablishment } from "../../types/api";
-import { CommercialGroupResults } from "./CommercialGroupResults";
-import { CommercialGroupSearchForm } from "./CommercialGroupSearchForm";
+import { createCommercialGroupSnapshot, validateCommercialGroup } from "./commercialGroupUtils";
+import { EMPTY_COMMERCIAL_GROUP_FORM } from "./commercialGroupTypes";
+import { DiscoveryCriteria, type CriteriaErrors } from "./DiscoveryCriteria";
 import { DiscoveryDetailsDrawer } from "./DiscoveryDetailsDrawer";
-import { DiscoveryExportActions } from "./DiscoveryExportActions";
-import { DiscoveryModeSwitcher } from "./DiscoveryModeSwitcher";
-import { DiscoveryResults } from "./DiscoveryResults";
-import { DiscoverySearchForm } from "./DiscoverySearchForm";
-import { RadiusResults } from "./RadiusResults";
-import { RadiusSearchForm } from "./RadiusSearchForm";
-import { NeighborsResults } from "./NeighborsResults";
-import { NeighborsSearchForm } from "./NeighborsSearchForm";
-import { ResultsErrorBoundary } from "./ResultsErrorBoundary";
-import { RootBranchesResults } from "./RootBranchesResults";
-import { RootBranchesSearchForm } from "./RootBranchesSearchForm";
+import {
+  draftChanges,
+  draftQueryKind,
+  submittedFormValues,
+  submittedSpec,
+} from "./discoveryQuery";
+import { DiscoveryResultsArea } from "./DiscoveryResultsArea";
 import {
   EMPTY_FORM,
-  type DiscoveryFormValues,
-  type DiscoverySearchSnapshot,
-  type DiscoveryViewState,
-  type SearchMode,
-  type ValidationErrors,
+  type DiscoveryDraft,
+  type DiscoveryFamily,
+  type DiscoverySubmission,
+  type QueryKind,
+  type ResultsState,
+  type SubmittedQuery,
 } from "./discoveryTypes";
-import { createSnapshot, validateSearch } from "./discoveryUtils";
-import {
-  EMPTY_RADIUS_FORM,
-  type RadiusFormValues,
-  type RadiusSearchSnapshot,
-  type RadiusValidationErrors,
-  type RadiusViewState,
-} from "./radiusTypes";
-import { createRadiusSnapshot, validateRadius } from "./radiusUtils";
-import {
-  EMPTY_NEIGHBORS_FORM,
-  type NeighborsFormValues,
-  type NeighborsSearchSnapshot,
-  type NeighborsValidationErrors,
-  type NeighborsViewState,
-} from "./neighborsTypes";
+import { createFilteredSnapshot, validateFilters } from "./discoveryUtils";
+import { EMPTY_NEIGHBORS_FORM } from "./neighborsTypes";
 import { createNeighborsSnapshot, validateNeighbors } from "./neighborsUtils";
-import {
-  EMPTY_ROOT_BRANCHES_FORM,
-  type RootBranchesFormValues,
-  type RootBranchesSearchSnapshot,
-  type RootBranchesValidationErrors,
-  type RootBranchesViewState,
-} from "./rootBranchesTypes";
-import {
-  createRootBranchesSnapshot,
-  validateRootBranches,
-} from "./rootBranchesUtils";
-import {
-  EMPTY_COMMERCIAL_GROUP_FORM,
-  type CommercialGroupFormValues,
-  type CommercialGroupSearchSnapshot,
-  type CommercialGroupValidationErrors,
-  type CommercialGroupViewState,
-} from "./commercialGroupTypes";
-import {
-  createCommercialGroupSnapshot,
-  validateCommercialGroup,
-} from "./commercialGroupUtils";
-import { toDiscoveryExportSearch } from "./discoveryExport";
+import { EMPTY_RADIUS_FORM, type RadiusFormValues } from "./radiusTypes";
+import { createRadiusSnapshot, validateRadius } from "./radiusUtils";
+import { EMPTY_ROOT_BRANCHES_FORM, type RootBranchesFormValues } from "./rootBranchesTypes";
+import { createRootBranchesSnapshot, validateRootBranches } from "./rootBranchesUtils";
+import { runDiscoveryQuery } from "./runDiscoveryQuery";
+import { SavedSearchesDrawer } from "./SavedSearchesDrawer";
+import { savedSearchKindLabel, type EditableDiscoverySearch } from "./savedSearches";
 import { useDiscoveryExport } from "./useDiscoveryExport";
-import { SavedSearchesPanel } from "./SavedSearchesPanel";
+import { NARROW_VIEWPORT_QUERY, useMediaQuery } from "./useMediaQuery";
 import { WorklistsPanel } from "./WorklistsPanel";
-import type { EditableDiscoverySearch } from "./savedSearches";
-
-type LastRequest =
-  | {
-      kind: "standard";
-      snapshot: DiscoverySearchSnapshot;
-      limit: number;
-      offset: number;
-    }
-  | {
-      kind: "radius";
-      snapshot: RadiusSearchSnapshot;
-      limit: number;
-      offset: number;
-    }
-  | {
-      kind: "neighbors";
-      snapshot: NeighborsSearchSnapshot;
-      limit: number;
-      offset: number;
-    }
-  | {
-      kind: "root";
-      snapshot: RootBranchesSearchSnapshot;
-      limit: number;
-      offset: number;
-    }
-  | {
-      kind: "group";
-      snapshot: CommercialGroupSearchSnapshot;
-      limit: number;
-      offset: number;
-    };
 
 interface SelectedContext {
   establishment: DiscoveryEstablishment;
@@ -129,266 +57,114 @@ const isLifecycleError = (code: string): code is DiscoveryLifecycleError =>
   code === "base_initializing" ||
   code === "base_unavailable";
 
+const INITIAL_DRAFT: DiscoveryDraft = {
+  family: "filters",
+  proximityType: "radius",
+  structureType: "root",
+  filters: EMPTY_FORM,
+  radius: EMPTY_RADIUS_FORM,
+  neighbors: EMPTY_NEIGHBORS_FORM,
+  root: EMPTY_ROOT_BRANCHES_FORM,
+  group: EMPTY_COMMERCIAL_GROUP_FORM,
+  includeDiscarded: false,
+};
+
+/** Valida o rascunho do tipo visível e produz a consulta imutável a submeter. */
+function buildQuery(kind: QueryKind, draft: DiscoveryDraft): { errors: CriteriaErrors; query: SubmittedQuery | null } {
+  const include = draft.includeDiscarded;
+  if (kind === "filtered") {
+    const errors = validateFilters(draft.filters);
+    return Object.keys(errors).length
+      ? { errors: { filtered: errors }, query: null }
+      : { errors: {}, query: { kind, snapshot: createFilteredSnapshot(draft.filters, include) } };
+  }
+  if (kind === "radius") {
+    const errors = validateRadius(draft.radius);
+    return Object.keys(errors).length
+      ? { errors: { radius: errors }, query: null }
+      : { errors: {}, query: { kind, snapshot: createRadiusSnapshot(draft.radius, include) } };
+  }
+  if (kind === "neighbors") {
+    const errors = validateNeighbors(draft.neighbors);
+    return Object.keys(errors).length
+      ? { errors: { neighbors: errors }, query: null }
+      : { errors: {}, query: { kind, snapshot: createNeighborsSnapshot(draft.neighbors, include) } };
+  }
+  if (kind === "root") {
+    const errors = validateRootBranches(draft.root);
+    return Object.keys(errors).length
+      ? { errors: { root: errors }, query: null }
+      : { errors: {}, query: { kind, snapshot: createRootBranchesSnapshot(draft.root, include) } };
+  }
+  const errors = validateCommercialGroup(draft.group);
+  return Object.keys(errors).length
+    ? { errors: { group: errors }, query: null }
+    : { errors: {}, query: { kind, snapshot: createCommercialGroupSnapshot(draft.group, include) } };
+}
+
+/** Aplica ao rascunho os valores editáveis equivalentes a uma definição. */
+function applyEditable(draft: DiscoveryDraft, editable: EditableDiscoverySearch): DiscoveryDraft {
+  const next = { ...draft, includeDiscarded: editable.includeDiscarded };
+  if (editable.mode === "filtered") return { ...next, family: "filters", filters: editable.values };
+  if (editable.mode === "radius") return { ...next, family: "proximity", proximityType: "radius", radius: editable.values };
+  if (editable.mode === "neighbors") return { ...next, family: "proximity", proximityType: "neighbors", neighbors: editable.values };
+  if (editable.mode === "root") return { ...next, family: "structure", structureType: "root", root: editable.values };
+  return { ...next, family: "structure", structureType: "group", group: editable.values };
+}
+
 export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
-  const [mode, setMode] = useState<SearchMode>("segment");
-  const [values, setValues] = useState<DiscoveryFormValues>(EMPTY_FORM);
-  const [radiusValues, setRadiusValues] =
-    useState<RadiusFormValues>(EMPTY_RADIUS_FORM);
-  const [neighborsValues, setNeighborsValues] =
-    useState<NeighborsFormValues>(EMPTY_NEIGHBORS_FORM);
-  const [rootBranchesValues, setRootBranchesValues] =
-    useState<RootBranchesFormValues>(EMPTY_ROOT_BRANCHES_FORM);
-  const [commercialGroupValues, setCommercialGroupValues] =
-    useState<CommercialGroupFormValues>(EMPTY_COMMERCIAL_GROUP_FORM);
-  const [includeDiscarded, setIncludeDiscarded] = useState(false);
-  const [errors, setErrors] = useState<ValidationErrors>({});
-  const [radiusErrors, setRadiusErrors] =
-    useState<RadiusValidationErrors>({});
-  const [neighborsErrors, setNeighborsErrors] =
-    useState<NeighborsValidationErrors>({});
-  const [rootBranchesErrors, setRootBranchesErrors] =
-    useState<RootBranchesValidationErrors>({});
-  const [commercialGroupErrors, setCommercialGroupErrors] =
-    useState<CommercialGroupValidationErrors>({});
-  const [state, setState] = useState<DiscoveryViewState>({ kind: "initial" });
-  const [radiusState, setRadiusState] = useState<RadiusViewState>({
-    kind: "initial",
-  });
-  const [neighborsState, setNeighborsState] = useState<NeighborsViewState>({ kind: "initial" });
-  const [rootBranchesState, setRootBranchesState] =
-    useState<RootBranchesViewState>({ kind: "initial" });
-  const [commercialGroupState, setCommercialGroupState] =
-    useState<CommercialGroupViewState>({ kind: "initial" });
+  const catalog = useSegmentCatalog();
+  const narrow = useMediaQuery(NARROW_VIEWPORT_QUERY);
+  const [draft, setDraft] = useState<DiscoveryDraft>(INITIAL_DRAFT);
+  const [errors, setErrors] = useState<CriteriaErrors>({});
+  const [notice, setNotice] = useState<string | null>(null);
+  const [submission, setSubmission] = useState<DiscoverySubmission | null>(null);
+  const [results, setResults] = useState<ResultsState>({ kind: "initial" });
+  const [succeededId, setSucceededId] = useState<number | null>(null);
   const [limit, setLimit] = useState(50);
   const [selected, setSelected] = useState<SelectedContext | null>(null);
-  const [detailsTrigger, setDetailsTrigger] =
-    useState<HTMLElement | null>(null);
+  const [detailsTrigger, setDetailsTrigger] = useState<HTMLElement | null>(null);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [savedTrigger, setSavedTrigger] = useState<HTMLElement | null>(null);
+  const [worklistsOpen, setWorklistsOpen] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
-  const submittedRef = useRef<DiscoverySearchSnapshot | null>(null);
-  const radiusSubmittedRef = useRef<RadiusSearchSnapshot | null>(null);
-  const neighborsSubmittedRef = useRef<NeighborsSearchSnapshot | null>(null);
-  const rootBranchesSubmittedRef =
-    useRef<RootBranchesSearchSnapshot | null>(null);
-  const commercialGroupSubmittedRef =
-    useRef<CommercialGroupSearchSnapshot | null>(null);
-  const lastRef = useRef<LastRequest | null>(null);
-  const rootResultsHeadingRef = useRef<HTMLHeadingElement>(null);
-  const rootFocusPendingRef = useRef(false);
-  const commercialGroupResultsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const submissionIdRef = useRef(0);
+  const submissionRef = useRef<DiscoverySubmission | null>(null);
+  const lastRequestRef = useRef<{ limit: number; offset: number }>({ limit: 50, offset: 0 });
+  const resultsHeadingRef = useRef<HTMLHeadingElement>(null);
+  const focusResultsPendingRef = useRef(false);
   const discoveryExport = useDiscoveryExport();
-  const [exportSearch, setExportSearch] = useState<DiscoveryExportSearch | null>(null);
-  const [savedSearchNotice, setSavedSearchNotice] = useState<string | null>(null);
-  const [submittedGeneration, setSubmittedGeneration] = useState(0);
-  const [utilityPanel, setUtilityPanel] = useState<"saved" | "worklists" | null>(null);
 
-  const beginRequest = () => {
+  const abortInFlight = () => {
+    requestIdRef.current += 1;
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+  };
+
+  /** Executa sempre uma consulta submetida; nunca lê o formulário. */
+  const execute = async (target: DiscoverySubmission, requestLimit: number, offset: number) => {
     setSelected(null);
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
-    return { controller, requestId: ++requestIdRef.current };
-  };
-
-  const executeStandard = async (
-    snapshot: DiscoverySearchSnapshot,
-    requestLimit: number,
-    offset: number,
-  ) => {
-    const { controller, requestId } = beginRequest();
-    lastRef.current = {
-      kind: "standard",
-      snapshot,
-      limit: requestLimit,
-      offset,
-    };
-    setState({ kind: "loading" });
+    const requestId = ++requestIdRef.current;
+    lastRequestRef.current = { limit: requestLimit, offset };
+    setResults({ kind: "loading" });
     try {
-      const page =
-        snapshot.mode === "segment"
-          ? await searchEstablishmentsBySegment(
-              {
-                segmentId: snapshot.segmentId,
-                uf: snapshot.uf,
-                codigoTom: snapshot.codigoTom,
-                porteCodigo: snapshot.porteCodigo,
-                capitalMin: snapshot.capitalMin,
-                capitalMax: snapshot.capitalMax,
-                includeDiscarded: snapshot.includeDiscarded,
-                limit: requestLimit,
-                offset,
-              },
-              { signal: controller.signal },
-            )
-          : await searchEstablishmentsByRegion(
-              {
-                segmentId: snapshot.segmentId,
-                uf: snapshot.uf,
-                codigoTom: snapshot.codigoTom,
-                codigoIbge: snapshot.codigoIbge,
-                municipioNome: snapshot.municipioNome,
-                includeDiscarded: snapshot.includeDiscarded,
-                limit: requestLimit,
-                offset,
-              },
-              { signal: controller.signal },
-            );
+      const result = await runDiscoveryQuery(target.query, requestLimit, offset, controller.signal);
       if (requestId === requestIdRef.current && !controller.signal.aborted) {
-        setState({ kind: "success", page, snapshot });
-      }
-    } catch (error) {
-      if (requestId !== requestIdRef.current || controller.signal.aborted) return;
-      const code =
-        error instanceof SentinelApiError ? error.code : "network_error";
-      if (isLifecycleError(code)) {
-        setState({ kind: "initial" });
-        onLifecycleError?.(code);
-      } else if (code !== "request_aborted") setState({ kind: "error", code });
-    }
-  };
-
-  const executeRadius = async (
-    snapshot: RadiusSearchSnapshot,
-    requestLimit: number,
-    offset: number,
-  ) => {
-    const { controller, requestId } = beginRequest();
-    lastRef.current = {
-      kind: "radius",
-      snapshot,
-      limit: requestLimit,
-      offset,
-    };
-    setRadiusState({ kind: "loading" });
-    try {
-      const page = await searchEstablishmentsByRadius(
-        {
-          origin: snapshot.origin,
-          radiusKm: snapshot.radiusKm,
-          segmentId: snapshot.segmentId,
-          resultUf: snapshot.resultUf,
-          includeDiscarded: snapshot.includeDiscarded,
-          limit: requestLimit,
-          offset,
-        },
-        { signal: controller.signal },
-      );
-      if (requestId === requestIdRef.current && !controller.signal.aborted) {
-        setRadiusState({ kind: "success", page, snapshot });
-      }
-    } catch (error) {
-      if (requestId !== requestIdRef.current || controller.signal.aborted) return;
-      const code =
-        error instanceof SentinelApiError ? error.code : "network_error";
-      if (isLifecycleError(code)) {
-        setRadiusState({ kind: "initial" });
-        onLifecycleError?.(code);
-      } else if (code !== "request_aborted") {
-        setRadiusState({ kind: "error", code });
-      }
-    }
-  };
-
-  const executeNeighbors = async (
-    snapshot: NeighborsSearchSnapshot,
-    requestLimit: number,
-    offset: number,
-  ) => {
-    const { controller, requestId } = beginRequest();
-    lastRef.current = { kind: "neighbors", snapshot, limit: requestLimit, offset };
-    setNeighborsState({ kind: "loading" });
-    try {
-      const page = await searchNeighboringEstablishments(
-        { cnpjFull: snapshot.cnpj, radiusKm: snapshot.radiusKm, segmentId: snapshot.segmentId, resultUf: snapshot.resultUf, includeDiscarded: snapshot.includeDiscarded, limit: requestLimit, offset },
-        { signal: controller.signal },
-      );
-      if (requestId === requestIdRef.current && !controller.signal.aborted) {
-        setNeighborsState({ kind: "success", page, snapshot });
+        setResults({ kind: "success", result });
+        setSucceededId(target.id);
       }
     } catch (error) {
       if (requestId !== requestIdRef.current || controller.signal.aborted) return;
       const code = error instanceof SentinelApiError ? error.code : "network_error";
       if (isLifecycleError(code)) {
-        setNeighborsState({ kind: "initial" });
-        onLifecycleError?.(code);
-      } else if (code !== "request_aborted") setNeighborsState({ kind: "error", code });
-    }
-  };
-
-  const executeRootBranches = async (
-    snapshot: RootBranchesSearchSnapshot,
-    requestLimit: number,
-    offset: number,
-  ) => {
-    const { controller, requestId } = beginRequest();
-    lastRef.current = {
-      kind: "root",
-      snapshot,
-      limit: requestLimit,
-      offset,
-    };
-    setRootBranchesState({ kind: "loading" });
-    try {
-      const page = await searchRootBranches(
-        {
-          identifier: snapshot.identifier,
-          includeDiscarded: snapshot.includeDiscarded,
-          limit: requestLimit,
-          offset,
-        },
-        { signal: controller.signal },
-      );
-      if (requestId === requestIdRef.current && !controller.signal.aborted) {
-        setRootBranchesState({ kind: "success", page, snapshot });
-      }
-    } catch (error) {
-      if (requestId !== requestIdRef.current || controller.signal.aborted) return;
-      const code =
-        error instanceof SentinelApiError ? error.code : "network_error";
-      if (isLifecycleError(code)) {
-        setRootBranchesState({ kind: "initial" });
+        setResults({ kind: "initial" });
         onLifecycleError?.(code);
       } else if (code !== "request_aborted") {
-        setRootBranchesState({ kind: "error", code });
-      }
-    }
-  };
-
-  const executeCommercialGroup = async (
-    snapshot: CommercialGroupSearchSnapshot,
-    requestLimit: number,
-    offset: number,
-  ) => {
-    const { controller, requestId } = beginRequest();
-    lastRef.current = {
-      kind: "group",
-      snapshot,
-      limit: requestLimit,
-      offset,
-    };
-    setCommercialGroupState({ kind: "loading" });
-    try {
-      const page = await searchCommercialGroup(
-        {
-          groupId: snapshot.groupId,
-          includeDiscarded: snapshot.includeDiscarded,
-          limit: requestLimit,
-          offset,
-        },
-        { signal: controller.signal },
-      );
-      if (requestId === requestIdRef.current && !controller.signal.aborted) {
-        setCommercialGroupState({ kind: "success", page, snapshot });
-      }
-    } catch (error) {
-      if (requestId !== requestIdRef.current || controller.signal.aborted) return;
-      const code =
-        error instanceof SentinelApiError ? error.code : "network_error";
-      if (isLifecycleError(code)) {
-        setCommercialGroupState({ kind: "initial" });
-        onLifecycleError?.(code);
-      } else if (code !== "request_aborted") {
-        setCommercialGroupState({ kind: "error", code });
+        setResults({ kind: "error", code });
       }
     }
   };
@@ -402,523 +178,202 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
   );
 
   useEffect(() => {
-    if (mode !== "root" || !rootFocusPendingRef.current) return;
-    rootFocusPendingRef.current = false;
-    rootResultsHeadingRef.current?.focus();
-  }, [mode, rootBranchesState.kind]);
+    if (!focusResultsPendingRef.current || results.kind === "loading") return;
+    focusResultsPendingRef.current = false;
+    resultsHeadingRef.current?.focus();
+  }, [results.kind]);
 
-  const changeMode = (next: SearchMode) => {
-    if (next === mode) return;
+  const submitQuery = (query: SubmittedQuery) => {
+    const next: DiscoverySubmission = {
+      id: ++submissionIdRef.current,
+      query,
+      spec: submittedSpec(query),
+      submittedAt: new Date(),
+    };
     discoveryExport.cancel();
-    requestIdRef.current += 1;
-    controllerRef.current?.abort();
-    controllerRef.current = null;
-    submittedRef.current = null;
-    radiusSubmittedRef.current = null;
-    neighborsSubmittedRef.current = null;
-    rootBranchesSubmittedRef.current = null;
-    commercialGroupSubmittedRef.current = null;
-    setExportSearch(null);
-    lastRef.current = null;
-    setSelected(null);
-    setMode(next);
-    setErrors({});
-    setRadiusErrors({});
-    setNeighborsErrors({});
-    setRootBranchesErrors({});
-    setCommercialGroupErrors({});
-    setState({ kind: "initial" });
-    setRadiusState({ kind: "initial" });
-    setNeighborsState({ kind: "initial" });
-    setRootBranchesState({ kind: "initial" });
-    setCommercialGroupState({ kind: "initial" });
-    setSavedSearchNotice(null);
-    setSubmittedGeneration((current) => current + 1);
+    submissionRef.current = next;
+    setSubmission(next);
+    setNotice(null);
+    void execute(next, limit, 0);
   };
 
   const submit = () => {
-    const validation = validateSearch(mode, values);
+    const { errors: validation, query } = buildQuery(draftQueryKind(draft), draft);
     setErrors(validation);
-    if (Object.keys(validation).length) return;
-    discoveryExport.cancel();
-    setSavedSearchNotice(null);
-    setSubmittedGeneration((current) => current + 1);
-    const snapshot = createSnapshot(mode, values, includeDiscarded);
-    submittedRef.current = snapshot;
-    setExportSearch(toDiscoveryExportSearch({ kind: "standard", snapshot }));
-    void executeStandard(snapshot, limit, 0);
+    if (query) submitQuery(query);
   };
 
-  const submitRadius = () => {
-    const validation = validateRadius(radiusValues);
-    setRadiusErrors(validation);
-    if (Object.keys(validation).length) return;
-    discoveryExport.cancel();
-    setSavedSearchNotice(null);
-    setSubmittedGeneration((current) => current + 1);
-    const snapshot = createRadiusSnapshot(radiusValues, includeDiscarded);
-    radiusSubmittedRef.current = snapshot;
-    setExportSearch(toDiscoveryExportSearch({ kind: "radius", snapshot }));
-    void executeRadius(snapshot, limit, 0);
+  const changeFamily = (family: DiscoveryFamily) => {
+    if (family === draft.family) return;
+    // Trocar de família não busca; só aborta a request em voo da consulta submetida.
+    if (results.kind === "loading") {
+      abortInFlight();
+      setResults({ kind: "cancelled" });
+    }
+    setDraft((current) => ({ ...current, family }));
   };
-
-  const submitNeighbors = () => {
-    const validation = validateNeighbors(neighborsValues);
-    setNeighborsErrors(validation);
-    if (Object.keys(validation).length) return;
-    discoveryExport.cancel();
-    setSavedSearchNotice(null);
-    setSubmittedGeneration((current) => current + 1);
-    const snapshot = createNeighborsSnapshot(neighborsValues, includeDiscarded);
-    neighborsSubmittedRef.current = snapshot;
-    setExportSearch(toDiscoveryExportSearch({ kind: "neighbors", snapshot }));
-    void executeNeighbors(snapshot, limit, 0);
-  };
-
-  const submitRootBranches = () => {
-    const validation = validateRootBranches(rootBranchesValues);
-    setRootBranchesErrors(validation);
-    if (Object.keys(validation).length) return;
-    discoveryExport.cancel();
-    setSavedSearchNotice(null);
-    setSubmittedGeneration((current) => current + 1);
-    const snapshot = createRootBranchesSnapshot(rootBranchesValues, includeDiscarded);
-    rootBranchesSubmittedRef.current = snapshot;
-    setExportSearch(toDiscoveryExportSearch({ kind: "root", snapshot }));
-    void executeRootBranches(snapshot, limit, 0);
-  };
-
-  const submitCommercialGroup = () => {
-    const validation = validateCommercialGroup(commercialGroupValues);
-    setCommercialGroupErrors(validation);
-    if (Object.keys(validation).length) return;
-    discoveryExport.cancel();
-    setSavedSearchNotice(null);
-    setSubmittedGeneration((current) => current + 1);
-    const snapshot = createCommercialGroupSnapshot(commercialGroupValues, includeDiscarded);
-    commercialGroupSubmittedRef.current = snapshot;
-    setExportSearch(toDiscoveryExportSearch({ kind: "group", snapshot }));
-    void executeCommercialGroup(snapshot, limit, 0);
-  };
-
-  const activeResultsState =
-    mode === "neighbors"
-      ? neighborsState
-      : mode === "group"
-        ? commercialGroupState
-        : mode === "radius"
-          ? radiusState
-          : mode === "root"
-            ? rootBranchesState
-            : state;
 
   const retry = () => {
-    const request = lastRef.current;
-    if (!request) return;
-    if (request.kind === "neighbors") {
-      void executeNeighbors(request.snapshot, request.limit, request.offset);
-    } else if (request.kind === "radius") {
-      void executeRadius(request.snapshot, request.limit, request.offset);
-    } else if (request.kind === "root") {
-      void executeRootBranches(
-        request.snapshot,
-        request.limit,
-        request.offset,
-      );
-    } else if (request.kind === "group") {
-      void executeCommercialGroup(
-        request.snapshot,
-        request.limit,
-        request.offset,
-      );
-    } else {
-      void executeStandard(request.snapshot, request.limit, request.offset);
-    }
+    const target = submissionRef.current;
+    if (!target) return;
+    void execute(target, lastRequestRef.current.limit, lastRequestRef.current.offset);
   };
 
   const paginate = (direction: -1 | 1) => {
-    if (
-      mode === "neighbors" &&
-      neighborsState.kind === "success" &&
-      neighborsSubmittedRef.current
-    ) {
-      const pagination = neighborsState.page.pagination;
-      if (direction === 1 && !pagination.has_more) return;
-      void executeNeighbors(neighborsSubmittedRef.current, pagination.limit, Math.max(0, pagination.offset + direction * pagination.limit));
-    } else if (
-      mode === "group" &&
-      commercialGroupState.kind === "success" &&
-      commercialGroupSubmittedRef.current
-    ) {
-      const pagination = commercialGroupState.page.pagination;
-      if (direction === 1 && !pagination.has_more) return;
-      void executeCommercialGroup(
-        commercialGroupSubmittedRef.current,
-        pagination.limit,
-        Math.max(0, pagination.offset + direction * pagination.limit),
-      );
-    } else if (
-      mode === "root" &&
-      rootBranchesState.kind === "success" &&
-      rootBranchesSubmittedRef.current
-    ) {
-      const pagination = rootBranchesState.page.pagination;
-      if (direction === 1 && !pagination.has_more) return;
-      void executeRootBranches(
-        rootBranchesSubmittedRef.current,
-        pagination.limit,
-        Math.max(0, pagination.offset + direction * pagination.limit),
-      );
-    } else if (
-      mode === "radius" &&
-      radiusState.kind === "success" &&
-      radiusSubmittedRef.current
-    ) {
-      const pagination = radiusState.page.pagination;
-      if (direction === 1 && !pagination.has_more) return;
-      void executeRadius(
-        radiusSubmittedRef.current,
-        pagination.limit,
-        Math.max(0, pagination.offset + direction * pagination.limit),
-      );
-    } else if (state.kind === "success" && submittedRef.current) {
-      const pagination = state.page.pagination;
-      if (direction === 1 && !pagination.has_more) return;
-      void executeStandard(
-        submittedRef.current,
-        pagination.limit,
-        Math.max(0, pagination.offset + direction * pagination.limit),
-      );
-    }
+    const target = submissionRef.current;
+    if (results.kind !== "success" || !target) return;
+    const pagination = results.result.page.pagination;
+    if (direction === 1 && !pagination.has_more) return;
+    void execute(target, pagination.limit, Math.max(0, pagination.offset + direction * pagination.limit));
   };
 
   const changeLimit = (next: number) => {
     setLimit(next);
-    if (mode === "neighbors" && neighborsSubmittedRef.current) {
-      void executeNeighbors(neighborsSubmittedRef.current, next, 0);
-    } else if (mode === "group" && commercialGroupSubmittedRef.current) {
-      void executeCommercialGroup(commercialGroupSubmittedRef.current, next, 0);
-    } else if (mode === "root" && rootBranchesSubmittedRef.current) {
-      void executeRootBranches(rootBranchesSubmittedRef.current, next, 0);
-    } else if (mode === "radius" && radiusSubmittedRef.current) {
-      void executeRadius(radiusSubmittedRef.current, next, 0);
-    } else if (submittedRef.current) {
-      void executeStandard(submittedRef.current, next, 0);
-    }
+    if (submissionRef.current) void execute(submissionRef.current, next, 0);
+  };
+
+  const undo = () => {
+    if (!submission) return;
+    const editable = submittedFormValues(submission);
+    if (!editable) return;
+    setDraft((current) => applyEditable(current, editable));
+    setErrors({});
   };
 
   const openDetails = (item: DiscoveryEstablishment) => {
-    if (document.activeElement instanceof HTMLElement) {
-      setDetailsTrigger(document.activeElement);
-    }
-    const submittedVisibility = mode === "group"
-      ? commercialGroupSubmittedRef.current?.includeDiscarded
-      : mode === "root"
-        ? rootBranchesSubmittedRef.current?.includeDiscarded
-        : mode === "radius"
-          ? radiusSubmittedRef.current?.includeDiscarded
-          : submittedRef.current?.includeDiscarded;
+    if (document.activeElement instanceof HTMLElement) setDetailsTrigger(document.activeElement);
     setSelected({
       establishment: item,
-      includeDiscarded: submittedVisibility ?? false,
+      includeDiscarded: submissionRef.current?.query.snapshot.includeDiscarded ?? false,
     });
   };
 
-  const openRootBranchesFromDrawer = (
-    establishment: DiscoveryEstablishment,
-    selectedIncludeDiscarded: boolean,
-  ) => {
-    discoveryExport.cancel();
-    requestIdRef.current += 1;
-    controllerRef.current?.abort();
-    controllerRef.current = null;
-    submittedRef.current = null;
-    radiusSubmittedRef.current = null;
-    neighborsSubmittedRef.current = null;
-    commercialGroupSubmittedRef.current = null;
-    lastRef.current = null;
+  const openRootBranchesFromDrawer = (establishment: DiscoveryEstablishment, includeDiscarded: boolean) => {
+    const values: RootBranchesFormValues = { identifierKind: "cnpj", identifierValue: establishment.cnpj_full };
     setSelected(null);
-    setMode("root");
+    setDraft((current) => ({ ...current, family: "structure", structureType: "root", root: values, includeDiscarded }));
     setErrors({});
-    setRadiusErrors({});
-    setNeighborsErrors({});
-    setRootBranchesErrors({});
-    setCommercialGroupErrors({});
-    setState({ kind: "initial" });
-    setRadiusState({ kind: "initial" });
-    setNeighborsState({ kind: "initial" });
-    setCommercialGroupState({ kind: "initial" });
-    const values: RootBranchesFormValues = {
-      identifierKind: "cnpj",
-      identifierValue: establishment.cnpj_full,
-    };
-    const snapshot = createRootBranchesSnapshot(values, selectedIncludeDiscarded);
-    setRootBranchesValues(values);
-    rootBranchesSubmittedRef.current = snapshot;
-    setExportSearch(toDiscoveryExportSearch({ kind: "root", snapshot }));
-    rootFocusPendingRef.current = true;
-    void executeRootBranches(snapshot, limit, 0);
+    focusResultsPendingRef.current = true;
+    submitQuery({ kind: "root", snapshot: createRootBranchesSnapshot(values, includeDiscarded) });
   };
 
-  const loadSavedSearch = (editable: EditableDiscoverySearch) => {
-    discoveryExport.cancel();
-    requestIdRef.current += 1;
-    controllerRef.current?.abort();
-    controllerRef.current = null;
-    submittedRef.current = null; radiusSubmittedRef.current = null; neighborsSubmittedRef.current = null;
-    rootBranchesSubmittedRef.current = null; commercialGroupSubmittedRef.current = null; lastRef.current = null;
-    setExportSearch(null); setSelected(null); setErrors({}); setRadiusErrors({}); setNeighborsErrors({}); setRootBranchesErrors({}); setCommercialGroupErrors({});
-    setState({ kind: "initial" }); setRadiusState({ kind: "initial" }); setNeighborsState({ kind: "initial" }); setRootBranchesState({ kind: "initial" }); setCommercialGroupState({ kind: "initial" });
-    setMode(editable.mode); setIncludeDiscarded(editable.includeDiscarded);
-    if (editable.mode === "segment" || editable.mode === "region") setValues(editable.values);
-    else if (editable.mode === "radius") setRadiusValues(editable.values);
-    else if (editable.mode === "neighbors") setNeighborsValues(editable.values);
-    else if (editable.mode === "root") setRootBranchesValues(editable.values);
-    else if (editable.mode === "group") setCommercialGroupValues(editable.values);
-    setUtilityPanel(null);
-    setSavedSearchNotice("Pesquisa carregada. Revise os critérios e clique em Buscar.");
+  const openSavedSearches = () => {
+    if (document.activeElement instanceof HTMLElement) setSavedTrigger(document.activeElement);
+    setSavedOpen(true);
   };
 
-  const discardedControl = (
-    <div className="discarded-visibility-control">
-      <label htmlFor="include-discarded">
-        <input
-          id="include-discarded"
-          type="checkbox"
-          checked={includeDiscarded}
-          aria-describedby="include-discarded-help"
-          onChange={(event) => setIncludeDiscarded(event.target.checked)}
-        />
-        <span>Mostrar descartados</span>
-      </label>
-      <p id="include-discarded-help">
-        Inclui empresas que você já descartou anteriormente.
-      </p>
-    </div>
-  );
+  const closeSavedSearches = useCallback(() => setSavedOpen(false), []);
+
+  const loadSavedSearch = (editable: EditableDiscoverySearch, item: SavedSearch) => {
+    setDraft((current) => applyEditable(current, editable));
+    setErrors({});
+    setSavedOpen(false);
+    setNotice(`Critérios de “${item.name}” (${savedSearchKindLabel[item.search.kind]}) carregados. Revise e clique em Buscar; a pesquisa salva não é alterada.`);
+  };
+
+  const changes = draftChanges(draft, submission, catalog.nameOf);
+  const otherKindVisible = submission !== null && draftQueryKind(draft) !== submission.query.kind;
+  const overlayOpen = selected !== null || savedOpen;
 
   return (
     <section className="discovery" aria-labelledby="discovery-title">
       <div
         className="discovery-content"
-        inert={selected ? true : undefined}
-        aria-hidden={selected ? true : undefined}
+        inert={overlayOpen ? true : undefined}
+        aria-hidden={overlayOpen ? true : undefined}
       >
         <div className="page-intro">
-          <h1 id="discovery-title">Buscar empresas</h1>
-          <p className="page-intro__hint">
-            Pesquise por segmento, região, raio geográfico, vizinhos, raiz ou grupo
-            comercial registrado.
-          </p>
-        </div>
-        <article className="search-card" aria-labelledby="search-card-title">
-          <h2 id="search-card-title" className="sr-only">Critérios da busca</h2>
-          <div className="search-toolbar">
-            <DiscoveryModeSwitcher mode={mode} onChange={changeMode} />
-            <div className="search-toolbar__utilities" role="group" aria-label="Ações da busca">
-              <button
-                type="button"
-                className={`toolbar-action ${utilityPanel === "saved" ? "toolbar-action--active" : ""}`}
-                aria-expanded={utilityPanel === "saved"}
-                aria-controls="saved-searches-panel"
-                onClick={() => setUtilityPanel((current) => (current === "saved" ? null : "saved"))}
-              >
-                <Bookmark aria-hidden="true" size={16} />
-                <span>Pesquisas salvas</span>
-              </button>
-              <button
-                type="button"
-                className={`toolbar-action ${utilityPanel === "worklists" ? "toolbar-action--active" : ""}`}
-                aria-expanded={utilityPanel === "worklists"}
-                aria-controls="worklists-panel"
-                onClick={() => setUtilityPanel((current) => (current === "worklists" ? null : "worklists"))}
-              >
-                <ListChecks aria-hidden="true" size={16} />
-                <span>Listas de trabalho</span>
-              </button>
-            </div>
+          <div className="page-intro__text">
+            <h1 id="discovery-title">Buscar empresas</h1>
+            <p className="page-intro__hint">
+              Descubra estabelecimentos na base pública de CNPJ por filtros, proximidade ou estrutura.
+            </p>
           </div>
-          {mode === "neighbors" ? (
-            <NeighborsSearchForm
-              values={neighborsValues}
-              errors={neighborsErrors}
-              searching={neighborsState.kind === "loading"}
-              options={discardedControl}
-              optionsFilled={includeDiscarded ? 1 : 0}
-              onChange={(field, value) => {
-                setNeighborsValues((current) => ({ ...current, [field]: value }));
-                setNeighborsErrors((current) => ({ ...current, [field]: undefined }));
-              }}
-              onSubmit={submitNeighbors}
-            />
-          ) : mode === "group" ? (
-            <CommercialGroupSearchForm
-              values={commercialGroupValues}
-              errors={commercialGroupErrors}
-              searching={commercialGroupState.kind === "loading"}
-              options={discardedControl}
-              optionsFilled={includeDiscarded ? 1 : 0}
-              onChange={(field, value) => {
-                setCommercialGroupValues((current) => ({
-                  ...current,
-                  [field]: value,
-                }));
-                setCommercialGroupErrors((current) => ({
-                  ...current,
-                  [field]: undefined,
-                }));
-              }}
-              onSubmit={submitCommercialGroup}
-            />
-          ) : mode === "radius" ? (
-            <RadiusSearchForm
-              values={radiusValues}
-              errors={radiusErrors}
-              searching={radiusState.kind === "loading"}
-              options={discardedControl}
-              optionsFilled={includeDiscarded ? 1 : 0}
-              onChange={(field, value) => {
-                setRadiusValues(
-                  (current) =>
-                    ({ ...current, [field]: value }) as RadiusFormValues,
-                );
-                setRadiusErrors((current) => ({
-                  ...current,
-                  [field]: undefined,
-                }));
-              }}
-              onSubmit={submitRadius}
-            />
-          ) : mode === "root" ? (
-            <RootBranchesSearchForm
-              values={rootBranchesValues}
-              errors={rootBranchesErrors}
-              searching={rootBranchesState.kind === "loading"}
-              options={discardedControl}
-              optionsFilled={includeDiscarded ? 1 : 0}
-              onChange={(field, value) => {
-                setRootBranchesValues((current) => ({
-                  ...current,
-                  [field]: value,
-                }));
-                setRootBranchesErrors((current) => ({
-                  ...current,
-                  identifierValue: undefined,
-                }));
-              }}
-              onSubmit={submitRootBranches}
-            />
-          ) : (
-            <DiscoverySearchForm
-              mode={mode}
-              values={values}
-              errors={errors}
-              searching={state.kind === "loading"}
-              options={discardedControl}
-              optionsFilled={includeDiscarded ? 1 : 0}
-              onValueChange={(field, value) => {
-                setValues((current) => ({ ...current, [field]: value }));
-                setErrors((current) => ({
-                  ...current,
-                  [field]: undefined,
-                  region: undefined,
-                }));
-              }}
-              onSubmit={submit}
-            />
-          )}
-        </article>
-        <DiscoveryExportActions
-          search={exportSearch}
-          state={discoveryExport.state}
-          onExport={(format, search) => void discoveryExport.start(format, search)}
-        />
-        {savedSearchNotice && <p aria-live="polite">{savedSearchNotice}</p>}
-        <SavedSearchesPanel
-          search={exportSearch}
-          generation={submittedGeneration}
-          onLoad={loadSavedSearch}
-          open={utilityPanel === "saved"}
-          panelId="saved-searches-panel"
+          <div className="page-intro__actions" role="group" aria-label="Pesquisas salvas e listas">
+            <button
+              type="button"
+              className="toolbar-action"
+              aria-haspopup="dialog"
+              aria-expanded={savedOpen}
+              aria-controls="saved-searches-panel"
+              onClick={openSavedSearches}
+            >
+              <Bookmark aria-hidden="true" size={16} />
+              <span>Pesquisas salvas</span>
+            </button>
+            <button
+              type="button"
+              className={`toolbar-action ${worklistsOpen ? "toolbar-action--active" : ""}`}
+              aria-expanded={worklistsOpen}
+              aria-controls="worklists-panel"
+              onClick={() => setWorklistsOpen((current) => !current)}
+            >
+              <ListChecks aria-hidden="true" size={16} />
+              <span>Listas de trabalho</span>
+            </button>
+          </div>
+        </div>
+        <DiscoveryCriteria
+          draft={draft}
+          errors={errors}
+          changes={changes}
+          searching={results.kind === "loading"}
+          catalog={catalog}
+          notice={notice}
+          onFamilyChange={changeFamily}
+          onProximityTypeChange={(proximityType) => setDraft((current) => ({ ...current, proximityType }))}
+          onStructureTypeChange={(structureType) => setDraft((current) => ({ ...current, structureType }))}
+          onFiltersChange={(field, value) => {
+            setDraft((current) => ({ ...current, filters: { ...current.filters, [field]: value } }));
+            setErrors((current) => ({ ...current, filtered: { ...current.filtered, [field]: undefined, filters: undefined } }));
+          }}
+          onRadiusChange={(field, value) => {
+            setDraft((current) => ({ ...current, radius: { ...current.radius, [field]: value } as RadiusFormValues }));
+            setErrors((current) => ({ ...current, radius: { ...current.radius, [field]: undefined } }));
+          }}
+          onNeighborsChange={(field, value) => {
+            setDraft((current) => ({ ...current, neighbors: { ...current.neighbors, [field]: value } }));
+            setErrors((current) => ({ ...current, neighbors: { ...current.neighbors, [field]: undefined } }));
+          }}
+          onRootChange={(field, value) => {
+            setDraft((current) => ({ ...current, root: { ...current.root, [field]: value } }));
+            setErrors((current) => ({ ...current, root: {} }));
+          }}
+          onGroupChange={(field, value) => {
+            setDraft((current) => ({ ...current, group: { ...current.group, [field]: value } }));
+            setErrors((current) => ({ ...current, group: {} }));
+          }}
+          onIncludeDiscardedChange={(includeDiscarded) => setDraft((current) => ({ ...current, includeDiscarded }))}
+          onUndo={undo}
+          onSubmit={submit}
         />
         <WorklistsPanel
-          search={exportSearch}
-          generation={submittedGeneration}
-          open={utilityPanel === "worklists"}
+          search={null}
+          generation={0}
+          open={worklistsOpen}
           panelId="worklists-panel"
         />
-        <ResultsErrorBoundary
-          resetKey={activeResultsState}
-          fallback={(reset) => (
-            <section className="results-section" aria-labelledby="results-failure-title">
-              <h2 id="results-failure-title">Resultados</h2>
-              <div className="results-error" role="alert">
-                <p>
-                  Não foi possível exibir os resultados desta busca. Os filtros
-                  foram preservados.
-                </p>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => {
-                    reset();
-                    retry();
-                  }}
-                >
-                  Tentar novamente
-                </button>
-              </div>
-            </section>
-          )}
-        >
-          {mode === "neighbors" ? (
-            <NeighborsResults
-              state={neighborsState}
-              onRetry={retry}
-              onPrevious={() => paginate(-1)}
-              onNext={() => paginate(1)}
-              onLimitChange={changeLimit}
-            />
-          ) : mode === "group" ? (
-            <CommercialGroupResults
-              state={commercialGroupState}
-              focusRef={commercialGroupResultsHeadingRef}
-              onRetry={retry}
-              onPrevious={() => paginate(-1)}
-              onNext={() => paginate(1)}
-              onLimitChange={changeLimit}
-              onSelect={openDetails}
-            />
-          ) : mode === "radius" ? (
-            <RadiusResults
-              state={radiusState}
-              onRetry={retry}
-              onPrevious={() => paginate(-1)}
-              onNext={() => paginate(1)}
-              onLimitChange={changeLimit}
-              onSelect={openDetails}
-            />
-          ) : mode === "root" ? (
-            <RootBranchesResults
-              state={rootBranchesState}
-              focusRef={rootResultsHeadingRef}
-              onRetry={retry}
-              onPrevious={() => paginate(-1)}
-              onNext={() => paginate(1)}
-              onLimitChange={changeLimit}
-              onSelect={openDetails}
-            />
-          ) : (
-            <DiscoveryResults
-              state={state}
-              onRetry={retry}
-              onPrevious={() => paginate(-1)}
-              onNext={() => paginate(1)}
-              onLimitChange={changeLimit}
-              onSelectEstablishment={openDetails}
-            />
-          )}
-        </ResultsErrorBoundary>
+        <DiscoveryResultsArea
+          submission={submission}
+          results={results}
+          actionsAvailable={submission !== null && succeededId === submission.id}
+          changes={changes}
+          otherKindVisible={otherKindVisible}
+          narrow={narrow}
+          segmentName={catalog.nameOf}
+          focusRef={resultsHeadingRef}
+          exportState={discoveryExport.state}
+          onExport={(format, search) => void discoveryExport.start(format, search)}
+          onUndo={undo}
+          onSearchWithChanges={submit}
+          onRetry={retry}
+          onPrevious={() => paginate(-1)}
+          onNext={() => paginate(1)}
+          onLimitChange={changeLimit}
+          onSelect={openDetails}
+          onOpenSavedSearches={openSavedSearches}
+          onOpenWorklists={() => setWorklistsOpen(true)}
+        />
       </div>
       {selected && (
         <DiscoveryDetailsDrawer
@@ -928,6 +383,14 @@ export function DiscoveryLanding({ onLifecycleError }: DiscoveryLandingProps) {
           onClose={() => setSelected(null)}
           onOpenRootBranches={openRootBranchesFromDrawer}
           returnFocusTo={detailsTrigger}
+        />
+      )}
+      {savedOpen && (
+        <SavedSearchesDrawer
+          onClose={closeSavedSearches}
+          onLoad={loadSavedSearch}
+          returnFocusTo={savedTrigger}
+          segmentName={catalog.nameOf}
         />
       )}
     </section>

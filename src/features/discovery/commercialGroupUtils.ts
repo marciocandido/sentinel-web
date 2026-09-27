@@ -41,13 +41,3 @@ export function publicCommercialGroupError(code: string): string {
   }
   return "Não foi possível concluir a busca por grupo comercial. Verifique a conexão e tente novamente.";
 }
-
-export function commercialGroupRoleLabel(role: string): string {
-  if (role === "MATRIZ") return "Matriz";
-  if (role === "FILIAL") return "Filial";
-  return "Desconhecido";
-}
-
-export function commercialGroupValue(value: string | null): string {
-  return value === null || value === "" ? "—" : value;
-}

@@ -5,8 +5,13 @@ import type { NeighborsFormValues } from "./neighborsTypes";
 import type { RadiusFormValues } from "./radiusTypes";
 import type { RootBranchesFormValues } from "./rootBranchesTypes";
 
+/**
+ * Definição reidratável no editor. SEGMENT e REGION legados abrem a família
+ * Filtros; o registro salvo nunca é reescrito e `origin` só identifica o kind
+ * de onde os critérios vieram. A próxima busca manual cria um FILTERED novo.
+ */
 export type EditableDiscoverySearch =
-  | { mode: "segment" | "region"; values: DiscoveryFormValues; includeDiscarded: boolean }
+  | { mode: "filtered"; origin: "FILTERED" | "SEGMENT" | "REGION"; values: DiscoveryFormValues; includeDiscarded: boolean }
   | { mode: "radius"; values: RadiusFormValues; includeDiscarded: boolean }
   | { mode: "neighbors"; values: NeighborsFormValues; includeDiscarded: boolean }
   | { mode: "root"; values: RootBranchesFormValues; includeDiscarded: boolean }
@@ -16,8 +21,9 @@ const blankStandard = (): DiscoveryFormValues => ({ segmentId:"", uf:"", codigoT
 const present = <T>(value: T | null | undefined): value is T => value !== null && value !== undefined;
 export function toEditableDiscoverySearch(spec: DiscoverySearchSpec): EditableDiscoverySearch | null {
   const includeDiscarded = spec.include_discarded === true;
-  if (spec.kind === "SEGMENT") return { mode:"segment", includeDiscarded, values:{ ...blankStandard(), segmentId:spec.segment_id, uf:spec.uf ?? "", codigoTom:spec.codigo_tom ?? "", porteCodigo:spec.porte_codigo ?? "", capitalMin:spec.capital_min ?? "", capitalMax:spec.capital_max ?? "" } };
-  if (spec.kind === "REGION") return { mode:"region", includeDiscarded, values:{ ...blankStandard(), segmentId:spec.segment_id ?? "", uf:spec.uf ?? "", codigoTom:spec.codigo_tom ?? "", codigoIbge:spec.codigo_ibge ?? "", municipioNome:spec.municipio_nome ?? "" } };
+  if (spec.kind === "FILTERED") return { mode:"filtered", origin:"FILTERED", includeDiscarded, values:{ segmentId:spec.segment_id ?? "", uf:spec.uf ?? "", municipioNome:spec.municipio_nome ?? "", codigoTom:spec.codigo_tom ?? "", codigoIbge:spec.codigo_ibge ?? "", porteCodigo:spec.porte_codigo ?? "", capitalMin:spec.capital_min ?? "", capitalMax:spec.capital_max ?? "" } };
+  if (spec.kind === "SEGMENT") return { mode:"filtered", origin:"SEGMENT", includeDiscarded, values:{ ...blankStandard(), segmentId:spec.segment_id, uf:spec.uf ?? "", codigoTom:spec.codigo_tom ?? "", porteCodigo:spec.porte_codigo ?? "", capitalMin:spec.capital_min ?? "", capitalMax:spec.capital_max ?? "" } };
+  if (spec.kind === "REGION") return { mode:"filtered", origin:"REGION", includeDiscarded, values:{ ...blankStandard(), segmentId:spec.segment_id ?? "", uf:spec.uf ?? "", codigoTom:spec.codigo_tom ?? "", codigoIbge:spec.codigo_ibge ?? "", municipioNome:spec.municipio_nome ?? "" } };
   if (spec.kind === "RADIUS") {
     const origins = [present(spec.origin_municipio_nome) || present(spec.origin_uf), present(spec.origin_cnpj), present(spec.origin_codigo_tom), present(spec.origin_codigo_ibge), present(spec.origin_lat) || present(spec.origin_lon)];
     if (origins.filter(Boolean).length !== 1) return null;
@@ -38,4 +44,29 @@ export function toEditableDiscoverySearch(spec: DiscoverySearchSpec): EditableDi
   if (spec.kind === "COMMERCIAL_GROUP") return {mode:"group",includeDiscarded,values:{groupId:spec.group_id}};
   return null;
 }
-export const savedSearchKindLabel: Record<DiscoverySearchSpec["kind"], string> = { SEGMENT:"Segmento", REGION:"Região", RADIUS:"Raio", NEIGHBORS:"Vizinhos", ROOT_BRANCHES:"Raiz/filiais", COMMERCIAL_GROUP:"Grupo comercial", SIMILAR:"Semelhantes" };
+
+/** Nome humano da família/tipo de uma definição; nunca o discriminador técnico. */
+export const savedSearchKindLabel: Record<DiscoverySearchSpec["kind"], string> = {
+  FILTERED: "Filtros",
+  SEGMENT: "Filtros · Segmento",
+  REGION: "Filtros · Região",
+  RADIUS: "Proximidade · Raio",
+  NEIGHBORS: "Proximidade · Vizinhos",
+  ROOT_BRANCHES: "Estrutura · Raiz e filiais",
+  COMMERCIAL_GROUP: "Estrutura · Grupo comercial",
+  SIMILAR: "Semelhantes",
+};
+
+export function publicSavedSearchError(code: string): string {
+  const messages: Record<string, string> = {
+    invalid_request: "A API rejeitou os dados da pesquisa salva.",
+    saved_search_not_found: "Esta pesquisa já não existe.",
+    saved_search_name_conflict: "Já existe uma pesquisa com esse nome.",
+    database_unavailable: "O banco do Sentinel está indisponível.",
+    internal_server_error: "Não foi possível concluir a operação.",
+    request_timeout: "A operação excedeu o tempo limite.",
+    network_error: "Não foi possível conectar à API.",
+    invalid_response: "A API retornou uma resposta inválida.",
+  };
+  return messages[code] ?? "Não foi possível concluir a operação.";
+}

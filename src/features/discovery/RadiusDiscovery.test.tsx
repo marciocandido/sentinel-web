@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../app/App";
 import { runtimeStatus } from "../../test/runtimeFixtures";
@@ -9,6 +9,7 @@ import {
 import { isRadiusSearchPage } from "../../types/api";
 import { EMPTY_RADIUS_FORM } from "./radiusTypes";
 import { createRadiusSnapshot, validateRadius } from "./radiusUtils";
+import { chooseFamily, chooseProximity } from "../../test/discoveryUi";
 
 vi.mock("./RadiusMap", () => ({
   RadiusMap: ({
@@ -60,26 +61,26 @@ function radiusUrl(index: number): URL {
 }
 
 async function prepareRadiusSearch() {
-  fireEvent.click(await screen.findByRole("radio", { name: "Por raio" }));
-  fireEvent.change(screen.getByLabelText("Nome do município"), {
+  await chooseProximity("Raio a partir de uma origem");
+  fireEvent.change(screen.getByLabelText("Município de origem"), {
     target: { value: "SAO PAULO" },
   });
   fireEvent.change(screen.getByLabelText("UF da origem"), {
     target: { value: "SP" },
   });
-  fireEvent.change(screen.getByLabelText("Raio em quilômetros"), {
+  fireEvent.change(screen.getByLabelText("Raio (km)"), {
     target: { value: "10" },
   });
   fireEvent.change(await screen.findByLabelText(/Segmento/), {
     target: { value: "metal" },
   });
-  fireEvent.change(screen.getByLabelText("UF dos resultados"), {
+  fireEvent.change(screen.getByLabelText("UF dos resultados (opcional)"), {
     target: { value: "RJ" },
   });
 }
 
 function submitRadius() {
-  fireEvent.click(screen.getByRole("button", { name: "Buscar por raio" }));
+  fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
 }
 
 beforeEach(() => {
@@ -89,11 +90,14 @@ beforeEach(() => {
 });
 
 describe("Discovery por raio", () => {
-  it("shows a third mode and starts with municipality origin", async () => {
+  it("starts Proximidade on radius with municipality origin and explains the origin semantics", async () => {
     render(<App />);
-    expect(await screen.findByRole("radio", { name: "Por raio" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("radio", { name: "Por raio" }));
-    expect(screen.getByLabelText("Tipo de origem")).toHaveValue("municipality");
+    await chooseFamily("Proximidade");
+    expect(screen.getByRole("radio", { name: "Raio a partir de uma origem" })).toBeChecked();
+    expect(screen.getByRole("radiogroup", { name: "Tipo" })).toHaveAccessibleDescription("Raio por CNPJ pode incluir a própria origem. Vizinhos sempre a exclui.");
+    const origins = screen.getByRole("radiogroup", { name: "Origem" });
+    expect(within(origins).getAllByRole("radio").map((radio) => radio.getAttribute("value"))).toEqual(["municipality", "cnpj", "tom", "ibge", "coordinates"]);
+    expect(within(origins).getByRole("radio", { name: "Município" })).toBeChecked();
     expect(screen.getByLabelText("UF da origem")).toBeInTheDocument();
   });
 
@@ -163,7 +167,7 @@ describe("Discovery por raio", () => {
     expect(await screen.findByRole("button", { name: "Anterior" })).toBeDisabled();
     expect(radiusUrl(0).searchParams.get("offset")).toBe("0");
 
-    fireEvent.change(screen.getByLabelText("Nome do município"), {
+    fireEvent.change(screen.getByLabelText("Município de origem"), {
       target: { value: "CAMPINAS" },
     });
     const abortsBeforeNext = abortSpy.mock.calls.length;
@@ -250,19 +254,19 @@ describe("Discovery por raio", () => {
     const view = render(<App />);
     await prepareRadiusSearch();
     fireEvent.submit(
-      screen.getByRole("form", { name: "Formulário de busca por raio" }),
+      screen.getByRole("form", { name: "Critérios da busca" }),
     );
     fireEvent.submit(
-      screen.getByRole("form", { name: "Formulário de busca por raio" }),
+      screen.getByRole("form", { name: "Critérios da busca" }),
     );
     expect(signals[0].aborted).toBe(true);
-    fireEvent.click(screen.getByRole("radio", { name: "Por segmento" }));
+    await chooseFamily("Filtros");
     expect(signals[1].aborted).toBe(true);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("radio", { name: "Por raio" }));
+    await chooseProximity("Raio a partir de uma origem");
     fireEvent.submit(
-      screen.getByRole("form", { name: "Formulário de busca por raio" }),
+      screen.getByRole("form", { name: "Critérios da busca" }),
     );
     view.unmount();
     expect(signals[2].aborted).toBe(true);
@@ -279,11 +283,11 @@ describe("Discovery por raio", () => {
     render(<App />);
     await prepareRadiusSearch();
     submitRadius();
-    fireEvent.change(screen.getByLabelText("Nome do município"), {
+    fireEvent.change(screen.getByLabelText("Município de origem"), {
       target: { value: "CAMPINAS" },
     });
     fireEvent.submit(
-      screen.getByRole("form", { name: "Formulário de busca por raio" }),
+      screen.getByRole("form", { name: "Critérios da busca" }),
     );
 
     await act(async () => {

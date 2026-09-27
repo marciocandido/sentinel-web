@@ -1,8 +1,18 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../app/App";
 import { runtimeStatus } from "../../test/runtimeFixtures";
 import { discoveryPage, establishment } from "../../test/fixtures";
+import {
+  chooseFamily,
+  chooseProximity,
+  chooseStructure,
+  clickSearch,
+  discoveryUrls,
+  familyGroup,
+  openMoreFilters,
+  searchButton,
+} from "../../test/discoveryUi";
 
 vi.mock("./RadiusMap", () => ({
   RadiusMap: ({ accessibleName }: { accessibleName?: string }) => <div role="img" aria-label={accessibleName ?? "Mapa"} />,
@@ -27,7 +37,7 @@ function defaultApi(input: RequestInfo | URL): Promise<Response> {
   })));
 }
 
-const moreFilters = () => screen.getByText("Mais filtros e opções").closest("details") as HTMLDetailsElement;
+const moreRegion = () => document.getElementById("more-filters") as HTMLElement;
 
 beforeEach(() => {
   fetchMock.mockReset();
@@ -37,158 +47,153 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("Critérios da busca", () => {
-  it("presents the six modes as one accessible radio group with short names", async () => {
+describe("Critérios da busca — três famílias", () => {
+  it("presents exactly three mutually exclusive families in one radiogroup, without technical names", async () => {
     render(<App />);
-    expect(await screen.findByRole("radio", { name: "Por segmento" })).toBeChecked();
-    expect(screen.getByRole("group", { name: "Modo de busca" })).toBeInTheDocument();
-    const modes = screen.getAllByRole("radio").filter((input) => (input as HTMLInputElement).name === "search-mode");
-    expect(modes.map((input) => input.getAttribute("value"))).toEqual([
-      "segment", "region", "radius", "neighbors", "root", "group",
-    ]);
+    await screen.findByLabelText(/^Segmento/);
+    const radios = within(familyGroup()).getAllByRole("radio");
+    expect(radios.map((radio) => radio.getAttribute("value"))).toEqual(["filters", "proximity", "structure"]);
+    expect(radios.map((radio) => radio.getAttribute("name"))).toEqual(["discovery-family", "discovery-family", "discovery-family"]);
+    expect(within(familyGroup()).getByRole("radio", { name: "Filtros" })).toBeChecked();
+    expect(within(familyGroup()).getByRole("radio", { name: "Proximidade" })).toHaveAccessibleDescription("Empresas num raio a partir de uma origem");
+    expect(within(familyGroup()).getByRole("radio", { name: "Estrutura" })).toHaveAccessibleDescription("Raiz e filiais ou grupo comercial registrado");
+    expect(document.body.textContent).not.toMatch(/FILTERED|SEGMENT|REGION/);
+    expect(screen.queryByRole("radio", { name: "Pesquisas salvas" })).not.toBeInTheDocument();
   });
 
-  it("keeps mode selection reachable and operable from the keyboard", async () => {
+  it("keeps family selection operable from the keyboard and never searches on change", async () => {
     render(<App />);
-    const segment = await screen.findByRole("radio", { name: "Por segmento" });
-    const region = screen.getByRole("radio", { name: "Por região" });
-    region.focus();
-    expect(region).toHaveFocus();
-    fireEvent.click(region);
-    expect(region).toBeChecked();
-    expect(segment).not.toBeChecked();
-    expect(screen.getByLabelText("Nome do município")).toBeInTheDocument();
+    await screen.findByLabelText(/^Segmento/);
+    const proximity = within(familyGroup()).getByRole("radio", { name: "Proximidade" });
+    proximity.focus();
+    expect(proximity).toHaveFocus();
+    fireEvent.click(proximity);
+    expect(proximity).toBeChecked();
+    expect(screen.getByRole("radiogroup", { name: "Tipo" })).toBeInTheDocument();
+    await chooseFamily("Estrutura");
+    expect(screen.getByRole("radio", { name: "Raiz e filiais" })).toBeChecked();
+    expect(discoveryUrls(fetchMock)).toHaveLength(0);
   });
 
-  it("collapses complementary filters by default and preserves their values when reopened", async () => {
+  it("shows segment, UF and municipality as optional main fields of Filtros", async () => {
     render(<App />);
-    await screen.findByRole("radio", { name: "Por segmento" });
-    expect(moreFilters().open).toBe(false);
-
-    fireEvent.change(screen.getByLabelText("Capital mínimo"), { target: { value: "100.00" } });
-    fireEvent.change(screen.getByLabelText("Código TOM"), { target: { value: "0012" } });
-    expect(screen.getByText("2")).toBeInTheDocument();
-
-    moreFilters().open = true;
-    moreFilters().open = false;
-    moreFilters().open = true;
-
-    expect(screen.getByLabelText("Capital mínimo")).toHaveValue("100.00");
-    expect(screen.getByLabelText("Código TOM")).toHaveValue("0012");
+    expect(await screen.findByLabelText("Segmento (opcional)")).toBeInTheDocument();
+    expect(screen.getByLabelText("UF (opcional)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Município (opcional)")).toHaveAccessibleDescription("Nome exato. Sem busca aproximada.");
+    expect(screen.queryByText(/Obrigatório se não houver localização/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/não combina/i)).not.toBeInTheDocument();
   });
 
-  it("keeps the single discarded control inside the search options block", async () => {
+  it("collapses complementary filters by default, counts only filled ones and preserves values", async () => {
     render(<App />);
-    await screen.findByRole("radio", { name: "Por segmento" });
-    const toggle = screen.getByRole("checkbox", { name: "Mostrar descartados" });
-    expect(moreFilters().contains(toggle)).toBe(true);
+    await screen.findByLabelText(/^Segmento/);
+    const toggle = screen.getByRole("button", { name: /^Mais filtros/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-controls", "more-filters");
+    expect(moreRegion()).not.toBeVisible();
+
+    openMoreFilters();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.change(screen.getByLabelText(/^Capital mínimo/), { target: { value: "100.00" } });
+    fireEvent.change(screen.getByLabelText(/^Código TOM/), { target: { value: "0012" } });
+    fireEvent.change(screen.getByLabelText(/^Código IBGE/), { target: { value: "   " } });
+    expect(toggle).toHaveTextContent("2 ativos");
+
     fireEvent.click(toggle);
-    expect(toggle).toBeChecked();
-
-    fireEvent.click(screen.getByRole("radio", { name: "Por raio" }));
-    const radiusToggle = screen.getByRole("checkbox", { name: "Mostrar descartados" });
-    expect(screen.getAllByRole("checkbox", { name: "Mostrar descartados" })).toHaveLength(1);
-    expect(radiusToggle).toBeChecked();
-    expect(moreFilters().contains(radiusToggle)).toBe(true);
-    expect(fetchMock.mock.calls.some(([input]) => input.toString().includes("/api/v1/discovery/"))).toBe(false);
+    expect(moreRegion()).not.toBeVisible();
+    openMoreFilters();
+    expect(screen.getByLabelText(/^Capital mínimo/)).toHaveValue("100.00");
+    expect(screen.getByLabelText(/^Código TOM/)).toHaveValue("0012");
   });
 
-  it("keeps a single primary action at the start of the main filter row", async () => {
+  it("keeps one discarded control inside Mais filtros for every family and counts it", async () => {
     render(<App />);
-    await screen.findByLabelText(/Segmento/);
-    const action = screen.getByRole("button", { name: "Buscar" });
+    await screen.findByLabelText(/^Segmento/);
+    openMoreFilters();
+    const toggle = screen.getByRole("checkbox", { name: "Mostrar descartados" });
+    expect(moreRegion().contains(toggle)).toBe(true);
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: /^Mais filtros/ })).toHaveTextContent("1 ativo");
+
+    await chooseProximity("Raio a partir de uma origem");
+    expect(screen.getAllByRole("checkbox", { name: "Mostrar descartados" })).toHaveLength(1);
+    expect(screen.getByRole("checkbox", { name: "Mostrar descartados" })).toBeChecked();
+    await chooseStructure("Grupo comercial registrado");
+    expect(moreRegion().contains(screen.getByRole("checkbox", { name: "Mostrar descartados" }))).toBe(true);
+    expect(discoveryUrls(fetchMock)).toHaveLength(0);
+  });
+
+  it.each(["Filtros", "Proximidade", "Estrutura"] as const)("keeps one stable Buscar submit in the criteria footer for %s", async (family) => {
+    render(<App />);
+    await chooseFamily(family);
+    const action = searchButton();
     expect(action).toHaveClass("primary-button");
     expect(action).toHaveAttribute("type", "submit");
-    expect(screen.getAllByRole("button", { name: /^Buscar/ })).toHaveLength(1);
-    const row = action.closest(".form-grid") as HTMLElement;
-    expect(row).not.toBeNull();
-    expect(row.firstElementChild).toBe(action.closest(".field-group--action"));
-    expect(row.querySelector("#segment")).not.toBeNull();
-    expect(document.querySelector(".search-actions")).toBeNull();
-  });
-
-  it.each([
-    ["Por segmento", "Buscar"],
-    ["Por região", "Buscar"],
-    ["Por raio", "Buscar por raio"],
-    ["Por vizinhos", "Buscar vizinhos"],
-    ["Por raiz/filiais", "Buscar raiz e filiais"],
-    ["Por grupo", "Buscar grupo"],
-  ] as const)("keeps one inline action and no ordering note in %s", async (mode, label) => {
-    render(<App />);
-    fireEvent.click(await screen.findByRole("radio", { name: mode }));
-    expect(screen.queryByText(/ordem definida pelo backend/)).not.toBeInTheDocument();
-    const action = screen.getByRole("button", { name: label });
-    expect(action).toHaveAttribute("type", "submit");
-    expect(action.closest(".form-grid")?.firstElementChild).toBe(action.closest(".field-group--action"));
-    expect(screen.getAllByRole("button", { name: new RegExp(`^${label}$`) })).toHaveLength(1);
-    expect(document.querySelector(".search-actions")).toBeNull();
+    expect(action.closest(".criteria-footer")).not.toBeNull();
+    expect(screen.getByRole("button", { name: /^Mais filtros/ }).closest(".criteria-footer")).toBe(action.closest(".criteria-footer"));
+    expect(screen.getAllByRole("button", { name: /^Buscar$/ })).toHaveLength(1);
   });
 
   it("submits with Enter from a main filter field", async () => {
     render(<App />);
-    fireEvent.change(await screen.findByLabelText(/Segmento/), { target: { value: "metal-mecanica" } });
-    const form = screen.getByRole("form", { name: "Formulário de busca" });
-    fireEvent.submit(form);
-    await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => input.toString().includes("/api/v1/discovery/segments/"))).toBe(true));
+    fireEvent.change(await screen.findByLabelText(/^Segmento/), { target: { value: "metal-mecanica" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Critérios da busca" }));
+    await waitFor(() => expect(discoveryUrls(fetchMock).some((url) => url.startsWith("/api/v1/discovery/establishments?"))).toBe(true));
   });
 
-  it("keeps the header title and hint on the same block", async () => {
+  it("presents the Discovery header with saved searches and worklists as auxiliary actions", async () => {
     render(<App />);
     const title = await screen.findByRole("heading", { name: "Buscar empresas", level: 1 });
-    const intro = title.parentElement as HTMLElement;
-    expect(intro).toHaveClass("page-intro");
-    expect(intro.querySelector(".page-intro__hint")).toHaveTextContent(/Pesquise por segmento/);
-    expect(intro.children).toHaveLength(2);
-  });
-
-  it("offers saved searches and worklists as toolbar actions that are not modes", async () => {
-    render(<App />);
-    await screen.findByRole("radio", { name: "Por segmento" });
-    const saved = screen.getByRole("button", { name: "Pesquisas salvas" });
-    const worklists = screen.getByRole("button", { name: "Listas de trabalho" });
-    expect(screen.getAllByRole("radio").filter((input) => (input as HTMLInputElement).name === "search-mode")).toHaveLength(6);
-    expect(screen.queryByRole("radio", { name: "Pesquisas salvas" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("radio", { name: "Listas de trabalho" })).not.toBeInTheDocument();
-    const toolbar = saved.closest(".search-toolbar") as HTMLElement;
-    expect(toolbar).not.toBeNull();
-    expect(toolbar.contains(worklists)).toBe(true);
-    expect(toolbar.querySelector(".mode-switcher")).not.toBeNull();
+    expect(title.closest(".page-intro")?.querySelector(".page-intro__hint")).toHaveTextContent(/filtros, proximidade ou estrutura/);
+    const actions = screen.getByRole("group", { name: "Pesquisas salvas e listas" });
+    const saved = within(actions).getByRole("button", { name: "Pesquisas salvas" });
+    const worklists = within(actions).getByRole("button", { name: "Listas de trabalho" });
+    expect(saved).toHaveAttribute("aria-haspopup", "dialog");
     expect(saved).toHaveAttribute("aria-expanded", "false");
     expect(worklists).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("keeps no permanent panel between the criteria and the results", async () => {
+  it("opens saved searches as a dialog and worklists inline without permanent panels", async () => {
     render(<App />);
-    await screen.findByRole("radio", { name: "Por segmento" });
-    expect(document.querySelector(".saved-searches")).toBeNull();
+    await screen.findByLabelText(/^Segmento/);
     expect(document.querySelector(".worklists")).toBeNull();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    const saved = screen.getByRole("button", { name: "Pesquisas salvas" });
-    fireEvent.click(saved);
-    expect(saved).toHaveAttribute("aria-expanded", "true");
-    expect(await screen.findByRole("heading", { name: "Pesquisas salvas" })).toBeInTheDocument();
-    expect(document.querySelector(".worklists")).toBeNull();
+    const savedTrigger = screen.getByRole("button", { name: "Pesquisas salvas" });
+    savedTrigger.focus();
+    fireEvent.click(savedTrigger);
+    expect(await screen.findByRole("dialog", { name: "Pesquisas salvas" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fechar pesquisas salvas" })).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Pesquisas salvas" })).toHaveFocus();
 
     const worklists = screen.getByRole("button", { name: "Listas de trabalho" });
     fireEvent.click(worklists);
-    expect(document.querySelector(".saved-searches")).toBeNull();
     expect(await screen.findByRole("heading", { name: "Listas de trabalho" })).toBeInTheDocument();
-
     fireEvent.click(worklists);
     expect(worklists).toHaveAttribute("aria-expanded", "false");
     expect(document.querySelector(".worklists")).toBeNull();
-    expect(document.querySelector(".saved-searches")).toBeNull();
   });
 
-  it("does not show the Receita badge in the main content", async () => {
+  it("shows a useful empty state before the first query", async () => {
     render(<App />);
-    await screen.findByRole("radio", { name: "Por segmento" });
+    expect(await screen.findByText("Nenhuma consulta nesta sessão.")).toBeInTheDocument();
+    expect(screen.getByText("Escolha o tipo de busca, preencha os critérios e clique em Buscar.")).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(/centroide do município/);
+    expect(screen.getByRole("note")).not.toHaveTextContent(/2026-/);
+    fireEvent.click(screen.getByRole("button", { name: "Ver listas de trabalho" }));
+    expect(await screen.findByRole("heading", { name: "Listas de trabalho" })).toBeInTheDocument();
+  });
+
+  it("does not show the Receita competence in the main content or in the query receipt", async () => {
+    render(<App />);
+    fireEvent.change(await screen.findByLabelText(/^Segmento/), { target: { value: "metal-mecanica" } });
+    clickSearch();
+    await screen.findByRole("table");
     expect(document.getElementById("app-content")?.querySelector(".runtime-base")).toBeNull();
-    expect(document.querySelector(".base-competence")).toBeNull();
-    expect(document.querySelector(".monthly-update-panel")).toBeNull();
+    expect(document.querySelector(".receipt")?.textContent).not.toMatch(/base|2026-/);
     const badge = document.querySelector(".sidebar .runtime-base");
-    expect(badge).not.toBeNull();
     expect(badge?.textContent).toContain("2026-07");
   });
 });

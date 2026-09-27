@@ -1,12 +1,4 @@
-import { useEffect, useState } from "react";
-import { SentinelApiError } from "../services/apiClient";
-import { listSegments } from "../services/sentinelApi";
-import type { SegmentCatalogItem } from "../types/api";
-
-type CatalogState =
-  | { kind: "loading" }
-  | { kind: "ready"; items: SegmentCatalogItem[] }
-  | { kind: "error"; code: string };
+import type { SegmentCatalog } from "./segmentCatalog";
 
 function publicErrorMessage(code: string): string {
   if (code === "database_unavailable") {
@@ -19,40 +11,25 @@ function publicErrorMessage(code: string): string {
 }
 
 interface SegmentSelectProps {
+  catalog: SegmentCatalog;
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   invalid?: boolean;
   describedBy?: string;
+  emptyLabel?: string;
 }
 
-export function SegmentSelect({ value, onChange, invalid, describedBy }: SegmentSelectProps) {
-  const [state, setState] = useState<CatalogState>({ kind: "loading" });
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let mounted = true;
-
-    void listSegments({ signal: controller.signal })
-      .then((response) => {
-        if (mounted) setState({ kind: "ready", items: response.items });
-      })
-      .catch((error: unknown) => {
-        if (!mounted || controller.signal.aborted) return;
-        const code = error instanceof SentinelApiError ? error.code : "network_error";
-        setState({ kind: "error", code });
-      });
-
-    return () => {
-      mounted = false;
-      controller.abort();
-    };
-  }, [attempt]);
-
-  const retry = () => {
-    setState({ kind: "loading" });
-    setAttempt((value) => value + 1);
-  };
+export function SegmentSelect({
+  catalog,
+  id = "segment",
+  value,
+  onChange,
+  invalid,
+  describedBy,
+  emptyLabel = "Selecione um segmento",
+}: SegmentSelectProps) {
+  const { state, retry } = catalog;
 
   if (state.kind === "loading") {
     return <p className="field-message" role="status"><span className="mini-spinner" aria-hidden="true" />Carregando segmentos...</p>;
@@ -72,24 +49,26 @@ export function SegmentSelect({ value, onChange, invalid, describedBy }: Segment
   if (state.items.length === 0) {
     return (
       <>
-        <select id="segment" name="segment" disabled value="" aria-describedby="segment-empty-message">
-          <option>Selecione um segmento</option>
+        <select id={id} name="segment" disabled value="" aria-describedby={`${id}-empty-message`}>
+          <option>{emptyLabel}</option>
         </select>
-        <p id="segment-empty-message" className="field-message">Nenhum segmento disponível.</p>
+        <p id={`${id}-empty-message`} className="field-message">Nenhum segmento disponível.</p>
       </>
     );
   }
 
+  const known = state.items.some((segment) => segment.id === value);
   return (
     <select
-      id="segment"
+      id={id}
       name="segment"
       value={value}
       onChange={(event) => onChange(event.target.value)}
       aria-invalid={invalid || undefined}
       aria-describedby={describedBy}
     >
-      <option value="">Selecione um segmento</option>
+      <option value="">{emptyLabel}</option>
+      {value !== "" && !known && <option value={value}>{value}</option>}
       {state.items.map((segment) => (
         <option key={segment.id} value={segment.id}>{segment.name}</option>
       ))}

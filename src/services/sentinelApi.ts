@@ -58,6 +58,25 @@ export interface RegionSearchParams {
   offset: number;
 }
 
+/**
+ * Busca combinada `GET /api/v1/discovery/establishments` (#207). Todos os
+ * filtros são opcionais, mas o backend exige ao menos um filtro material e os
+ * combina por AND. Capital e códigos permanecem texto.
+ */
+export interface FilteredSearchParams {
+  segmentId?: string;
+  uf?: string;
+  municipioNome?: string;
+  codigoTom?: string;
+  codigoIbge?: string;
+  porteCodigo?: string;
+  capitalMin?: string;
+  capitalMax?: string;
+  includeDiscarded?: boolean;
+  limit: number;
+  offset: number;
+}
+
 export interface SimilarCompaniesParams {
   cnpjFull: string;
   includeDiscarded?: boolean;
@@ -111,6 +130,19 @@ export interface CommercialGroupSearchParams {
 }
 
 export type DiscoveryExportFormat = "CSV" | "XLSX";
+
+export interface FilteredExportSearch {
+  kind: "FILTERED";
+  segment_id?: string | null;
+  uf?: string | null;
+  municipio_nome?: string | null;
+  codigo_tom?: string | null;
+  codigo_ibge?: string | null;
+  porte_codigo?: string | null;
+  capital_min?: string | null;
+  capital_max?: string | null;
+  include_discarded?: boolean;
+}
 
 export interface SegmentExportSearch {
   kind: "SEGMENT";
@@ -181,6 +213,7 @@ export interface SimilarExportSearch {
 }
 
 export type DiscoveryExportSearch =
+  | FilteredExportSearch
   | SegmentExportSearch
   | RegionExportSearch
   | RadiusExportSearch
@@ -319,6 +352,24 @@ export async function listSegments(options?: RequestOptions): Promise<SegmentCat
     throw new SentinelApiError("invalid_response", "Resposta inválida da API.");
   }
   return response;
+}
+
+export async function searchFilteredEstablishments(
+  params: FilteredSearchParams,
+  options?: RequestOptions,
+): Promise<DiscoveryEstablishmentPage> {
+  const query = paginationQuery(params.limit, params.offset);
+  setIfPresent(query, "segment_id", params.segmentId);
+  setIfPresent(query, "uf", params.uf);
+  setIfPresent(query, "municipio_nome", params.municipioNome);
+  setIfPresent(query, "codigo_tom", params.codigoTom);
+  setIfPresent(query, "codigo_ibge", params.codigoIbge);
+  setIfPresent(query, "porte_codigo", params.porteCodigo);
+  setIfPresent(query, "capital_min", params.capitalMin);
+  setIfPresent(query, "capital_max", params.capitalMax);
+  setIncludeDiscarded(query, params.includeDiscarded);
+  const response = await getJson(`/api/v1/discovery/establishments?${query}`, options);
+  return assertDiscoveryPage(response);
 }
 
 export async function searchEstablishmentsBySegment(
@@ -509,6 +560,71 @@ function isSavedSearch(value: unknown): value is SavedSearch {
     typeof item.created_at === "string" && ISO.test(item.created_at) && Number.isFinite(Date.parse(item.created_at)) &&
     isDiscoverySearchSpec(item.search);
 }
+const FILTERED_TEXT_FILTERS = ["segment_id", "uf", "municipio_nome", "codigo_tom", "codigo_ibge", "porte_codigo"] as const;
+const DECIMAL_TEXT = /^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/;
+
+interface DecimalText { negative: boolean; digits: string; exponent: number }
+
+/**
+ * Decimal finito no formato aceito pelo backend (`Decimal` de string), sem
+ * whitespace externo, NaN ou Infinity. O valor só é decomposto para validar e
+ * comparar; o texto original é o que segue no contrato.
+ */
+function parseDecimalText(value: string): DecimalText | null {
+  const match = DECIMAL_TEXT.exec(value);
+  if (!match) return null;
+  const [, sign, integer = "", fraction = "", exponent = "0"] = match;
+  if (integer === "" && fraction === "") return null;
+  const coefficient = `${integer}${fraction}`.replace(/^0+/, "");
+  const scale = Number(exponent) - fraction.length;
+  if (!Number.isSafeInteger(scale)) return null;
+  return { negative: sign === "-" && coefficient !== "", digits: coefficient, exponent: scale };
+}
+
+/** Compara decimais textuais sem converter o valor de domínio para Number. */
+function compareDecimalText(left: DecimalText, right: DecimalText): number {
+  if (left.negative !== right.negative) return left.negative ? -1 : 1;
+  const direction = left.negative ? -1 : 1;
+  if (!left.digits || !right.digits) {
+    if (!left.digits && !right.digits) return 0;
+    return (left.digits ? 1 : -1) * direction;
+  }
+  const leftOrder = left.digits.length + left.exponent;
+  const rightOrder = right.digits.length + right.exponent;
+  if (leftOrder !== rightOrder) return (leftOrder > rightOrder ? 1 : -1) * direction;
+  const width = Math.max(left.digits.length, right.digits.length);
+  const a = left.digits.padEnd(width, "0");
+  const b = right.digits.padEnd(width, "0");
+  if (a === b) return 0;
+  return (a > b ? 1 : -1) * direction;
+}
+
+/** Espelha `FilteredExportSearch` + `normalize_filtered_params` do backend (#209). */
+function isFilteredSearchSpec(search: Record<string, unknown>): boolean {
+  const keys = ["kind", ...FILTERED_TEXT_FILTERS, "capital_min", "capital_max", "include_discarded"];
+  if (!hasOnlyKeys(search, keys)) return false;
+  let material = false;
+  for (const key of FILTERED_TEXT_FILTERS) {
+    const value = search[key];
+    if (value === undefined || value === null) continue;
+    if (typeof value !== "string" || value.trim() === "") return false;
+    material = true;
+  }
+  const capitals: Array<DecimalText | null> = [];
+  for (const key of ["capital_min", "capital_max"] as const) {
+    const value = search[key];
+    if (value === undefined || value === null) { capitals.push(null); continue; }
+    if (typeof value !== "string" || value !== value.trim()) return false;
+    const parsed = parseDecimalText(value);
+    if (!parsed) return false;
+    capitals.push(parsed);
+    material = true;
+  }
+  const [minimum, maximum] = capitals;
+  if (minimum && maximum && compareDecimalText(minimum, maximum) > 0) return false;
+  return material;
+}
+
 function isDiscoverySearchSpec(value: unknown): value is DiscoverySearchSpec {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const search = value as Record<string, unknown>;
@@ -516,6 +632,7 @@ function isDiscoverySearchSpec(value: unknown): value is DiscoverySearchSpec {
   const nullableNumbers = (keys: string[]) => keys.every((key) => search[key] === undefined || search[key] === null || (typeof search[key] === "number" && Number.isFinite(search[key])));
   const optionalDiscarded = search.include_discarded === undefined || typeof search.include_discarded === "boolean";
   if (!optionalDiscarded || typeof search.kind !== "string") return false;
+  if (search.kind === "FILTERED") return isFilteredSearchSpec(search);
   if (search.kind === "SEGMENT") return hasOnlyKeys(search,["kind","segment_id","uf","codigo_tom","porte_codigo","capital_min","capital_max","include_discarded"]) && typeof search.segment_id === "string" && nullableStrings(["uf","codigo_tom","porte_codigo","capital_min","capital_max"]);
   if (search.kind === "REGION") return hasOnlyKeys(search,["kind","uf","codigo_tom","codigo_ibge","municipio_nome","segment_id","include_discarded"]) && nullableStrings(["uf","codigo_tom","codigo_ibge","municipio_nome","segment_id"]);
   if (search.kind === "RADIUS") return hasOnlyKeys(search,["kind","radius_km","origin_lat","origin_lon","origin_cnpj","origin_codigo_tom","origin_codigo_ibge","origin_municipio_nome","origin_uf","segment_id","uf","include_discarded"]) && typeof search.radius_km === "number" && Number.isFinite(search.radius_km) && nullableStrings(["origin_cnpj","origin_codigo_tom","origin_codigo_ibge","origin_municipio_nome","origin_uf","segment_id","uf"]) && nullableNumbers(["origin_lat","origin_lon"]);

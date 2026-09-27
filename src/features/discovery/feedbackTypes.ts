@@ -20,5 +20,6 @@ export const FEEDBACK_ACTIONS = Object.keys(FEEDBACK_ACTION_LABELS) as FeedbackA
 export interface FeedbackPanelProps {
   cnpjFull: string;
   companyName: string;
-  source: FeedbackSource;
+  /** `null` quando o tipo de consulta não tem origem de feedback no contrato (ex.: Filtros sem segmento). */
+  source: FeedbackSource | null;
 }

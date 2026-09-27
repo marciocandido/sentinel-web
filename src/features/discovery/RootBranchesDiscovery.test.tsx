@@ -25,6 +25,7 @@ import {
   publicRootBranchesError,
   validateRootBranches,
 } from "./rootBranchesUtils";
+import { openMoreFilters, chooseFamily, chooseStructure } from "../../test/discoveryUi";
 
 vi.mock("./RadiusMap", () => ({
   RadiusMap: () => (
@@ -88,7 +89,7 @@ function rootUrl(index: number): URL {
 }
 
 async function selectRootMode() {
-  fireEvent.click(await screen.findByRole("radio", { name: "Por raiz/filiais" }));
+  await chooseStructure("Raiz e filiais");
 }
 
 function identifierInput(name: "CNPJ completo" | "Raiz do CNPJ") {
@@ -97,14 +98,14 @@ function identifierInput(name: "CNPJ completo" | "Raiz do CNPJ") {
 
 function submitRoot() {
   fireEvent.click(
-    screen.getByRole("button", { name: "Buscar raiz e filiais" }),
+    screen.getByRole("button", { name: "Buscar" }),
   );
 }
 
 function submitRootForm() {
   fireEvent.submit(
     screen.getByRole("form", {
-      name: "Formulário de busca por raiz e filiais",
+      name: "Critérios da busca",
     }),
   );
 }
@@ -133,21 +134,15 @@ afterEach(() => {
 });
 
 describe("modo raiz e filiais", () => {
-  it("shows the fourth mode, preserves previous modes and starts with CNPJ", async () => {
+  it("opens Estrutura on Raiz e filiais identified by full CNPJ, preserving text", async () => {
     render(<App />);
-    await screen.findByRole("radio", { name: "Por segmento" });
-    for (const name of [
-      "Por segmento",
-      "Por região",
-      "Por raio",
-      "Por raiz/filiais",
-    ]) {
-      expect(screen.getByRole("radio", { name })).toBeInTheDocument();
-    }
     await selectRootMode();
+    expect(screen.getByRole("radio", { name: "Raiz e filiais" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "CNPJ completo" })).toBeChecked();
     expect(identifierInput("CNPJ completo")).toHaveAttribute("type", "text");
-    expect(screen.getByText(/frontend preserva o valor como texto/i)).toBeInTheDocument();
+    expect(identifierInput("CNPJ completo")).toHaveAccessibleDescription(/Aceita letras e números/);
+    fireEvent.click(screen.getByRole("radio", { name: "Raiz do CNPJ" }));
+    expect(identifierInput("Raiz do CNPJ")).toBeInTheDocument();
   });
 
   it("validates blank values and snapshots only the selected textual identifier", () => {
@@ -216,9 +211,9 @@ describe("modo raiz e filiais", () => {
     submitRoot();
     expect(screen.getByRole("button", { name: "Buscando..." })).toBeDisabled();
     expect(
-      screen.getByRole("region", { name: "Resultados por raiz e filiais" }),
+      screen.getByRole("region", { name: "Resultados" }),
     ).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByText("Buscando estabelecimentos conhecidos...")).toBeInTheDocument();
+    expect(screen.getByText("Buscando empresas...")).toBeInTheDocument();
     expect(rootCalls()).toHaveLength(1);
   });
 
@@ -270,23 +265,24 @@ describe("modo raiz e filiais", () => {
     expect(context).toHaveTextContent("00123456");
     expect(context).toHaveTextContent("00123456000195");
     expect(context).toHaveTextContent("BASE_UTIL");
-    expect(screen.getByRole("note")).toHaveTextContent(
-      "Esta consulta considera somente os estabelecimentos conhecidos na base útil do Sentinel.",
-    );
+    expect(context).toHaveTextContent("Mostra somente estabelecimentos conhecidos na base útil");
+    expect(within(screen.getByRole("table")).getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
+      "Estabelecimento", "Papel", "Situação cadastral", "Localização", "Início de atividade", "Atividade (CNAE)", "Status comercial", "Ações",
+    ]);
     const rows = screen.getAllByRole("row");
     expect(rows[1]).toHaveTextContent("PRIMEIRO DA API");
     expect(rows[2]).toHaveTextContent("SEGUNDO DA API");
     expect(rows[3]).toHaveTextContent("Desconhecido");
     expect(rows[1]).toHaveTextContent("Matriz");
     expect(rows[2]).toHaveTextContent("Filial");
-    expect(rows[2]).toHaveTextContent("Código Receita: 08");
-    expect(rows[2]).toHaveTextContent("Desconhecido (provisório)");
+    expect(rows[2]).toHaveTextContent("Código Receita 08");
+    expect(rows[2]).toHaveTextContent("Desconhecido");
     expect(rows[3]).toHaveTextContent("—");
     expect(screen.queryByText(/cliente|prospect|atendido|não atendido/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/todas as filiais|estrutura completa/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/total geral/i)).not.toBeInTheDocument();
 
-    fireEvent.click(within(rows[1]).getByRole("button", { name: "Ver detalhes" }));
+    fireEvent.click(within(rows[1]).getByRole("button", { name: /^Detalhes de/ }));
     expect(screen.getByRole("dialog")).toHaveAccessibleName(
       "Detalhes do estabelecimento",
     );
@@ -314,8 +310,8 @@ describe("modo raiz e filiais", () => {
         "Nenhum estabelecimento conhecido foi encontrado nesta página.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Contexto da raiz")).toHaveTextContent("—");
-    expect(screen.getByRole("note")).toHaveTextContent("BASE_UTIL");
+    expect(screen.getByLabelText("Contexto da raiz")).not.toHaveTextContent("referência");
+    expect(screen.getByLabelText("Contexto da raiz")).toHaveTextContent("BASE_UTIL");
     expect(screen.getByLabelText("Paginação dos resultados")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -438,7 +434,7 @@ describe("modo raiz e filiais", () => {
     submitRootForm();
     submitRootForm();
     expect(signals[0].aborted).toBe(true);
-    fireEvent.click(screen.getByRole("radio", { name: "Por segmento" }));
+    await chooseFamily("Filtros");
     expect(signals[1].aborted).toBe(true);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
@@ -595,7 +591,7 @@ describe("modo raiz e filiais", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
     fireEvent.click(
-      await screen.findByRole("button", { name: "Ver detalhes" }),
+      await screen.findByRole("button", { name: /^Detalhes de/ }),
     );
     expect(rootCalls()).toHaveLength(0);
     expect(screen.getByRole("button", { name: "Ver semelhantes" })).toBeInTheDocument();
@@ -607,7 +603,8 @@ describe("modo raiz e filiais", () => {
 
     expect(similarSignal?.aborted).toBe(true);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Por raiz/filiais" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Estrutura" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Raiz e filiais" })).toBeChecked();
     expect(identifierInput("CNPJ completo")).toHaveValue("00AB345600019X");
     await waitFor(() => expect(rootCalls()).toHaveLength(1));
     expect(Object.fromEntries(rootUrl(0).searchParams)).toEqual({
@@ -616,8 +613,9 @@ describe("modo raiz e filiais", () => {
       cnpj: "00AB345600019X",
     });
     const heading = await screen.findByRole("heading", {
-      name: "Resultados por raiz e filiais",
+      name: "Resultados",
     });
+    expect(await screen.findByText("Estrutura · Raiz e filiais", { selector: ".kind-badge" })).toBeInTheDocument();
     await waitFor(() => expect(heading).toHaveFocus());
     expect(fetchMock.mock.calls.every(([, init]) => !init || init.method === "GET")).toBe(true);
   });
@@ -637,13 +635,15 @@ describe("modo raiz e filiais", () => {
       })));
     });
     render(<App />);
-    const toggle = await screen.findByRole("checkbox", { name: "Mostrar descartados" });
+    await screen.findByLabelText(/Segmento/);
+    openMoreFilters();
+    const toggle = screen.getByRole("checkbox", { name: "Mostrar descartados" });
     fireEvent.click(toggle);
     fireEvent.change(screen.getByLabelText(/Segmento/), {
       target: { value: "metal" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
-    const details = await screen.findByRole("button", { name: "Ver detalhes" });
+    const details = await screen.findByRole("button", { name: /^Detalhes de/ });
     fireEvent.click(toggle);
     expect(toggle).not.toBeChecked();
     fireEvent.click(details);

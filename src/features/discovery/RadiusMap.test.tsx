@@ -5,7 +5,7 @@ import {
   radiusSearchOrigin,
   radiusSearchPage,
 } from "../../test/fixtures";
-import { RadiusResults } from "./RadiusResults";
+import { QueryResultView } from "./QueryResultView";
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -75,9 +75,10 @@ describe("RadiusMap", () => {
 
   it("shows tile failure locally without removing origin, table or results", () => {
     render(
-      <RadiusResults
-        state={{
-          kind: "success",
+      <QueryResultView
+        narrow={false}
+        result={{
+          kind: "radius",
           page: radiusSearchPage(),
           snapshot: {
             origin: { kind: "municipality", municipioNome: "SAO PAULO", uf: "SP" },
@@ -87,7 +88,6 @@ describe("RadiusMap", () => {
             includeDiscarded: false,
           },
         }}
-        onRetry={vi.fn()}
         onPrevious={vi.fn()}
         onNext={vi.fn()}
         onLimitChange={vi.fn()}
@@ -104,7 +104,7 @@ describe("RadiusMap", () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Origem resolvida")).toBeInTheDocument();
     expect(screen.getByRole("table")).toBeInTheDocument();
-    expect(screen.getByText("EMPRESA EXEMPLO LTDA")).toBeInTheDocument();
+    expect(screen.getAllByText("EMPRESA EXEMPLO LTDA").length).toBeGreaterThan(0);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

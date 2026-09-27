@@ -4,6 +4,7 @@ import { App } from "../../app/App";
 import { runtimeStatus } from "../../test/runtimeFixtures";
 import { isSimilarCompanyPage } from "../../types/api";
 import { discoveryPage, establishment, similarCompany, similarCompanyPage } from "../../test/fixtures";
+import { openMoreFilters } from "../../test/discoveryUi";
 
 const liveness = { status: "ok", service: "sentinel-api" } as const;
 const runtime = runtimeStatus();
@@ -41,7 +42,7 @@ async function openDetails(index = 0) {
   render(<App />);
   fireEvent.change(await screen.findByLabelText(/Segmento/), { target: { value: "metal-mecanica" } });
   fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
-  const triggers = await screen.findAllByRole("button", { name: "Ver detalhes" });
+  const triggers = await screen.findAllByRole("button", { name: /^Detalhes de/ });
   triggers[index].focus();
   fireEvent.click(triggers[index]);
   return triggers;
@@ -170,19 +171,22 @@ describe("similar companies drawer flow", () => {
       return Promise.resolve(jsonResponse(similarCompanyPage([similarCompany()], { has_more: true })));
     });
     render(<App />);
-    const toggle = await screen.findByRole("checkbox", { name: "Mostrar descartados" });
+    await screen.findByLabelText(/Segmento/);
+    openMoreFilters();
+    const toggle = screen.getByRole("checkbox", { name: "Mostrar descartados" });
     fireEvent.click(toggle);
     fireEvent.change(await screen.findByLabelText(/Segmento/), { target: { value: "metal-mecanica" } });
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
-    const details = await screen.findAllByRole("button", { name: "Ver detalhes" });
+    const details = await screen.findAllByRole("button", { name: /^Detalhes de/ });
     fireEvent.click(toggle);
     expect(toggle).not.toBeChecked();
     fireEvent.click(details[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Ver semelhantes" }));
-    await screen.findByText("EMPRESA SEMELHANTE LTDA");
-    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Tentar novamente" }));
-    await screen.findByText("Nenhuma empresa semelhante foi encontrada.");
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Ver semelhantes" }));
+    await within(dialog).findByText("EMPRESA SEMELHANTE LTDA");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Próxima" }));
+    fireEvent.click(await within(dialog).findByRole("button", { name: "Tentar novamente" }));
+    await within(dialog).findByText("Nenhuma empresa semelhante foi encontrada.");
 
     expect(similarUrls()).toHaveLength(3);
     for (const url of similarUrls()) {

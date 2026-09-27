@@ -1,12 +1,23 @@
 import type {
   DiscoveryFormValues,
-  DiscoverySearchSnapshot,
-  SearchMode,
+  FilteredSearchSnapshot,
   ValidationErrors,
 } from "./discoveryTypes";
 import type { DiscoveryEstablishment } from "../../types/api";
 
 const DECIMAL_PATTERN = /^\d+(?:\.\d+)?$/;
+
+/** Filtros materiais aceitos pelo backend FILTERED (#207). */
+export const MATERIAL_FILTERS: ReadonlyArray<keyof DiscoveryFormValues> = [
+  "segmentId",
+  "uf",
+  "municipioNome",
+  "codigoTom",
+  "codigoIbge",
+  "porteCodigo",
+  "capitalMin",
+  "capitalMax",
+];
 
 function compareDecimals(left: string, right: string): number {
   const [leftInteger, leftFraction = ""] = left.split(".");
@@ -24,19 +35,23 @@ function compareDecimals(left: string, right: string): number {
   return paddedLeft > paddedRight ? 1 : -1;
 }
 
-export function validateSearch(mode: SearchMode, values: DiscoveryFormValues): ValidationErrors {
+/**
+ * Valida apenas o que é obviamente inválido para a busca FILTERED: nenhum
+ * filtro material, decimal malformado e capital mínimo maior que o máximo.
+ * Qualquer combinação de filtros é enviada por AND; o backend é a autoridade.
+ */
+export function validateFilters(values: DiscoveryFormValues): ValidationErrors {
   const errors: ValidationErrors = {};
-  if (mode === "segment" && !values.segmentId.trim()) {
-    errors.segmentId = "Selecione um segmento para realizar a busca.";
+  if (!MATERIAL_FILTERS.some((field) => values[field].trim())) {
+    errors.filters = "Informe ao menos um filtro: segmento, UF, município, código TOM ou IBGE, porte ou capital.";
   }
   for (const field of ["capitalMin", "capitalMax"] as const) {
     const value = values[field].trim();
-    if (mode === "segment" && value && !DECIMAL_PATTERN.test(value)) {
+    if (value && !DECIMAL_PATTERN.test(value)) {
       errors[field] = "Informe um valor decimal válido usando ponto como separador.";
     }
   }
   if (
-    mode === "segment" &&
     !errors.capitalMin &&
     !errors.capitalMax &&
     values.capitalMin.trim() &&
@@ -45,46 +60,24 @@ export function validateSearch(mode: SearchMode, values: DiscoveryFormValues): V
   ) {
     errors.capitalMax = "O capital máximo deve ser maior ou igual ao capital mínimo.";
   }
-  if (
-    mode === "region" &&
-    ![values.uf, values.codigoTom, values.codigoIbge, values.municipioNome].some((value) => value.trim())
-  ) {
-    errors.region = "Informe ao menos UF, código TOM, código IBGE ou nome do município.";
-  }
   return errors;
 }
 
-export function createSnapshot(
-  mode: SearchMode,
-  values: DiscoveryFormValues,
-  includeDiscarded = false,
-): DiscoverySearchSnapshot {
-  const trimmed = Object.fromEntries(
+export function trimFilters(values: DiscoveryFormValues): DiscoveryFormValues {
+  return Object.fromEntries(
     Object.entries(values).map(([key, value]) => [key, value.trim()]),
   ) as unknown as DiscoveryFormValues;
-  if (mode === "segment") {
-    return {
-      mode,
-      segmentId: trimmed.segmentId,
-      uf: trimmed.uf,
-      codigoTom: trimmed.codigoTom,
-      porteCodigo: trimmed.porteCodigo,
-      capitalMin: trimmed.capitalMin,
-      capitalMax: trimmed.capitalMax,
-      includeDiscarded,
-    };
-  }
-  if (mode !== "region") throw new Error("Radius search uses a dedicated snapshot.");
-  return {
-    mode: "region",
-    segmentId: trimmed.segmentId,
-    uf: trimmed.uf,
-    codigoTom: trimmed.codigoTom,
-    codigoIbge: trimmed.codigoIbge,
-    municipioNome: trimmed.municipioNome,
-    includeDiscarded,
-  };
 }
+
+export function createFilteredSnapshot(
+  values: DiscoveryFormValues,
+  includeDiscarded = false,
+): FilteredSearchSnapshot {
+  return { ...trimFilters(values), includeDiscarded };
+}
+
+export const TIMEOUT_MESSAGE =
+  "A busca excedeu o tempo limite. Nada foi perdido: tentar de novo repete exatamente a consulta submetida.";
 
 export function publicSearchError(code: string): string {
   if (code === "database_unavailable") {
@@ -93,9 +86,7 @@ export function publicSearchError(code: string): string {
   if (code === "invalid_request") {
     return "A API rejeitou os filtros informados. Revise os critérios e tente novamente.";
   }
-  if (code === "request_timeout") {
-    return "A busca excedeu o tempo limite. Tente novamente.";
-  }
+  if (code === "request_timeout") return TIMEOUT_MESSAGE;
   if (code === "invalid_response" || code === "invalid_json") {
     return "Resposta inválida da API. Tente novamente mais tarde.";
   }

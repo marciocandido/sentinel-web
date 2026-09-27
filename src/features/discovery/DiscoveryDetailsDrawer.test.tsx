@@ -74,7 +74,7 @@ async function renderResults() {
   render(<App />);
   fireEvent.change(await screen.findByLabelText(/Segmento/), { target: { value: "metal-mecanica" } });
   fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
-  return screen.findAllByRole("button", { name: "Ver detalhes" });
+  return screen.findAllByRole("button", { name: /^Detalhes de/ });
 }
 
 beforeEach(() => {
@@ -216,18 +216,20 @@ describe("Discovery establishment details drawer", () => {
 
   it("closes before a new search", async () => {
     const buttons = await renderResults();
-    const form = screen.getByRole("form", { name: "Formulário de busca" });
+    const form = screen.getByRole("form", { name: "Critérios da busca" });
     fireEvent.click(buttons[0]);
     fireEvent.submit(form);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("closes when the search mode changes", async () => {
+  it("makes the criteria, family switch and results inert while open", async () => {
     const buttons = await renderResults();
-    const regionMode = screen.getByRole("radio", { name: "Por região" });
     fireEvent.click(buttons[0]);
-    fireEvent.click(regionMode);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const content = document.querySelector(".discovery-content") as HTMLElement;
+    expect(content).toHaveAttribute("inert");
+    expect(content.contains(screen.getByRole("radiogroup", { name: "Tipo de busca", hidden: true }))).toBe(true);
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(content).not.toHaveAttribute("inert"));
   });
 
   it("closes before pagination", async () => {
@@ -250,7 +252,7 @@ describe("Discovery establishment details drawer", () => {
     const { unmount } = render(<App />);
     fireEvent.change(await screen.findByLabelText(/Segmento/), { target: { value: "metal-mecanica" } });
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
-    const trigger = (await screen.findAllByRole("button", { name: "Ver detalhes" }))[0];
+    const trigger = (await screen.findAllByRole("button", { name: /^Detalhes de/ }))[0];
     fireEvent.click(trigger);
     expect(document.body.style.overflow).toBe("hidden");
     unmount();

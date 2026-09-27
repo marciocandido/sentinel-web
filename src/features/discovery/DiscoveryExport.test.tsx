@@ -11,6 +11,7 @@ import {
   similarCompanyPage,
 } from "../../test/fixtures";
 import { runtimeStatus } from "../../test/runtimeFixtures";
+import { chooseFamily, chooseProximity, chooseStructure, openMoreFilters } from "../../test/discoveryUi";
 
 vi.mock("./RadiusMap", () => ({
   RadiusMap: ({ accessibleName = "Mapa dos resultados por raio" }: { accessibleName?: string }) => (
@@ -69,36 +70,31 @@ function exportRequests() {
 }
 
 async function submitMode(mode: "segment" | "region" | "radius" | "neighbors" | "root" | "group") {
-  if (mode !== "segment") {
-    const labels = {
-      region: "Por região",
-      radius: "Por raio",
-      neighbors: "Por vizinhos",
-      root: "Por raiz/filiais",
-      group: "Por grupo",
-    } as const;
-    fireEvent.click(await screen.findByRole("radio", { name: labels[mode] }));
-  }
+  if (mode === "radius") await chooseProximity("Raio a partir de uma origem");
+  else if (mode === "neighbors") await chooseProximity("Vizinhos de um CNPJ");
+  else if (mode === "root") await chooseStructure("Raiz e filiais");
+  else if (mode === "group") await chooseStructure("Grupo comercial registrado");
+  else await chooseFamily("Filtros");
   if (mode === "segment") {
     fireEvent.change(await screen.findByLabelText(/Segmento/), { target: { value: "0123456" } });
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
   } else if (mode === "region") {
-    fireEvent.change(screen.getByLabelText("UF"), { target: { value: "PR" } });
+    fireEvent.change(screen.getByLabelText(/^UF \(opcional\)/), { target: { value: "PR" } });
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
   } else if (mode === "radius") {
-    fireEvent.change(screen.getByLabelText("Nome do município"), { target: { value: "CURITIBA" } });
+    fireEvent.change(screen.getByLabelText("Município de origem"), { target: { value: "CURITIBA" } });
     fireEvent.change(screen.getByLabelText("UF da origem"), { target: { value: "PR" } });
-    fireEvent.change(screen.getByLabelText("Raio em quilômetros"), { target: { value: "12.5" } });
-    fireEvent.click(screen.getByRole("button", { name: "Buscar por raio" }));
+    fireEvent.change(screen.getByLabelText("Raio (km)"), { target: { value: "12.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
   } else if (mode === "neighbors") {
     fireEvent.change(screen.getByLabelText("CNPJ de referência"), { target: { value: "00ABC123000100" } });
-    fireEvent.click(screen.getByRole("button", { name: "Buscar vizinhos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
   } else if (mode === "root") {
     fireEvent.change(screen.getByRole("textbox", { name: "CNPJ completo" }), { target: { value: "00ABC123000100" } });
-    fireEvent.click(screen.getByRole("button", { name: "Buscar raiz e filiais" }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
   } else {
-    fireEvent.change(screen.getByLabelText("ID do grupo"), { target: { value: "grupo-001" } });
-    fireEvent.click(screen.getByRole("button", { name: "Buscar grupo" }));
+    fireEvent.change(screen.getByLabelText("ID do grupo registrado"), { target: { value: "grupo-001" } });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
   }
   await screen.findByRole("button", { name: "Exportar CSV" });
 }
@@ -120,8 +116,8 @@ afterEach(() => {
 
 describe("Discovery export UI", () => {
   it.each([
-    ["segment", "SEGMENT"],
-    ["region", "REGION"],
+    ["segment", "FILTERED"],
+    ["region", "FILTERED"],
     ["radius", "RADIUS"],
     ["neighbors", "NEIGHBORS"],
     ["root", "ROOT_BRANCHES"],
@@ -142,18 +138,19 @@ describe("Discovery export UI", () => {
   it("uses the submitted snapshot after form edits and visible pagination changes", async () => {
     render(<App />);
     fireEvent.change(await screen.findByLabelText(/Segmento/), { target: { value: "0123456" } });
-    fireEvent.change(screen.getByLabelText("UF"), { target: { value: "PR" } });
-    fireEvent.change(screen.getByLabelText("Código TOM"), { target: { value: "0001" } });
+    fireEvent.change(screen.getByLabelText(/^UF \(opcional\)/), { target: { value: "PR" } });
+    openMoreFilters();
+    fireEvent.change(screen.getByLabelText(/^Código TOM/), { target: { value: "0001" } });
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
     await screen.findByRole("button", { name: "Exportar CSV" });
-    fireEvent.change(screen.getByLabelText("UF"), { target: { value: "SC" } });
+    fireEvent.change(screen.getByLabelText(/^UF \(opcional\)/), { target: { value: "SC" } });
     fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
     fireEvent.click(screen.getByRole("button", { name: "Exportar Excel" }));
     await waitFor(() => expect(exportRequests()).toHaveLength(1));
     expect(exportRequests()[0]).toEqual({
       format: "XLSX",
       search: {
-        kind: "SEGMENT",
+        kind: "FILTERED",
         segment_id: "0123456",
         uf: "PR",
         codigo_tom: "0001",
@@ -163,7 +160,9 @@ describe("Discovery export UI", () => {
 
   it("exports discarded visibility from the submitted snapshot, not the edited toggle", async () => {
     render(<App />);
-    const toggle = await screen.findByRole("checkbox", { name: "Mostrar descartados" });
+    await screen.findByLabelText(/Segmento/);
+    openMoreFilters();
+    const toggle = screen.getByRole("checkbox", { name: "Mostrar descartados" });
     fireEvent.click(toggle);
     await submitMode("segment");
     fireEvent.click(toggle);
@@ -171,7 +170,7 @@ describe("Discovery export UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Exportar CSV" }));
     await waitFor(() => expect(exportRequests()).toHaveLength(1));
     expect(exportRequests()[0].search).toMatchObject({
-      kind: "SEGMENT",
+      kind: "FILTERED",
       include_discarded: true,
     });
     expect(exportRequests()[0].search).not.toHaveProperty("actor_id");
@@ -232,7 +231,7 @@ describe("Discovery export UI", () => {
   it("exports similar companies from the drawer using only the textual reference", async () => {
     render(<App />);
     await submitMode("segment");
-    fireEvent.click((await screen.findAllByRole("button", { name: "Ver detalhes" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: /^Detalhes de/ }))[0]);
     fireEvent.click(screen.getByRole("button", { name: "Ver semelhantes" }));
     await screen.findByText("EMPRESA SEMELHANTE LTDA");
     const dialog = screen.getByRole("dialog");
@@ -247,11 +246,13 @@ describe("Discovery export UI", () => {
 
   it("exports similar companies with the selected result visibility context", async () => {
     render(<App />);
-    const toggle = await screen.findByRole("checkbox", { name: "Mostrar descartados" });
+    await screen.findByLabelText(/Segmento/);
+    openMoreFilters();
+    const toggle = screen.getByRole("checkbox", { name: "Mostrar descartados" });
     fireEvent.click(toggle);
     await submitMode("segment");
     fireEvent.click(toggle);
-    fireEvent.click((await screen.findAllByRole("button", { name: "Ver detalhes" }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: /^Detalhes de/ }))[0]);
     fireEvent.click(screen.getByRole("button", { name: "Ver semelhantes" }));
     await screen.findByText("EMPRESA SEMELHANTE LTDA");
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Exportar CSV" }));

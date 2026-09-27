@@ -1,5 +1,4 @@
-import { createRef } from "react";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FeedbackEvent, FeedbackSource } from "../../types/api";
 import { establishment } from "../../test/fixtures";
@@ -10,16 +9,38 @@ import {
   commercialGroupPage,
   discoveryPage,
   neighborEstablishment,
+  neighborSearchPage,
   radiusSearchEstablishment,
+  radiusSearchPage,
   rootBranchEstablishment,
+  rootBranchesPage,
 } from "../../test/fixtures";
-import { CommercialGroupTable } from "./CommercialGroupTable";
-import { CommercialGroupResults } from "./CommercialGroupResults";
-import { DiscoveryResults } from "./DiscoveryResults";
-import { DiscoveryTable } from "./DiscoveryTable";
-import { NeighborsTable } from "./NeighborsTable";
-import { RadiusTable } from "./RadiusTable";
-import { RootBranchesTable } from "./RootBranchesTable";
+import type { DiscoveryEstablishment } from "../../types/api";
+import { EMPTY_FORM, type QueryResult } from "./discoveryTypes";
+import { QueryResultView } from "./QueryResultView";
+
+function renderResult(result: QueryResult) {
+  return render(
+    <QueryResultView
+      result={result}
+      narrow={false}
+      onSelect={vi.fn()}
+      onPrevious={vi.fn()}
+      onNext={vi.fn()}
+      onLimitChange={vi.fn()}
+    />,
+  );
+}
+
+function renderFiltered(items: DiscoveryEstablishment[], segmentId = "metal-mecanica") {
+  return renderResult({
+    kind: "filtered",
+    snapshot: { ...EMPTY_FORM, segmentId, includeDiscarded: false },
+    page: discoveryPage(items),
+  });
+}
+
+const FEEDBACK = /^Feedback/;
 
 const fetchMock = vi.fn();
 const source: FeedbackSource = { kind: "SEGMENT", reference: "metal-mecanica" };
@@ -64,18 +85,8 @@ describe("FeedbackPanel in discovery tables", () => {
       {},
       commercialGroupContext({ group_id: "Grupo Metal" }),
     );
-    render(
-      <CommercialGroupResults
-        state={{ kind: "success", page: groupPage, snapshot: { groupId: "Grupo Metal", includeDiscarded: false } }}
-        focusRef={createRef()}
-        onRetry={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onLimitChange={vi.fn()}
-        onSelect={vi.fn()}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Feedback" }));
+    renderResult({ kind: "group", page: groupPage, snapshot: { groupId: "Grupo Metal", includeDiscarded: false } });
+    fireEvent.click(screen.getByRole("button", { name: FEEDBACK }));
     await screen.findByText("Ainda não há feedback registrado para este estabelecimento.");
     fireEvent.click(screen.getByRole("button", { name: "Útil" }));
     await screen.findByText("Feedback registrado com sucesso.");
@@ -85,60 +96,56 @@ describe("FeedbackPanel in discovery tables", () => {
       source: { kind: "COMMERCIAL_GROUP", reference: null },
     });
 
-    cleanup();
-    fetchMock.mockClear();
-    render(
-      <DiscoveryResults
-        state={{
-          kind: "success",
-          page: discoveryPage([establishment()]),
-          snapshot: {
-            mode: "segment",
-            segmentId: "Grupo Metal",
-            uf: "",
-            codigoTom: "",
-            porteCodigo: "",
-            capitalMin: "",
-            capitalMax: "",
-            includeDiscarded: false,
-          },
-        }}
-        onRetry={vi.fn()}
-        onPrevious={vi.fn()}
-        onNext={vi.fn()}
-        onLimitChange={vi.fn()}
-        onSelectEstablishment={vi.fn()}
-      />,
-    );
-    fireEvent.click(screen.getAllByRole("button", { name: "Feedback" }).at(-1)!);
+  });
+
+  async function postedSource(): Promise<unknown> {
+    fireEvent.click(screen.getByRole("button", { name: FEEDBACK }));
     await screen.findByText("Ainda não há feedback registrado para este estabelecimento.");
-    fireEvent.click(screen.getAllByRole("button", { name: "Útil" }).at(-1)!);
+    fireEvent.click(screen.getByRole("button", { name: "Útil" }));
     await screen.findByText("Feedback registrado com sucesso.");
-    const segmentPost = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
-    expect(JSON.parse(segmentPost?.[1].body as string)).toEqual({
-      action: "USEFUL",
-      source: { kind: "SEGMENT", reference: null },
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+    return JSON.parse(post?.[1].body as string).source;
+  }
+
+  it.each([
+    ["segment, municipality and porte", { segmentId: "metal-mecanica", municipioNome: "CAMPINAS", porteCodigo: "05" }],
+    ["only segment_id", { segmentId: "metal-mecanica" }],
+    ["municipality and capital, without segment", { municipioNome: "DIADEMA", capitalMin: "100000" }],
+  ])("sends source null for FILTERED results with %s, never SEGMENT or REGION", async (_name, filters) => {
+    renderResult({
+      kind: "filtered",
+      snapshot: { ...EMPTY_FORM, ...filters, includeDiscarded: false },
+      page: discoveryPage([establishment()]),
     });
+    const source = await postedSource();
+    expect(source).toBeNull();
+    const body = JSON.stringify(fetchMock.mock.calls.find(([, init]) => init?.method === "POST")?.[1].body);
+    expect(body).not.toMatch(/SEGMENT|REGION|FILTERED/);
+  });
+
+  it.each([
+    ["RADIUS", () => renderResult({ kind: "radius", snapshot: { origin: { kind: "cnpj", cnpj: "00ABC234000155" }, radiusKm: 5, segmentId: "metal", resultUf: "", includeDiscarded: false }, page: radiusSearchPage([radiusSearchEstablishment()]) }), { kind: "RADIUS", reference: null }],
+    ["NEIGHBORS", () => renderResult({ kind: "neighbors", snapshot: { cnpj: "00ABC234000155", radiusKm: 5, segmentId: "", resultUf: "", includeDiscarded: false }, page: neighborSearchPage([neighborEstablishment()]) }), { kind: "NEIGHBORS", reference: "00ABC234000155" }],
+    ["ROOT_BRANCHES", () => renderResult({ kind: "root", snapshot: { identifier: { kind: "root", cnpjRoot: "00123456" }, includeDiscarded: false }, page: rootBranchesPage([rootBranchEstablishment()]) }), { kind: "ROOT_BRANCHES", reference: "00123456" }],
+    ["COMMERCIAL_GROUP", () => renderResult({ kind: "group", snapshot: { groupId: "grupo-metal", includeDiscarded: false }, page: commercialGroupPage([commercialGroupKnownEstablishment()]) }), { kind: "COMMERCIAL_GROUP", reference: "grupo-metal" }],
+  ] as const)("keeps the real %s feedback source", async (_kind, renderView, expected) => {
+    renderView();
+    expect(await postedSource()).toEqual(expected);
   });
 
   it("exposes feedback for radius, neighbors, root branches and known commercial-group establishments only", () => {
-    render(<>
-      <RadiusTable items={[radiusSearchEstablishment()]} onSelect={vi.fn()} feedbackSource={{ kind: "RADIUS", reference: null }} />
-      <NeighborsTable items={[neighborEstablishment()]} feedbackSource={{ kind: "NEIGHBORS", reference: "00ABC234000155" }} />
-      <RootBranchesTable items={[rootBranchEstablishment()]} onSelect={vi.fn()} feedbackSource={{ kind: "ROOT_BRANCHES", reference: "00123456" }} />
-      <CommercialGroupTable items={[commercialGroupKnownEstablishment(), commercialGroupUnknownRoot()]} onSelect={vi.fn()} feedbackSource={{ kind: "COMMERCIAL_GROUP", reference: "grupo-metal" }} />
-    </>);
-    expect(screen.getAllByRole("button", { name: "Feedback" })).toHaveLength(4);
-    expect(screen.getByText("Estabelecimento não disponível na base útil").closest("tr")).not.toHaveTextContent("Feedback");
+    const snapshot = { radiusKm: 5, segmentId: "", resultUf: "", includeDiscarded: false };
+    renderResult({ kind: "radius", snapshot: { ...snapshot, origin: { kind: "cnpj", cnpj: "00ABC234000155" } }, page: radiusSearchPage([radiusSearchEstablishment()]) });
+    renderResult({ kind: "neighbors", snapshot: { ...snapshot, cnpj: "00ABC234000155" }, page: neighborSearchPage([neighborEstablishment()]) });
+    renderResult({ kind: "root", snapshot: { identifier: { kind: "root", cnpjRoot: "00123456" }, includeDiscarded: false }, page: rootBranchesPage([rootBranchEstablishment()]) });
+    renderResult({ kind: "group", snapshot: { groupId: "grupo-metal", includeDiscarded: false }, page: commercialGroupPage([commercialGroupKnownEstablishment(), commercialGroupUnknownRoot()]) });
+    expect(screen.getAllByRole("button", { name: FEEDBACK })).toHaveLength(4);
+    expect(screen.getByText("Registrada no grupo, sem estabelecimento na base útil.").closest("tr")).not.toHaveTextContent("Feedback");
   });
 
   it("opens one accessible panel at a time, loads history and closes on its row button", async () => {
-    render(<DiscoveryTable
-      items={[establishment({ cnpj_full: "00123456000195", razao_social: "PRIMEIRA" }), establishment({ cnpj_full: "00123456000196", razao_social: "SEGUNDA" })]}
-      onSelectEstablishment={vi.fn()}
-      feedbackSource={{ kind: "SEGMENT", reference: "metal-mecanica" }}
-    />);
-    const buttons = screen.getAllByRole("button", { name: "Feedback" });
+    renderFiltered([establishment({ cnpj_full: "00123456000195", razao_social: "PRIMEIRA" }), establishment({ cnpj_full: "00123456000196", razao_social: "SEGUNDA" })]);
+    const buttons = screen.getAllByRole("button", { name: FEEDBACK });
     fireEvent.click(buttons[0]);
     const panel = await screen.findByRole("region", { name: "Feedback comercial de PRIMEIRA" });
     expect(buttons[0]).toHaveAttribute("aria-expanded", "true");
@@ -150,8 +157,8 @@ describe("FeedbackPanel in discovery tables", () => {
   });
 
   it("shows all actions, keeps result rows unchanged and sends the source immediately", async () => {
-    render(<DiscoveryTable items={[establishment({ cnpj_full: event.cnpj_full, razao_social: "PRIMEIRA" })]} onSelectEstablishment={vi.fn()} feedbackSource={source} />);
-    fireEvent.click(screen.getByRole("button", { name: "Feedback" }));
+    renderFiltered([establishment({ cnpj_full: event.cnpj_full, razao_social: "PRIMEIRA" })]);
+    fireEvent.click(screen.getByRole("button", { name: FEEDBACK }));
     await screen.findByText("Ainda não há feedback registrado para este estabelecimento.");
     for (const label of ["Útil", "Descartar", "Já conheço", "Contato ruim", "Virou visita", "Virou orçamento", "Virou venda (informado)"]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
@@ -162,7 +169,7 @@ describe("FeedbackPanel in discovery tables", () => {
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
     expect(post?.[1]).toMatchObject({
       headers: expect.objectContaining({ "Idempotency-Key": "feedback-new-key" }),
-      body: JSON.stringify({ action: "USEFUL", source }),
+      body: JSON.stringify({ action: "USEFUL", source: null }),
     });
     expect(screen.getAllByText("PRIMEIRA")).toHaveLength(2);
   });
@@ -176,8 +183,8 @@ describe("FeedbackPanel in discovery tables", () => {
         ? Promise.reject(new TypeError("offline"))
         : Promise.resolve(response({ event, idempotent_replay: true }, 200));
     });
-    render(<DiscoveryTable items={[establishment({ cnpj_full: event.cnpj_full, razao_social: "PRIMEIRA" })]} onSelectEstablishment={vi.fn()} feedbackSource={source} />);
-    fireEvent.click(screen.getByRole("button", { name: "Feedback" }));
+    renderFiltered([establishment({ cnpj_full: event.cnpj_full, razao_social: "PRIMEIRA" })]);
+    fireEvent.click(screen.getByRole("button", { name: FEEDBACK }));
     await screen.findByText("Ainda não há feedback registrado para este estabelecimento.");
     fireEvent.click(screen.getByRole("button", { name: "Útil" }));
     await screen.findByRole("alert");
@@ -194,8 +201,8 @@ describe("FeedbackPanel in discovery tables", () => {
         ? new Promise<Response>((resolve) => { resolvePost = resolve; })
         : Promise.resolve(response(history())),
     );
-    render(<DiscoveryTable items={[establishment({ cnpj_full: event.cnpj_full, razao_social: "PRIMEIRA" })]} onSelectEstablishment={vi.fn()} feedbackSource={source} />);
-    fireEvent.click(screen.getByRole("button", { name: "Feedback" }));
+    renderFiltered([establishment({ cnpj_full: event.cnpj_full, razao_social: "PRIMEIRA" })]);
+    fireEvent.click(screen.getByRole("button", { name: FEEDBACK }));
     await screen.findByText("Ainda não há feedback registrado para este estabelecimento.");
     fireEvent.click(screen.getByRole("button", { name: "Útil" }));
     expect(await screen.findByRole("status", { name: "" })).toHaveTextContent("Registrando feedback");
@@ -216,15 +223,9 @@ describe("FeedbackPanel in discovery tables", () => {
       getCalls += 1;
       return Promise.resolve(response(history(getCalls === 1 ? [] : [event])));
     });
-    render(
-      <DiscoveryTable
-        items={[establishment({ cnpj_full: event.cnpj_full, razao_social: "PRIMEIRA" })]}
-        onSelectEstablishment={vi.fn()}
-        feedbackSource={source}
-      />,
-    );
+    renderFiltered([establishment({ cnpj_full: event.cnpj_full, razao_social: "PRIMEIRA" })]);
 
-    const feedbackButton = screen.getByRole("button", { name: "Feedback" });
+    const feedbackButton = screen.getByRole("button", { name: FEEDBACK });
     feedbackButton.focus();
     fireEvent.click(feedbackButton);
     await screen.findByText("Ainda não há feedback registrado para este estabelecimento.");

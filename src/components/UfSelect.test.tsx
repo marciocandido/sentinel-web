@@ -5,6 +5,7 @@ import { runtimeStatus } from "../test/runtimeFixtures";
 import { discoveryPage, establishment, neighborSearchPage, radiusSearchPage } from "../test/fixtures";
 import { UfSelect } from "./UfSelect";
 import { UF_OPTIONS } from "./ufOptions";
+import { chooseProximity } from "../test/discoveryUi";
 
 vi.mock("../features/discovery/RadiusMap", () => ({
   RadiusMap: ({ accessibleName }: { accessibleName?: string }) => <div role="img" aria-label={accessibleName ?? "Mapa"} />,
@@ -44,7 +45,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("UfSelect", () => {
   it("offers the 27 federal units plus an empty option", async () => {
     render(<App />);
-    const select = await screen.findByLabelText("UF");
+    const select = await screen.findByLabelText(/^UF \(opcional\)/);
     expect(select.tagName).toBe("SELECT");
     const options = Array.from((select as HTMLSelectElement).options);
     expect(options).toHaveLength(28);
@@ -77,7 +78,7 @@ describe("UfSelect", () => {
   it("sends the selected sigla unchanged to the API", async () => {
     render(<App />);
     fireEvent.change(await screen.findByLabelText(/Segmento/), { target: { value: "metal-mecanica" } });
-    const select = screen.getByLabelText("UF");
+    const select = screen.getByLabelText(/^UF \(opcional\)/);
     fireEvent.change(select, { target: { value: "SP" } });
     expect(select).toHaveValue("SP");
     fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
@@ -92,14 +93,14 @@ describe("UfSelect", () => {
 
   it("covers the radius origin and result units", async () => {
     render(<App />);
-    fireEvent.click(await screen.findByRole("radio", { name: "Por raio" }));
-    fireEvent.change(screen.getByLabelText("Nome do município"), { target: { value: "SAO PAULO" } });
+    await chooseProximity("Raio a partir de uma origem");
+    fireEvent.change(screen.getByLabelText("Município de origem"), { target: { value: "SAO PAULO" } });
     fireEvent.change(screen.getByLabelText("UF da origem"), { target: { value: "SP" } });
-    fireEvent.change(screen.getByLabelText("Raio em quilômetros"), { target: { value: "10" } });
-    fireEvent.change(screen.getByLabelText("UF dos resultados"), { target: { value: "MG" } });
+    fireEvent.change(screen.getByLabelText("Raio (km)"), { target: { value: "10" } });
+    fireEvent.change(screen.getByLabelText("UF dos resultados (opcional)"), { target: { value: "MG" } });
     expect(screen.getByLabelText("UF da origem").tagName).toBe("SELECT");
-    expect(screen.getByLabelText("UF dos resultados").tagName).toBe("SELECT");
-    fireEvent.click(screen.getByRole("button", { name: "Buscar por raio" }));
+    expect(screen.getByLabelText("UF dos resultados (opcional)").tagName).toBe("SELECT");
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
     await waitFor(() => expect(searchUrls()).toHaveLength(1));
     expect(lastQuery().get("origin_uf")).toBe("SP");
     expect(lastQuery().get("uf")).toBe("MG");
@@ -107,23 +108,23 @@ describe("UfSelect", () => {
 
   it("covers the neighbours result unit", async () => {
     render(<App />);
-    fireEvent.click(await screen.findByRole("radio", { name: "Por vizinhos" }));
+    await chooseProximity("Vizinhos de um CNPJ");
     fireEvent.change(screen.getByLabelText("CNPJ de referência"), { target: { value: "00ABC234000155" } });
-    fireEvent.change(screen.getByLabelText("Raio em quilômetros"), { target: { value: "5" } });
-    const select = screen.getByLabelText("UF dos resultados — opcional");
+    fireEvent.change(screen.getByLabelText("Raio (km)"), { target: { value: "5" } });
+    const select = screen.getByLabelText("UF dos resultados (opcional)");
     expect(select.tagName).toBe("SELECT");
     fireEvent.change(select, { target: { value: "RS" } });
-    fireEvent.click(screen.getByRole("button", { name: "Buscar vizinhos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
     await waitFor(() => expect(searchUrls()).toHaveLength(1));
     expect(lastQuery().get("uf")).toBe("RS");
   });
 
   it("keeps the required origin validation instead of inventing a new rule", async () => {
     render(<App />);
-    fireEvent.click(await screen.findByRole("radio", { name: "Por raio" }));
-    fireEvent.change(screen.getByLabelText("Nome do município"), { target: { value: "SAO PAULO" } });
-    fireEvent.change(screen.getByLabelText("Raio em quilômetros"), { target: { value: "10" } });
-    fireEvent.click(screen.getByRole("button", { name: "Buscar por raio" }));
+    await chooseProximity("Raio a partir de uma origem");
+    fireEvent.change(screen.getByLabelText("Município de origem"), { target: { value: "SAO PAULO" } });
+    fireEvent.change(screen.getByLabelText("Raio (km)"), { target: { value: "10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
     expect(await screen.findByText("Informe a UF da origem.")).toBeInTheDocument();
     expect(screen.getByLabelText("UF da origem")).toHaveAttribute("aria-invalid", "true");
     expect(searchUrls()).toHaveLength(0);
