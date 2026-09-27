@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { deleteNoContent, postBinary, SentinelApiError } from "./apiClient";
+import { abortProtectedRequests, deleteNoContent, getJson, postBinary, postJson, SentinelApiError, subscribeSessionEnd } from "./apiClient";
+import { setCsrfCookie } from "../test/authFixtures";
 
 const fetchMock = vi.fn();
 
@@ -214,5 +215,102 @@ describe("deleteNoContent", () => {
     const timed = deleteNoContent("/x", { timeoutMs: 10 }); const result = expect(timed).rejects.toMatchObject({ code: "request_timeout" }); await vi.advanceTimersByTimeAsync(10); await result;
     vi.useRealTimers(); fetchMock.mockRejectedValueOnce(new TypeError("private"));
     await expect(deleteNoContent("/x")).rejects.toMatchObject({ code: "network_error" });
+  });
+});
+
+describe("CSRF, sessão e escopo protegido", () => {
+  function jsonResponse(status: number, body: unknown): Response {
+    return { ok: status >= 200 && status < 300, status, headers: new Headers(), json: () => Promise.resolve(body) } as Response;
+  }
+  const errorBody = (code: string) => ({ error: { code, message: "private backend detail" } });
+  const sentHeaders = (call = 0) => fetchMock.mock.calls[call][1].headers as Record<string, string>;
+
+  it("envia o CSRF vigente em POST, DELETE e POST binário, descartando valor da feature", async () => {
+    setCsrfCookie("current-token");
+    fetchMock.mockResolvedValueOnce(jsonResponse(201, { ok: true }));
+    await postJson("/x", {}, { acceptedStatuses: [201], headers: { "x-sentinel-csrf": "forged", "Idempotency-Key": "k" } });
+    expect(sentHeaders(0)["X-Sentinel-CSRF"]).toBe("current-token");
+    expect(sentHeaders(0)["x-sentinel-csrf"]).toBeUndefined();
+    expect(sentHeaders(0)["Idempotency-Key"]).toBe("k");
+    expect(fetchMock.mock.calls[0][1].credentials).toBe("same-origin");
+
+    setCsrfCookie("rotated-token");
+    fetchMock.mockResolvedValueOnce(jsonResponse(204, null));
+    await deleteNoContent("/x/1");
+    expect(sentHeaders(1)["X-Sentinel-CSRF"]).toBe("rotated-token");
+
+    fetchMock.mockResolvedValueOnce(binaryResponse(200));
+    await postBinary("/exports", {});
+    expect(sentHeaders(2)["X-Sentinel-CSRF"]).toBe("rotated-token");
+  });
+
+  it("não envia CSRF em GET", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+    await getJson("/x");
+    expect(sentHeaders()).toEqual({ Accept: "application/json" });
+    expect(fetchMock.mock.calls[0][1].credentials).toBe("same-origin");
+  });
+
+  it("falha antes da mutação quando não há cookie CSRF e encerra a sessão local", async () => {
+    setCsrfCookie(null);
+    const listener = vi.fn();
+    const unsubscribe = subscribeSessionEnd(listener);
+    await expect(postJson("/x", {})).rejects.toMatchObject({ code: "csrf_missing" });
+    await expect(deleteNoContent("/x/1")).rejects.toMatchObject({ code: "csrf_missing" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(listener).toHaveBeenCalledWith("unauthenticated");
+    unsubscribe();
+  });
+
+  it("usa X-Sentinel-CSRF: login somente no login, mesmo sem cookie", async () => {
+    setCsrfCookie(null);
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, {}));
+    await postJson("/api/v1/auth/login", {}, { auth: "login", acceptedStatuses: [200] });
+    expect(sentHeaders()["X-Sentinel-CSRF"]).toBe("login");
+  });
+
+  it("notifica fim de sessão para 401 de sessão e 403 access_disabled, não para 403 de operação", async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeSessionEnd(listener);
+    fetchMock.mockResolvedValueOnce(jsonResponse(401, errorBody("session_expired")));
+    await expect(getJson("/x")).rejects.toMatchObject({ code: "session_expired", status: 401 });
+    fetchMock.mockResolvedValueOnce(jsonResponse(401, errorBody("session_invalid")));
+    await expect(getJson("/x")).rejects.toMatchObject({ code: "session_invalid" });
+    fetchMock.mockResolvedValueOnce(jsonResponse(403, errorBody("access_disabled")));
+    await expect(postJson("/x", {})).rejects.toMatchObject({ code: "access_disabled" });
+    fetchMock.mockResolvedValueOnce(jsonResponse(403, errorBody("permission_denied")));
+    await expect(getJson("/x")).rejects.toMatchObject({ code: "permission_denied" });
+    fetchMock.mockResolvedValueOnce(jsonResponse(403, errorBody("csrf_invalid")));
+    await expect(postJson("/x", {})).rejects.toMatchObject({ code: "csrf_invalid" });
+    expect(listener.mock.calls).toEqual([["expired"], ["unauthenticated"], ["access_disabled"]]);
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(401, errorBody("session_expired")));
+    await expect(getJson("/api/v1/auth/session", { auth: "session" })).rejects.toMatchObject({ code: "session_expired" });
+    expect(listener).toHaveBeenCalledTimes(3);
+    unsubscribe();
+  });
+
+  it("abortProtectedRequests cancela requests protegidas pendentes, mas não as de autenticação", async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeSessionEnd(listener);
+    const pending: Array<(response: Response) => void> = [];
+    fetchMock.mockImplementation((_url: string, init: RequestInit) => new Promise<Response>((resolve, reject) => {
+      pending.push(resolve);
+      init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
+    }));
+    const protectedRequest = getJson("/api/v1/discovery/x");
+    const protectedMutation = postJson("/api/v1/discovery/y", {});
+    const authRequest = postJson("/api/v1/auth/logout", {}, { auth: "logout", acceptedStatuses: [204] });
+    abortProtectedRequests();
+    await expect(protectedRequest).rejects.toMatchObject({ code: "request_aborted" });
+    await expect(protectedMutation).rejects.toMatchObject({ code: "request_aborted" });
+    pending[2](jsonResponse(204, null));
+    await expect(authRequest).resolves.toBeNull();
+
+    // Novas requests usam o novo escopo normalmente.
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+    await expect(getJson("/api/v1/discovery/z")).resolves.toEqual({ ok: true });
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
   });
 });

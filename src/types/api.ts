@@ -424,6 +424,45 @@ export function isSegmentCatalogResponse(value: unknown): value is SegmentCatalo
   );
 }
 
+/** Capabilities do catálogo fechado do backend (#213); servem só à apresentação. */
+export type SentinelPermission = "sentinel:access" | "sentinel:admin" | "a1:manage";
+
+export interface AnonymousSessionResponse {
+  authenticated: false;
+  user_id: null;
+  display_name: null;
+  active: false;
+  permissions: [];
+  expires_at: null;
+}
+
+export interface AuthenticatedSessionResponse {
+  authenticated: true;
+  user_id: string;
+  display_name: string;
+  active: true;
+  permissions: readonly string[];
+  expires_at: string;
+}
+
+export type SessionResponse = AnonymousSessionResponse | AuthenticatedSessionResponse;
+
+const SESSION_KEYS = ["authenticated", "user_id", "display_name", "active", "permissions", "expires_at"] as const;
+
+export function isSessionResponse(value: unknown): value is SessionResponse {
+  if (!isRecord(value) || !hasOnlyKeys(value, SESSION_KEYS) || !Array.isArray(value.permissions)) return false;
+  if (value.authenticated === false) {
+    return value.user_id === null && value.display_name === null && value.active === false
+      && value.permissions.length === 0 && value.expires_at === null;
+  }
+  return value.authenticated === true
+    && isUuid(value.user_id)
+    && typeof value.display_name === "string" && value.display_name.trim() !== ""
+    && value.active === true
+    && value.permissions.every((permission) => typeof permission === "string")
+    && isIsoTimestampWithTimezone(value.expires_at);
+}
+
 export function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
   return (
     isRecord(value) &&

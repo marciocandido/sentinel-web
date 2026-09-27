@@ -7,7 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "../../app/App";
+import { AuthenticatedTestApp as App } from "../../test/AuthenticatedTestApp";
 import { runtimeStatus } from "../../test/runtimeFixtures";
 import {
   commercialGroupContext,

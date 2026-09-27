@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "../../app/App";
+import { AuthenticatedTestApp as App } from "../../test/AuthenticatedTestApp";
 import { runtimeStatus } from "../../test/runtimeFixtures";
 import { isSimilarCompanyPage } from "../../types/api";
 import { discoveryPage, establishment, similarCompany, similarCompanyPage } from "../../test/fixtures";
