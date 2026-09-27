@@ -49,7 +49,8 @@ código. Espaços e barras finais extras da variável são removidos.
 npm run dev
 ```
 
-Com o backend rodando separadamente, habilite CORS nele antes de abrir o Vite:
+Com o backend rodando separadamente, habilite CORS nele antes de abrir o Vite
+(a sessão autenticada exige same-origin; veja [Acesso e sessão](#acesso-e-sessão)):
 
 ```bash
 export SENTINEL_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
@@ -135,6 +136,39 @@ permitindo correlacionar uma requisição entre os logs do web e do backend. Os
 logs de acesso são humanos, não incluem valores de query, cookies ou cabeçalhos
 de autorização e podem ser configurados no runtime. Veja as variáveis e os
 exemplos de leitura em [docs/deployment/01-web-container.md](docs/deployment/01-web-container.md).
+
+## Acesso e sessão
+
+O frontend consome a autenticação humana do backend
+(`sentinel/docs/api/12-human-auth.md`). Ao abrir, a `AuthBoundary`
+(`src/features/auth/`) consulta `GET /api/v1/auth/session` e só monta o shell,
+o lifecycle do runtime e o Discovery com sessão confirmada. Sem sessão abre o
+login; 401 de sessão (`session_expired`, `session_invalid`,
+`not_authenticated`) volta ao login; 403 `access_disabled`/`permission_denied`
+mostra acesso negado; rede, timeout, `auth_unavailable` ou HTTP 200 malformado
+mostram indisponibilidade com nova tentativa. Mensagens do backend não são
+exibidas: somente códigos conhecidos, em português.
+
+A sessão é transportada pelos cookies do navegador, em same-origin. O cookie
+de sessão é HttpOnly e nunca é lido. `src/services/csrf.ts` é o único ponto que
+lê `document.cookie`, e apenas o token CSRF (`__Host-sentinel_csrf` em HTTPS,
+`sentinel_csrf` em HTTP local). O cliente HTTP compartilhado envia
+`X-Sentinel-CSRF` com esse valor em toda mutação (POST/DELETE) e falha antes
+da request quando ele não existe; GET não recebe o cabeçalho. O login usa
+`X-Sentinel-CSRF: login`. Features não informam CSRF.
+
+Sair cancela todas as requests protegidas pendentes, chama o logout com CSRF,
+desmonta o subtree autenticado e volta ao login, inclusive quando o backend
+responde que a sessão já expirou. Respostas atrasadas de uma sessão não chegam
+à seguinte. Capabilities da sessão só orientam a apresentação
+(`hasPermission`); a autoridade é do backend e `sentinel:admin` não implica
+`a1:manage`. Preparação e atualização mensal da base aparecem somente com
+`sentinel:admin`.
+
+Como os cookies são same-origin, a sessão não é transportada quando
+`VITE_SENTINEL_API_URL` aponta para outra origem com CORS: para uso
+autenticado, sirva UI e API na mesma origem (imagem Nginx ou reverse proxy) e
+configure `SENTINEL_AUTH_ORIGIN` no backend com a origem do navegador.
 
 ## Discovery
 
@@ -345,6 +379,9 @@ não é uma ficha completa da empresa e não consulta endpoint de detalhe.
 
 ## Endpoints consumidos
 
+- `GET /api/v1/auth/session` — sessão atual, validada estruturalmente;
+- `POST /api/v1/auth/login` — login local com `X-Sentinel-CSRF: login`;
+- `POST /api/v1/auth/logout` — encerramento da sessão com o CSRF vigente;
 - `GET /health/live` — indicador de processo HTTP vivo;
 - `GET /api/v1/runtime/status` — lifecycle, saúde e atualização mensal;
 - `GET /api/v1/base/update/preflight` — validação da atualização mensal;
@@ -382,4 +419,4 @@ obsoletas são ignoradas.
 
 Ficam para as próximas etapas: ficha completa, endereço, contatos, CNAEs
 secundários detalhados, QSA, filtros de raio/UF/TOM/segmento para semelhantes,
-autenticação, ordenação client-side, busca fuzzy e filtros persistidos na URL.
+SSO/login compartilhado, administração de usuários, ordenação client-side, busca fuzzy e filtros persistidos na URL.

@@ -12,7 +12,12 @@ import { useBootstrapSetup } from "./useBootstrapSetup";
 
 const progressStates = new Set(["INITIALIZING", "DOWNLOADING", "PROCESSING", "LOADING", "VALIDATING"]);
 
-export function BaseLifecycleGate({ runtime }: { runtime: RuntimeLifecycleView }) {
+/**
+ * Preparação e atualização da base usam rotas `sentinel:admin`. Sem essa
+ * capability a tela não oferece as ações nem consulta os preflights; o backend
+ * continua sendo a autoridade.
+ */
+export function BaseLifecycleGate({ runtime, canOperateBase }: { runtime: RuntimeLifecycleView; canOperateBase: boolean }) {
   const state = runtime.runtime?.base.state;
   const actionRequired = runtime.runtime?.base.action_required;
   const updateStage = runtime.runtime?.update.stage;
@@ -23,7 +28,8 @@ export function BaseLifecycleGate({ runtime }: { runtime: RuntimeLifecycleView }
     actionRequired === "MANUAL_MONTHLY_ROLLBACK" ||
     correlatedRollbackStage
   );
-  const setup = useBootstrapSetup(state === "AWAITING_OPERATOR" || (state === "FAILED" && !monthlyRecovery) ? state : null, runtime.confirmationVersion, runtime.refreshNow);
+  const awaitingBootstrap = state === "AWAITING_OPERATOR" || (state === "FAILED" && !monthlyRecovery);
+  const setup = useBootstrapSetup(canOperateBase && awaitingBootstrap ? state : null, runtime.confirmationVersion, runtime.refreshNow);
   const [confirm, setConfirm] = useState(false);
   const triggerRef = useRef<HTMLElement | null>(null);
   const previous = useRef<string | null>(null);
@@ -56,10 +62,11 @@ export function BaseLifecycleGate({ runtime }: { runtime: RuntimeLifecycleView }
     if (runtime.transportState === "pending") return <section className="runtime-panel runtime-panel--loading" role="status" aria-live="polite" aria-busy="true"><LoaderCircle className="runtime-panel__spinner" aria-hidden="true" /><div><h1>Verificando estado do Sentinel</h1><p>Confirmando API, banco, worker e base da Receita…</p></div></section>;
     return <section className="runtime-panel"><h1>Não foi possível confirmar o estado da base</h1><button onClick={runtime.refreshNow}>Verificar novamente</button></section>;
   }
-  if (state === "READY") return <><p className="sr-only" aria-live="polite">{announcement}</p><MonthlyUpdatePanel runtime={runtime} /><DiscoveryLanding onLifecycleError={() => runtime.refreshNow()} /></>;
+  if (state === "READY") return <><p className="sr-only" aria-live="polite">{announcement}</p>{canOperateBase && <MonthlyUpdatePanel runtime={runtime} />}<DiscoveryLanding onLifecycleError={() => runtime.refreshNow()} /></>;
   if (state === "EMPTY") return <section className="runtime-panel" role="status"><h1>Inicializando configuração do Sentinel</h1><p>O estado da base ainda está sendo preparado pelo servidor.</p></section>;
   if (state === "UNAVAILABLE" || state === null) return <section className="runtime-panel"><h1>Não foi possível confirmar o estado da base</h1><button onClick={runtime.refreshNow}>Verificar novamente</button></section>;
 
+  if (awaitingBootstrap && !canOperateBase) return <section className="runtime-panel" role="status"><h1>Base da Receita ainda não preparada</h1><p>A preparação da base é feita por um administrador do Sentinel.</p><button type="button" onClick={runtime.refreshNow} disabled={runtime.checking} aria-busy={runtime.checking}>Verificar novamente</button></section>;
   const dialog = confirm && setup.preflight && <BootstrapConfirmDialog competence={setup.preflight.competence} download={setup.preflight.download_bytes} reusable={setup.preflight.reusable_bytes} remaining={setup.preflight.remaining_download_bytes} busy={setup.loading} retry={state === "FAILED"} onCancel={() => closeConfirm()} onConfirm={() => void prepare()} />;
   if (state === "AWAITING_OPERATOR") return <>{dialog}<BootstrapOnboarding setup={setup} onPrepare={openConfirm} /></>;
   if (state === "FAILED" && monthlyRecovery) return <MonthlyUpdateRecovery runtime={runtime} />;

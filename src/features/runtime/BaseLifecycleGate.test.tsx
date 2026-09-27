@@ -21,22 +21,22 @@ describe("BaseLifecycleGate", () => {
   });
 
   it("does not turn unavailable or null base states into progress", () => {
-    const { rerender } = render(<BaseLifecycleGate runtime={view("UNAVAILABLE")} />);
+    const { rerender } = render(<BaseLifecycleGate runtime={view("UNAVAILABLE")} canOperateBase />);
     expect(screen.getByText("Não foi possível confirmar o estado da base")).toBeInTheDocument();
     expect(screen.queryByText("Preparando base da Receita")).not.toBeInTheDocument();
-    rerender(<BaseLifecycleGate runtime={view(null)} />);
+    rerender(<BaseLifecycleGate runtime={view(null)} canOperateBase />);
     expect(screen.queryByText("Preparando base da Receita")).not.toBeInTheDocument();
   });
 
   it("renders progress only for an active lifecycle state", () => {
-    render(<BaseLifecycleGate runtime={view("PROCESSING")} />);
+    render(<BaseLifecycleGate runtime={view("PROCESSING")} canOperateBase />);
     expect(screen.getByText("Preparando base da Receita")).toBeInTheDocument();
   });
 
   it("keeps Discovery mounted while a monthly update is running", () => {
     const runtime = view("READY");
     runtime.runtime = runtimeStatus({ components: { worker: { state: "RUNNING" } }, base: { active_operation: "UPDATE", preparing_competence: "2026-08" }, update: { job_id: "job", status: "RUNNING", stage: "LOADING_CANDIDATE", target_competence: "2026-08" } });
-    render(<BaseLifecycleGate runtime={runtime} />);
+    render(<BaseLifecycleGate runtime={runtime} canOperateBase />);
     expect(screen.getByTestId("discovery")).toBeInTheDocument();
     expect(screen.getByText("Carregando geração candidata")).toBeInTheDocument();
   });
@@ -47,7 +47,7 @@ describe("BaseLifecycleGate", () => {
   ] as const)("does not render BootstrapFailure for monthly recovery %s", (action, stage, heading) => {
     const runtime = view("FAILED");
     runtime.runtime = runtimeStatus({ summary: "UNAVAILABLE", base: { state: "FAILED", action_required: action }, update: { job_id: "job", status: "FAILED", stage, target_competence: "2026-08", failure_code: "monthly_rollback_failed" } });
-    render(<BaseLifecycleGate runtime={runtime} />);
+    render(<BaseLifecycleGate runtime={runtime} canOperateBase />);
     expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
     expect(screen.queryByText("A preparação da base não foi concluída")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Preparar base/ })).not.toBeInTheDocument();
@@ -56,7 +56,7 @@ describe("BaseLifecycleGate", () => {
   it("keeps a historical rollback failure from replacing the current bootstrap recovery", async () => {
     const runtime = view("FAILED");
     runtime.runtime = runtimeStatus({ summary: "UNAVAILABLE", base: { state: "FAILED", action_required: "RETRY_BOOTSTRAP", active_operation: null }, update: { job_id: "historical-update", status: "FAILED", stage: "ROLLBACK_FAILED", target_competence: "2026-08", failure_code: "monthly_rollback_failed" } });
-    render(<BaseLifecycleGate runtime={runtime} />);
+    render(<BaseLifecycleGate runtime={runtime} canOperateBase />);
     expect(screen.getByRole("heading", { name: "A preparação da base não foi concluída" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "A atualização exige recuperação operacional" })).not.toBeInTheDocument();
     await waitFor(() => expect(getBootstrapPreflight).toHaveBeenCalledTimes(1));

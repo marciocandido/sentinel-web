@@ -1,11 +1,16 @@
-import { Menu } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Sidebar } from "../components/Sidebar";
 import type { RuntimeLifecycleView } from "../features/runtime/runtimeTypes";
 
 const FOCUSABLE = "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
-export function AppShell({ children, runtime }: { children: ReactNode; runtime: RuntimeLifecycleView }) {
+export function AppShell({ children, runtime, identity, onSignOut }: {
+  children: ReactNode;
+  runtime: RuntimeLifecycleView;
+  identity: string;
+  onSignOut: () => void;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
@@ -33,7 +38,11 @@ export function AppShell({ children, runtime }: { children: ReactNode; runtime: 
     <div className="app-content" id="app-content" inert={menuOpen ? true : undefined}>
       <header className="app-header">
         <button ref={menuButtonRef} className="mobile-menu-button" type="button" aria-label="Abrir menu" aria-expanded={menuOpen} aria-controls="main-navigation" onClick={() => setMenuOpen(true)}><Menu aria-hidden="true" size={20} /></button>
-        <div><p className="product-name">Sentinel</p><p className="product-context">Discovery Comercial</p></div>
+        <div className="app-header__product"><p className="product-name">Sentinel</p><p className="product-context">Discovery Comercial</p></div>
+        <div className="session-identity">
+          <span className="session-identity__name" title={identity}>{identity}</span>
+          <button className="session-identity__signout" type="button" onClick={onSignOut}><LogOut aria-hidden="true" size={16} /><span>Sair</span></button>
+        </div>
       </header>
       <main>{children}</main>
     </div>

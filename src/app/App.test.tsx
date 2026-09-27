@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "./App";
+import { AuthenticatedTestApp as App } from "../test/AuthenticatedTestApp";
 import { buildApiUrl, getJson } from "../services/apiClient";
 import { runtimeStatus } from "../test/runtimeFixtures";
 

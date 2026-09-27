@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "../app/App";
+import { AuthenticatedTestApp as App } from "../test/AuthenticatedTestApp";
 import { runtimeStatus } from "../test/runtimeFixtures";
 import { discoveryPage, establishment, neighborSearchPage, radiusSearchPage } from "../test/fixtures";
 import { UfSelect } from "./UfSelect";
