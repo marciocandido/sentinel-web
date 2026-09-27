@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FeedbackEvent, FeedbackSource } from "../../types/api";
 import { establishment } from "../../test/fixtures";
@@ -96,29 +96,41 @@ describe("FeedbackPanel in discovery tables", () => {
       source: { kind: "COMMERCIAL_GROUP", reference: null },
     });
 
-    cleanup();
-    fetchMock.mockClear();
-    renderFiltered([establishment()], "Grupo Metal");
-    fireEvent.click(screen.getAllByRole("button", { name: FEEDBACK }).at(-1)!);
-    await screen.findByText("Ainda não há feedback registrado para este estabelecimento.");
-    fireEvent.click(screen.getAllByRole("button", { name: "Útil" }).at(-1)!);
-    await screen.findByText("Feedback registrado com sucesso.");
-    const segmentPost = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
-    expect(JSON.parse(segmentPost?.[1].body as string)).toEqual({
-      action: "USEFUL",
-      source: { kind: "SEGMENT", reference: null },
-    });
+  });
 
-    cleanup();
-    fetchMock.mockClear();
-    renderFiltered([establishment()], "");
+  async function postedSource(): Promise<unknown> {
     fireEvent.click(screen.getByRole("button", { name: FEEDBACK }));
     await screen.findByText("Ainda não há feedback registrado para este estabelecimento.");
     fireEvent.click(screen.getByRole("button", { name: "Útil" }));
     await screen.findByText("Feedback registrado com sucesso.");
-    const filteredPost = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
-    // FILTERED não é origem de feedback no contrato: sem segmento, nenhuma origem é inventada.
-    expect(JSON.parse(filteredPost?.[1].body as string)).toEqual({ action: "USEFUL", source: null });
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+    return JSON.parse(post?.[1].body as string).source;
+  }
+
+  it.each([
+    ["segment, municipality and porte", { segmentId: "metal-mecanica", municipioNome: "CAMPINAS", porteCodigo: "05" }],
+    ["only segment_id", { segmentId: "metal-mecanica" }],
+    ["municipality and capital, without segment", { municipioNome: "DIADEMA", capitalMin: "100000" }],
+  ])("sends source null for FILTERED results with %s, never SEGMENT or REGION", async (_name, filters) => {
+    renderResult({
+      kind: "filtered",
+      snapshot: { ...EMPTY_FORM, ...filters, includeDiscarded: false },
+      page: discoveryPage([establishment()]),
+    });
+    const source = await postedSource();
+    expect(source).toBeNull();
+    const body = JSON.stringify(fetchMock.mock.calls.find(([, init]) => init?.method === "POST")?.[1].body);
+    expect(body).not.toMatch(/SEGMENT|REGION|FILTERED/);
+  });
+
+  it.each([
+    ["RADIUS", () => renderResult({ kind: "radius", snapshot: { origin: { kind: "cnpj", cnpj: "00ABC234000155" }, radiusKm: 5, segmentId: "metal", resultUf: "", includeDiscarded: false }, page: radiusSearchPage([radiusSearchEstablishment()]) }), { kind: "RADIUS", reference: null }],
+    ["NEIGHBORS", () => renderResult({ kind: "neighbors", snapshot: { cnpj: "00ABC234000155", radiusKm: 5, segmentId: "", resultUf: "", includeDiscarded: false }, page: neighborSearchPage([neighborEstablishment()]) }), { kind: "NEIGHBORS", reference: "00ABC234000155" }],
+    ["ROOT_BRANCHES", () => renderResult({ kind: "root", snapshot: { identifier: { kind: "root", cnpjRoot: "00123456" }, includeDiscarded: false }, page: rootBranchesPage([rootBranchEstablishment()]) }), { kind: "ROOT_BRANCHES", reference: "00123456" }],
+    ["COMMERCIAL_GROUP", () => renderResult({ kind: "group", snapshot: { groupId: "grupo-metal", includeDiscarded: false }, page: commercialGroupPage([commercialGroupKnownEstablishment()]) }), { kind: "COMMERCIAL_GROUP", reference: "grupo-metal" }],
+  ] as const)("keeps the real %s feedback source", async (_kind, renderView, expected) => {
+    renderView();
+    expect(await postedSource()).toEqual(expected);
   });
 
   it("exposes feedback for radius, neighbors, root branches and known commercial-group establishments only", () => {
@@ -157,7 +169,7 @@ describe("FeedbackPanel in discovery tables", () => {
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
     expect(post?.[1]).toMatchObject({
       headers: expect.objectContaining({ "Idempotency-Key": "feedback-new-key" }),
-      body: JSON.stringify({ action: "USEFUL", source }),
+      body: JSON.stringify({ action: "USEFUL", source: null }),
     });
     expect(screen.getAllByText("PRIMEIRA")).toHaveLength(2);
   });

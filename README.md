@@ -256,8 +256,10 @@ e Virou venda informado) e consulta o histórico append-only do CNPJ. Não há
 notas, edição ou exclusão; o ator retornado é provisório e `Virou venda
 (informado)` não confirma venda ou pedido no ERP. Registrar `Descartar` não
 remove resultados já exibidos nem muda seu status comercial. Como o contrato de
-feedback não conhece `FILTERED`, resultados de Filtros registram origem
-`SEGMENT` quando a consulta tinha segmento e nenhuma origem nos demais casos. Nas consultas
+feedback ainda não conhece `FILTERED`, resultados da família Filtros registram
+feedback sempre sem origem (`source: null`), mesmo quando a consulta tinha
+segmento; a origem não é aproximada para `SEGMENT` ou `REGION`. Proximidade e
+Estrutura continuam enviando suas origens reais. Nas consultas
 seguintes, o backend oculta descartados por padrão; o único controle **Mostrar
 descartados** inclui esses itens somente depois de uma nova busca. Paginação,
 retry, mudança de limite, drawer e exportação continuam usando o snapshot

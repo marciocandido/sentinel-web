@@ -116,16 +116,47 @@ describe("FILTERED — busca combinada (#207)", () => {
     expect(result.items[0].search).toEqual(filtered);
   });
 
+  const worklist = (source_search: unknown) => ({ worklist_id: "3b5b4d78-7a65-4ba8-b12b-1c3cb0fd5498", name: "Lista", source_search, item_count: 1, created_at: "2026-08-17T12:00:00Z" });
+
   it.each([
-    ["an extra field", { kind: "FILTERED", uf: "SP", limit: 10 }],
-    ["actor_id", { kind: "FILTERED", uf: "SP", actor_id: "browser" }],
-    ["numeric capital", { kind: "FILTERED", capital_min: 100000 }],
+    ["zero-padded codes and canonical capitals", { kind: "FILTERED", codigo_tom: "0012", codigo_ibge: "03550308", capital_min: "000100.50", capital_max: "900000.00" }],
+    ["equal capital bounds", { kind: "FILTERED", capital_min: "100", capital_max: "100.00" }],
+    ["backend Decimal exponent and sign forms", { kind: "FILTERED", uf: "SP", capital_min: "-1", capital_max: "1E+5" }],
+    ["a single capital bound", { kind: "FILTERED", capital_max: ".5" }],
+  ])("accepts FILTERED with %s, preserving every value as text", async (_name, search) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(page([saved(search)])));
+    expect((await listSavedSearches({ limit: 20, offset: 0 })).items[0].search).toEqual(search);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ items: [worklist(search)], pagination: { limit: 20, offset: 0, returned: 1, has_more: false } }));
+    expect((await listWorklists({ limit: 20, offset: 0 })).items[0].source_search).toEqual(search);
+  });
+
+  it.each([
+    ["capital \"abc\"", { kind: "FILTERED", uf: "SP", capital_min: "abc" }],
+    ["capital \"NaN\"", { kind: "FILTERED", uf: "SP", capital_min: "NaN" }],
+    ["capital \" NaN \"", { kind: "FILTERED", uf: "SP", capital_min: " NaN " }],
+    ["capital \"Infinity\"", { kind: "FILTERED", uf: "SP", capital_min: "Infinity" }],
+    ["capital \"-Infinity\"", { kind: "FILTERED", uf: "SP", capital_max: "-Infinity" }],
+    ["capital \" 100\"", { kind: "FILTERED", uf: "SP", capital_min: " 100" }],
+    ["capital \"100 \"", { kind: "FILTERED", uf: "SP", capital_max: "100 " }],
+    ["capital \" 100.00\"", { kind: "FILTERED", uf: "SP", capital_min: " 100.00" }],
+    ["empty capital", { kind: "FILTERED", uf: "SP", capital_min: "" }],
+    ["capital JSON number", { kind: "FILTERED", uf: "SP", capital_min: 100000 }],
+    ["capital_min > capital_max", { kind: "FILTERED", capital_min: "200000", capital_max: "100000" }],
+    ["capital_min > capital_max across scales", { kind: "FILTERED", capital_min: "1E+5", capital_max: "99999.99" }],
+    ["municipio_nome present as \"\"", { kind: "FILTERED", uf: "SP", municipio_nome: "" }],
+    ["codigo_tom present as \"   \"", { kind: "FILTERED", uf: "SP", codigo_tom: "   " }],
+    ["segment_id present as \" \"", { kind: "FILTERED", uf: "SP", segment_id: " " }],
+    ["porte_codigo present as \"\"", { kind: "FILTERED", uf: "SP", porte_codigo: "" }],
     ["numeric codes", { kind: "FILTERED", codigo_ibge: 410000 }],
     ["no material filter", { kind: "FILTERED", include_discarded: true }],
-    ["only blank filters", { kind: "FILTERED", uf: "  ", segment_id: "" }],
-  ])("rejects a FILTERED definition with %s", async (_name, search) => {
+    ["only null filters", { kind: "FILTERED", uf: null, segment_id: null, capital_min: null }],
+    ["an extra field", { kind: "FILTERED", uf: "SP", limit: 10 }],
+    ["actor_id", { kind: "FILTERED", uf: "SP", actor_id: "browser" }],
+  ])("rejects a FILTERED HTTP 200 definition with %s as invalid_response", async (_name, search) => {
     fetchMock.mockResolvedValueOnce(jsonResponse(page([saved(search)])));
     await expect(listSavedSearches({ limit: 20, offset: 0 })).rejects.toMatchObject({ code: "invalid_response" });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ items: [worklist(search)], pagination: { limit: 20, offset: 0, returned: 1, has_more: false } }));
+    await expect(listWorklists({ limit: 20, offset: 0 })).rejects.toMatchObject({ code: "invalid_response" });
   });
 
   it("creates FILTERED saved searches and worklists and accepts them in worklist responses", async () => {

@@ -111,10 +111,10 @@ function OriginBanner({ origin, radiusKm, excludesOrigin }: { origin: RadiusSear
 }
 
 function FilteredView({ result, narrow, onSelect, ...paging }: QueryResultViewProps & { result: Extract<QueryResult, { kind: "filtered" }> }) {
-  const { page, snapshot } = result;
-  const source: FeedbackSource | null = snapshot.segmentId
-    ? { kind: "SEGMENT", reference: feedbackReferenceOrNull(snapshot.segmentId) }
-    : null;
+  const { page } = result;
+  // O contrato de feedback ainda não conhece FILTERED; uma consulta combinada
+  // não é SEGMENT nem REGION, então a origem nunca é inventada.
+  const source: FeedbackSource | null = null;
   const columns: ResultColumn<DiscoveryEstablishment>[] = [
     companyColumn(),
     {
