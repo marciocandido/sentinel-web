@@ -10,7 +10,13 @@ function NavigationIcon({ name }: { name: IconName }) {
   if (name === "lists") return <svg {...common}><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>;
   return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.12 2.12-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.54V20h-3v-.09a1.7 1.7 0 0 0-1-1.54 1.7 1.7 0 0 0-1.88.34l-.06.06-2.12-2.12.06-.06A1.7 1.7 0 0 0 7.08 15a1.7 1.7 0 0 0-1.54-1H5v-3h.09a1.7 1.7 0 0 0 1.54-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06L8.35 5.94l.06.06A1.7 1.7 0 0 0 10.29 6.4a1.7 1.7 0 0 0 1-1.54V5h3v.09a1.7 1.7 0 0 0 1 1.54 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.12 2.12-.06.06A1.7 1.7 0 0 0 19 10.29a1.7 1.7 0 0 0 1.54 1H21v3h-.09A1.7 1.7 0 0 0 19.4 15Z" /></svg>;
 }
-const navigation = [{ label: "Discovery", icon: "discovery" as const, current: true }, { label: "Empresas", icon: "companies" as const, current: false }, { label: "Listas", icon: "lists" as const, current: false }, { label: "Administração", icon: "admin" as const, current: false }];
+export type Destination = "discovery" | "administration";
+const navigation: readonly { label: string; icon: IconName; destination: Destination | null }[] = [
+  { label: "Discovery", icon: "discovery", destination: "discovery" },
+  { label: "Empresas", icon: "companies", destination: null },
+  { label: "Listas", icon: "lists", destination: null },
+  { label: "Administração", icon: "admin", destination: "administration" },
+];
 
 /**
  * O trilho fica compacto em repouso e expande temporariamente sobre o
@@ -18,7 +24,16 @@ const navigation = [{ label: "Discovery", icon: "discovery" as const, current: t
  * visual: o conteúdo principal mantém a mesma largura e posição, e nada é
  * persistido. No mobile vale o drawer já existente.
  */
-export function Sidebar({ runtime, mobileOpen, drawerRef }: { runtime: RuntimeLifecycleView; mobileOpen: boolean; drawerRef: RefObject<HTMLElement | null> }) {
+export function Sidebar({ runtime, mobileOpen, drawerRef, current, available, onNavigate }: {
+  runtime: RuntimeLifecycleView;
+  mobileOpen: boolean;
+  drawerRef: RefObject<HTMLElement | null>;
+  current: Destination;
+  /** Destinos liberados para a sessão; um destino funcional fora da lista não é exibido. */
+  available: readonly Destination[];
+  onNavigate: (destination: Destination) => void;
+}) {
+  const items = navigation.filter((item) => item.destination === null || available.includes(item.destination));
   const [expanded, setExpanded] = useState(false);
   const collapse = () => setExpanded(false);
   const handleBlur = (event: React.FocusEvent<HTMLElement>) => {
@@ -40,7 +55,11 @@ export function Sidebar({ runtime, mobileOpen, drawerRef }: { runtime: RuntimeLi
     onKeyDown={handleKeyDown}
   >
     <div className="sidebar__brand"><span className="brand-mark" aria-hidden="true">S</span></div>
-    <nav className="sidebar__nav"><ul className="sidebar-nav">{navigation.map((item) => <li key={item.label}><button type="button" className={`nav-item ${item.current ? "nav-item--active" : ""}`} title={item.current ? item.label : `${item.label} — em breve`} aria-current={item.current ? "page" : undefined} disabled={!item.current}><NavigationIcon name={item.icon} /><span className="nav-item__label">{item.label}</span>{!item.current && <span className="future-label">Em breve</span>}</button></li>)}</ul></nav>
+    <nav className="sidebar__nav"><ul className="sidebar-nav">{items.map((item) => {
+      const active = item.destination === current;
+      const future = item.destination === null;
+      return <li key={item.label}><button type="button" className={`nav-item ${active ? "nav-item--active" : ""}`} title={future ? `${item.label} — em breve` : item.label} aria-current={active ? "page" : undefined} disabled={future} onClick={item.destination ? () => onNavigate(item.destination as Destination) : undefined}><NavigationIcon name={item.icon} /><span className="nav-item__label">{item.label}</span>{future && <span className="future-label">Em breve</span>}</button></li>;
+    })}</ul></nav>
     <RuntimeHealthSidebar runtime={runtime} />
   </aside>;
 }

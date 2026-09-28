@@ -46,7 +46,7 @@ function stateFromSessionError(error: unknown): AuthState {
  * as requests protegidas pendentes e desmonta todo o estado da sessão anterior.
  */
 export function AuthBoundary({ app: ProtectedApp }: {
-  app: ComponentType<{ session: AuthenticatedSessionResponse; onSignOut: () => void }>;
+  app: ComponentType<{ session: AuthenticatedSessionResponse; onSignOut: () => void; onSessionRefresh: () => void }>;
 }) {
   const [state, setState] = useState<AuthState>({ status: "checking" });
   const [checkRound, setCheckRound] = useState(0);
@@ -74,6 +74,29 @@ export function AuthBoundary({ app: ProtectedApp }: {
   const retry = useCallback(() => {
     setState({ status: "checking" });
     setCheckRound((round) => round + 1);
+  }, []);
+
+  /**
+   * Reavalia a sessão após uma alteração administrativa no próprio usuário.
+   * Permissões novas chegam sem remontar o app; sessão revogada volta ao login
+   * como encerramento normal. Falha transitória mantém a sessão atual — um 401
+   * real continua chegando pelas requests protegidas.
+   */
+  const refreshSession = useCallback(() => {
+    getSession().then(
+      (session) => setState((current) => {
+        if (current.status !== "authenticated") return current;
+        if (!session.authenticated) {
+          abortProtectedRequests();
+          return { status: "anonymous", notice: SESSION_ENDED_NOTICE };
+        }
+        if (session.user_id !== current.session.user_id) return current;
+        const next = stateFromSession(session);
+        if (next.status !== "authenticated") abortProtectedRequests();
+        return next;
+      }),
+      () => undefined,
+    );
   }, []);
 
   const submitLogin = useCallback(async (credentials: LoginCredentials) => {
@@ -133,6 +156,6 @@ export function AuthBoundary({ app: ProtectedApp }: {
         onAction={retry}
       />;
     case "authenticated":
-      return <ProtectedApp key={state.session.user_id} session={state.session} onSignOut={signOut} />;
+      return <ProtectedApp key={state.session.user_id} session={state.session} onSignOut={signOut} onSessionRefresh={refreshSession} />;
   }
 }

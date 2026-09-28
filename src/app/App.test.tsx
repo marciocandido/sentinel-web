@@ -39,7 +39,7 @@ describe("Sentinel Web foundation", () => {
     expect(screen.getByRole("button", { name: "Discovery" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("button", { name: /Empresas/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Listas/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /Administração/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Administração" })).toBeEnabled();
     expect(await screen.findByRole("button", { name: "Buscar" })).toBeEnabled();
     await waitFor(() => expect(screen.getByText("Sistema disponível")).toBeInTheDocument());
     const health = within(screen.getByLabelText("Saúde operacional"));
@@ -189,7 +189,8 @@ describe("Sentinel Web foundation", () => {
     const discovery = screen.getByRole("button", { name: "Discovery" });
     expect(discovery).toHaveAttribute("title", "Discovery");
     expect(discovery.querySelector(".nav-item__label")).toHaveTextContent("Discovery");
-    expect(screen.getByRole("button", { name: /Administração/ })).toHaveAttribute("title", "Administração — em breve");
+    expect(screen.getByRole("button", { name: /Listas/ })).toHaveAttribute("title", "Listas — em breve");
+    expect(screen.getByRole("button", { name: "Administração" })).toHaveAttribute("title", "Administração");
   });
 
   it("normalizes base URLs and uses a relative URL when it is empty", () => {
