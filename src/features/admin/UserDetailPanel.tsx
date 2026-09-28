@@ -11,6 +11,7 @@ import {
   DEACTIVATION_NOTICE,
   formatAdminTimestamp,
   isAborted,
+  revokeRemovesSection,
   selfRevokeImpact,
 } from "./adminPresentation";
 import { ADMIN_SECTIONS } from "./adminSections";
@@ -71,6 +72,18 @@ function confirmationFor(mutation: Mutation, user: AdminUser, self: boolean, lab
     acknowledgement: null,
   };
   return null;
+}
+
+/**
+ * Alteração no próprio usuário após a qual esta área não pode mais ler dados:
+ * desativar a conta, perder o acesso (sessão encerrada) ou perder a capability
+ * que protege a área Usuários.
+ */
+function selfChangeEndsThisArea(mutation: Mutation): boolean {
+  if (mutation.kind === "access") return !mutation.active;
+  if (mutation.kind !== "revoke") return false;
+  const impact = selfRevokeImpact(mutation.permission);
+  return impact === "ends_session" || (impact === "loses_admin_area" && revokeRemovesSection(mutation.permission, "users"));
 }
 
 /**
@@ -135,10 +148,9 @@ export function UserDetailPanel({ userId, currentUserId, catalog, onUserChanged,
       else if (mutation.kind === "grant") await grantPermission(user.user_id, mutation.permission, { signal });
       else await revokePermission(user.user_id, mutation.permission, { signal });
       setPending(null);
-      const endsOwnSession = self && ((mutation.kind === "access" && !mutation.active)
-        || (mutation.kind === "revoke" && mutation.permission === ACCESS_PERMISSION));
-      if (endsOwnSession) {
-        // A sessão atual foi revogada pelo backend na mesma transação; a fronteira de acesso assume.
+      if (self && selfChangeEndsThisArea(mutation)) {
+        // Sessão revogada (acesso) ou área Usuários perdida: nenhuma leitura administrativa
+        // posterior seria autorizada. A fronteira de acesso reavalia a sessão e assume.
         onSelfChanged();
         return;
       }

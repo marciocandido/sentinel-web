@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SentinelApiError } from "../../services/apiClient";
-import { adminErrorMessage, isAborted, selfRevokeImpact } from "./adminPresentation";
+import { adminErrorMessage, isAborted, revokeRemovesSection, selfRevokeImpact } from "./adminPresentation";
+import { ADMIN_SECTIONS } from "./adminSections";
 
 describe("adminPresentation", () => {
   it.each([
@@ -22,5 +23,15 @@ describe("adminPresentation", () => {
     expect(selfRevokeImpact("sentinel:access")).toBe("ends_session");
     expect(selfRevokeImpact("sentinel:admin")).toBe("loses_admin_area");
     expect(selfRevokeImpact("a1:manage")).toBeNull();
+  });
+
+  it("deriva a área perdida de ADMIN_SECTIONS: cada área responde só pela própria capability", () => {
+    for (const section of ADMIN_SECTIONS) {
+      expect(selfRevokeImpact(section.permission)).not.toBeNull();
+      expect(revokeRemovesSection(section.permission, section.id)).toBe(true);
+    }
+    expect(revokeRemovesSection("sentinel:admin", "users")).toBe(true);
+    expect(revokeRemovesSection("a1:manage", "users")).toBe(false);
+    expect(revokeRemovesSection("sentinel:access", "users")).toBe(false);
   });
 });

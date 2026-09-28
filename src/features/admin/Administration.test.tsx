@@ -415,11 +415,17 @@ describe("capabilities", () => {
 
 describe("alterações no próprio usuário", () => {
   it("revogar o próprio sentinel:admin exige confirmação forte e remove a Administração", async () => {
-    routes[`DELETE /api/v1/admin/users/${TEST_USER_ID}/permissions/sentinel%3Aadmin`] = () => {
+    const deletePath = `/api/v1/admin/users/${TEST_USER_ID}/permissions/sentinel%3Aadmin`;
+    let revokedAt = -1;
+    routes[`DELETE ${deletePath}`] = () => {
+      revokedAt = fetchMock.mock.calls.length;
+      // Como no backend real: a sessão segue válida, mas sem sentinel:admin toda rota /admin/* responde 403.
       routes["GET /api/v1/auth/session"] = ok(authenticatedSession({ permissions: ["sentinel:access"] }));
+      for (const key of Object.keys(routes)) {
+        if (key.includes("/api/v1/admin/")) routes[key] = apiError(403, "permission_denied");
+      }
       return noContent({}, new URL("http://x"));
     };
-    routes[`GET /api/v1/admin/users/${TEST_USER_ID}/permissions`] = ok({ user_id: TEST_USER_ID, permissions: ["sentinel:access"] });
     await openAdministration();
     const detail = await openUser("Pessoa Operadora");
     fireEvent.click(within(detail).getByRole("button", { name: "Revogar Administração do Sentinel (catálogo)" }));
@@ -429,13 +435,21 @@ describe("alterações no próprio usuário", () => {
     expect(confirm).toBeDisabled();
     fireEvent.click(within(dialog).getByRole("checkbox"));
     expect(confirm).toBeEnabled();
+    const sessionChecksBefore = calls("GET", "/api/v1/auth/session").length;
     fireEvent.click(confirm);
 
     expect(await screen.findByRole("button", { name: "Buscar" }, { timeout: 4000 })).toBeEnabled();
+    expect(calls("DELETE", deletePath)).toHaveLength(1);
+    const afterDelete = fetchMock.mock.calls.slice(revokedAt).map(([input]) => String(input));
+    expect(afterDelete.filter((url) => url.includes("/api/v1/admin/"))).toEqual([]);
+    expect(calls("GET", "/api/v1/auth/session").length).toBe(sessionChecksBefore + 1);
     expect(screen.queryByRole("button", { name: /Administração/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Administração" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Sua conta não tem permissão para esta operação administrativa.")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Usuário")).not.toBeInTheDocument();
+    expect(screen.getByText("Pessoa Operadora")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument();
-    expect(calls("DELETE", `/api/v1/admin/users/${TEST_USER_ID}/permissions/sentinel%3Aadmin`)).toHaveLength(1);
   });
 
   it("revogar o próprio sentinel:access encerra a sessão e volta ao login sem erro", async () => {
@@ -456,6 +470,7 @@ describe("alterações no próprio usuário", () => {
     expect(screen.queryByLabelText("Navegação principal")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(calls("GET", `/api/v1/admin/users/${TEST_USER_ID}/permissions`)).toHaveLength(0);
+    expect(calls("GET", `/api/v1/admin/users/${TEST_USER_ID}`)).toHaveLength(1);
   });
 
   it("desativar o próprio acesso exige confirmação forte e termina a sessão", async () => {
@@ -472,6 +487,21 @@ describe("alterações no próprio usuário", () => {
     fireEvent.click(within(dialog).getByRole("checkbox"));
     fireEvent.click(within(dialog).getByRole("button", { name: "Desativar meu acesso" }));
     expect(await screen.findByText("Sua sessão foi encerrada. Entre novamente.")).toBeInTheDocument();
+    expect(calls("GET", `/api/v1/admin/users/${TEST_USER_ID}`)).toHaveLength(1);
+  });
+
+  it("revogar do próprio usuário capability que não protege a área reconcilia normalmente", async () => {
+    routes[`GET /api/v1/admin/users/${TEST_USER_ID}`] = ok(selfAdminUser({ permissions: ["a1:manage", "sentinel:access", "sentinel:admin"] }));
+    routes[`DELETE /api/v1/admin/users/${TEST_USER_ID}/permissions/a1%3Amanage`] = noContent;
+    routes[`GET /api/v1/admin/users/${TEST_USER_ID}/permissions`] = ok({ user_id: TEST_USER_ID, permissions: ["sentinel:access", "sentinel:admin"] });
+    await openAdministration();
+    const detail = await openUser("Pessoa Operadora");
+    fireEvent.click(within(detail).getByRole("button", { name: "Revogar Gestão A1 (catálogo)" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(await within(detail).findByText("“Gestão A1 (catálogo)” revogada de Pessoa Operadora.")).toBeInTheDocument();
+    expect(calls("GET", `/api/v1/admin/users/${TEST_USER_ID}/permissions`)).toHaveLength(1);
+    await waitFor(() => expect(calls("GET", "/api/v1/auth/session")).toHaveLength(2));
+    expect(screen.getByRole("heading", { level: 1, name: "Administração" })).toBeInTheDocument();
   });
 });
 

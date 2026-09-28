@@ -1,6 +1,6 @@
 import { SentinelApiError } from "../../services/apiClient";
 import type { AdminCapability } from "../../types/api";
-import { ADMIN_SECTIONS } from "./adminSections";
+import { ADMIN_SECTIONS, type AdminSectionId } from "./adminSections";
 
 /** Contrato #210: sem `sentinel:access` (ou com acesso desativado) todas as sessões da pessoa são revogadas. */
 export const ACCESS_PERMISSION = "sentinel:access";
@@ -63,4 +63,9 @@ export function selfRevokeImpact(permission: string): SelfImpact {
   if (permission === ACCESS_PERMISSION) return "ends_session";
   if (ADMIN_SECTIONS.some((section) => section.permission === permission)) return "loses_admin_area";
   return null;
+}
+
+/** A capability revogada é a que protege a área indicada (e, portanto, as leituras dela). */
+export function revokeRemovesSection(permission: string, sectionId: AdminSectionId): boolean {
+  return ADMIN_SECTIONS.some((section) => section.id === sectionId && section.permission === permission);
 }
