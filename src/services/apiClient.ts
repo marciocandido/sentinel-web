@@ -218,10 +218,12 @@ export async function getJson(path: string, options: RequestOptions = {}): Promi
   }
 }
 
-export async function postJson(
+/** POST e PATCH compartilham CSRF, escopo protegido, timeout e erros sanitizados. */
+async function sendJson(
+  method: "POST" | "PATCH",
   path: string,
   body: unknown,
-  options: JsonRequestOptions = {},
+  options: JsonRequestOptions,
 ): Promise<unknown> {
   const headers = mutationHeaders(options, { Accept: "application/json", "Content-Type": "application/json" });
   const request = openRequest(options);
@@ -229,7 +231,7 @@ export async function postJson(
     let response: Response;
     try {
       response = await fetch(apiUrl(path, options), {
-        method: "POST",
+        method,
         headers,
         body: JSON.stringify(body),
         credentials: "same-origin",
@@ -246,6 +248,22 @@ export async function postJson(
   } finally {
     request.finish();
   }
+}
+
+export async function postJson(
+  path: string,
+  body: unknown,
+  options: JsonRequestOptions = {},
+): Promise<unknown> {
+  return sendJson("POST", path, body, options);
+}
+
+export async function patchJson(
+  path: string,
+  body: unknown,
+  options: JsonRequestOptions = {},
+): Promise<unknown> {
+  return sendJson("PATCH", path, body, { acceptedStatuses: [200, 204], ...options });
 }
 
 export async function postBinary(

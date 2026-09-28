@@ -93,7 +93,8 @@ describe("bootstrap da sessão", () => {
     expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument();
     expect(document.body.textContent).not.toContain(TEST_USER_ID);
     expect(document.body.textContent).not.toContain("sentinel:admin");
-    expect(screen.getByRole("button", { name: /Administração/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Administração" })).toBeEnabled();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/api/v1/admin/"))).toBe(false);
   });
 
   it.each([

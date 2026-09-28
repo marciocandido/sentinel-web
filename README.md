@@ -153,7 +153,7 @@ A sessão é transportada pelos cookies do navegador, em same-origin. O cookie
 de sessão é HttpOnly e nunca é lido. `src/services/csrf.ts` é o único ponto que
 lê `document.cookie`, e apenas o token CSRF (`__Host-sentinel_csrf` em HTTPS,
 `sentinel_csrf` em HTTP local). O cliente HTTP compartilhado envia
-`X-Sentinel-CSRF` com esse valor em toda mutação (POST/DELETE) e falha antes
+`X-Sentinel-CSRF` com esse valor em toda mutação (POST/PATCH/DELETE) e falha antes
 da request quando ele não existe; GET não recebe o cabeçalho. O login usa
 `X-Sentinel-CSRF: login`. Features não informam CSRF.
 
@@ -169,6 +169,27 @@ Como os cookies são same-origin, a sessão não é transportada quando
 `VITE_SENTINEL_API_URL` aponta para outra origem com CORS: para uso
 autenticado, sirva UI e API na mesma origem (imagem Nginx ou reverse proxy) e
 configure `SENTINEL_AUTH_ORIGIN` no backend com a origem do navegador.
+
+## Administração
+
+O destino **Administração** aparece quando a sessão possui ao menos uma área
+administrativa. Cada área declara a própria capability em
+`src/features/admin/adminSections.ts`, sem hierarquia: hoje existe somente
+**Usuários**, que exige `sentinel:admin` (a área de certificado A1 usará
+`a1:manage`). Sem nenhuma área o destino não é exibido e nenhuma request
+`/api/v1/admin/*` é feita; o workspace só é montado quando aberto.
+
+Usuários consome `GET /api/v1/admin/capabilities`, `GET /api/v1/admin/users`
+(`limit/offset/has_more`, na ordem da API, sem total),
+`GET /api/v1/admin/users/{id}`, `GET /api/v1/admin/users/{id}/permissions`,
+`POST /api/v1/admin/users`, `PATCH /api/v1/admin/users/{id}/access` e
+`POST`/`DELETE` de permissões. Labels e descrições de capabilities vêm do
+catálogo do backend. A senha de criação fica só no estado do formulário e é
+descartada a cada envio. Desativar acesso pede confirmação. Alterações no
+próprio usuário que removem o acesso, a conta ativa ou uma área administrativa
+continuam permitidas, com confirmação reforçada; em seguida a sessão é
+reavaliada e, se foi encerrada, a aplicação volta ao login sem erro. 403 de
+uma operação administrativa fica local e não encerra a sessão.
 
 ## Discovery
 

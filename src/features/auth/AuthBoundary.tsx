@@ -46,7 +46,7 @@ function stateFromSessionError(error: unknown): AuthState {
  * as requests protegidas pendentes e desmonta todo o estado da sessão anterior.
  */
 export function AuthBoundary({ app: ProtectedApp }: {
-  app: ComponentType<{ session: AuthenticatedSessionResponse; onSignOut: () => void }>;
+  app: ComponentType<{ session: AuthenticatedSessionResponse; onSignOut: () => void; onSessionRefresh: () => void }>;
 }) {
   const [state, setState] = useState<AuthState>({ status: "checking" });
   const [checkRound, setCheckRound] = useState(0);
@@ -74,6 +74,30 @@ export function AuthBoundary({ app: ProtectedApp }: {
   const retry = useCallback(() => {
     setState({ status: "checking" });
     setCheckRound((round) => round + 1);
+  }, []);
+
+  /**
+   * Reavalia a sessão após uma alteração administrativa no próprio usuário.
+   * Permissões novas chegam sem remontar o app. Sessão encerrada — resposta
+   * anônima ou erro de sessão (401 `session_invalid`/`session_expired`/
+   * `not_authenticated`, 403 `access_disabled`, com a mesma semântica do
+   * bootstrap) — desmonta o subtree e volta ao login ou ao acesso negado.
+   * Falha transitória (rede, timeout, `auth_unavailable`, resposta inválida)
+   * não inventa logout: a sessão atual permanece e as requests protegidas
+   * seguintes continuam sendo a autoridade.
+   */
+  const refreshSession = useCallback(() => {
+    const replaceIfEnded = (next: AuthState) => setState((current) => {
+      if (current.status !== "authenticated") return current;
+      if (next.status === "unavailable") return current;
+      if (next.status !== "authenticated") abortProtectedRequests();
+      else if (next.session.user_id !== current.session.user_id) return current;
+      return next;
+    });
+    getSession().then(
+      (session) => replaceIfEnded(session.authenticated ? stateFromSession(session) : { status: "anonymous", notice: SESSION_ENDED_NOTICE }),
+      (error: unknown) => replaceIfEnded(stateFromSessionError(error)),
+    );
   }, []);
 
   const submitLogin = useCallback(async (credentials: LoginCredentials) => {
@@ -133,6 +157,6 @@ export function AuthBoundary({ app: ProtectedApp }: {
         onAction={retry}
       />;
     case "authenticated":
-      return <ProtectedApp key={state.session.user_id} session={state.session} onSignOut={signOut} />;
+      return <ProtectedApp key={state.session.user_id} session={state.session} onSignOut={signOut} onSessionRefresh={refreshSession} />;
   }
 }

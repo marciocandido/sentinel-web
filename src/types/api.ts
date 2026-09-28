@@ -463,6 +463,84 @@ export function isSessionResponse(value: unknown): value is SessionResponse {
     && isIsoTimestampWithTimezone(value.expires_at);
 }
 
+/** Catálogo administrativo (#213): o backend é autoridade de código, label e descrição. */
+export interface AdminCapability {
+  code: string;
+  label: string;
+  description: string;
+  domain: string;
+}
+
+export interface AdminUser {
+  user_id: string;
+  login_name: string;
+  display_name: string;
+  active: boolean;
+  permissions: readonly string[];
+  created_at: string;
+  updated_at: string;
+}
+
+/** Página sem total: somente `limit/offset/has_more` do backend. */
+export interface AdminUserListResponse {
+  items: AdminUser[];
+  limit: number;
+  offset: number;
+  has_more: boolean;
+}
+
+export interface AdminUserPermissionsResponse {
+  user_id: string;
+  permissions: readonly string[];
+}
+
+export interface AdminCreateUserResponse {
+  user_id: string;
+}
+
+const CAPABILITY_CODE = /^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$/;
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+function isPermissionList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((permission) => typeof permission === "string" && CAPABILITY_CODE.test(permission));
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+export function isAdminCapability(value: unknown): value is AdminCapability {
+  return isRecord(value) && typeof value.code === "string" && CAPABILITY_CODE.test(value.code)
+    && isNonEmptyString(value.label) && typeof value.description === "string" && isNonEmptyString(value.domain);
+}
+
+export function isAdminCapabilityList(value: unknown): value is AdminCapability[] {
+  return Array.isArray(value) && value.every(isAdminCapability);
+}
+
+export function isAdminUser(value: unknown): value is AdminUser {
+  return isRecord(value) && isUuid(value.user_id) && isNonEmptyString(value.login_name) && isNonEmptyString(value.display_name)
+    && typeof value.active === "boolean" && isPermissionList(value.permissions)
+    && isIsoTimestampWithTimezone(value.created_at) && isIsoTimestampWithTimezone(value.updated_at);
+}
+
+export function isAdminUserListResponse(value: unknown): value is AdminUserListResponse {
+  return isRecord(value) && Array.isArray(value.items) && value.items.every(isAdminUser)
+    && isNonNegativeInteger(value.limit) && value.limit >= 1 && isNonNegativeInteger(value.offset)
+    && typeof value.has_more === "boolean" && value.items.length <= value.limit;
+}
+
+export function isAdminUserPermissionsResponse(value: unknown): value is AdminUserPermissionsResponse {
+  return isRecord(value) && isUuid(value.user_id) && isPermissionList(value.permissions);
+}
+
+export function isAdminCreateUserResponse(value: unknown): value is AdminCreateUserResponse {
+  return isRecord(value) && isUuid(value.user_id);
+}
+
 export function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
   return (
     isRecord(value) &&
