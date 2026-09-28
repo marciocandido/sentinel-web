@@ -78,24 +78,25 @@ export function AuthBoundary({ app: ProtectedApp }: {
 
   /**
    * Reavalia a sessão após uma alteração administrativa no próprio usuário.
-   * Permissões novas chegam sem remontar o app; sessão revogada volta ao login
-   * como encerramento normal. Falha transitória mantém a sessão atual — um 401
-   * real continua chegando pelas requests protegidas.
+   * Permissões novas chegam sem remontar o app. Sessão encerrada — resposta
+   * anônima ou erro de sessão (401 `session_invalid`/`session_expired`/
+   * `not_authenticated`, 403 `access_disabled`, com a mesma semântica do
+   * bootstrap) — desmonta o subtree e volta ao login ou ao acesso negado.
+   * Falha transitória (rede, timeout, `auth_unavailable`, resposta inválida)
+   * não inventa logout: a sessão atual permanece e as requests protegidas
+   * seguintes continuam sendo a autoridade.
    */
   const refreshSession = useCallback(() => {
+    const replaceIfEnded = (next: AuthState) => setState((current) => {
+      if (current.status !== "authenticated") return current;
+      if (next.status === "unavailable") return current;
+      if (next.status !== "authenticated") abortProtectedRequests();
+      else if (next.session.user_id !== current.session.user_id) return current;
+      return next;
+    });
     getSession().then(
-      (session) => setState((current) => {
-        if (current.status !== "authenticated") return current;
-        if (!session.authenticated) {
-          abortProtectedRequests();
-          return { status: "anonymous", notice: SESSION_ENDED_NOTICE };
-        }
-        if (session.user_id !== current.session.user_id) return current;
-        const next = stateFromSession(session);
-        if (next.status !== "authenticated") abortProtectedRequests();
-        return next;
-      }),
-      () => undefined,
+      (session) => replaceIfEnded(session.authenticated ? stateFromSession(session) : { status: "anonymous", notice: SESSION_ENDED_NOTICE }),
+      (error: unknown) => replaceIfEnded(stateFromSessionError(error)),
     );
   }, []);
 

@@ -11,7 +11,7 @@ import {
   selfAdminUser,
   userPage,
 } from "../../test/adminFixtures";
-import { anonymousSession, authenticatedSession, setCsrfCookie, TEST_USER_ID } from "../../test/authFixtures";
+import { authenticatedSession, setCsrfCookie, TEST_USER_ID } from "../../test/authFixtures";
 import { runtimeStatus } from "../../test/runtimeFixtures";
 
 type Handler = (init: RequestInit, url: URL) => Promise<Response>;
@@ -452,32 +452,53 @@ describe("alterações no próprio usuário", () => {
     expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument();
   });
 
-  it("revogar o próprio sentinel:access encerra a sessão e volta ao login sem erro", async () => {
-    routes[`DELETE /api/v1/admin/users/${TEST_USER_ID}/permissions/sentinel%3Aaccess`] = () => {
-      routes["GET /api/v1/auth/session"] = ok(anonymousSession);
+  /**
+   * Como no backend vigente: a mutação revoga as sessões da pessoa; o cookie
+   * antigo continua no navegador e qualquer rota passa a responder com o erro
+   * de sessão informado (401 `session_invalid` no caso real).
+   */
+  function revokeSessionsOnMutation(status = 401, code = "session_invalid") {
+    const state = { at: -1 };
+    const handler: Handler = () => {
+      state.at = fetchMock.mock.calls.length;
+      for (const key of Object.keys(routes)) {
+        if (key.includes("/api/v1/admin/") || key === "GET /api/v1/auth/session") routes[key] = apiError(status, code);
+      }
       return noContent({}, new URL("http://x"));
     };
-    await openAdministration();
+    return { handler, callsAfter: () => fetchMock.mock.calls.slice(state.at).map(([input, init]) => `${(init as RequestInit | undefined)?.method ?? "GET"} ${String(input)}`) };
+  }
+
+  async function revokeOwnAccess() {
     const detail = await openUser("Pessoa Operadora");
     fireEvent.click(within(detail).getByRole("button", { name: "Revogar Acesso ao Sentinel (catálogo)" }));
     const dialog = screen.getByRole("alertdialog");
     expect(dialog).toHaveTextContent("A sua sessão atual será encerrada imediatamente");
     fireEvent.click(within(dialog).getByRole("checkbox"));
     fireEvent.click(within(dialog).getByRole("button", { name: "Revogar meu acesso" }));
+  }
+
+  it("revogar o próprio sentinel:access: 401 session_invalid na reavaliação volta ao login sem erro", async () => {
+    const deletePath = `/api/v1/admin/users/${TEST_USER_ID}/permissions/sentinel%3Aaccess`;
+    const backend = revokeSessionsOnMutation();
+    routes[`DELETE ${deletePath}`] = backend.handler;
+    await openAdministration();
+    await revokeOwnAccess();
 
     expect(await screen.findByText("Sua sessão foi encerrada. Entre novamente.")).toBeInTheDocument();
     expect(screen.getByLabelText("Usuário")).toBeInTheDocument();
     expect(screen.queryByLabelText("Navegação principal")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Administração" })).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(calls("GET", `/api/v1/admin/users/${TEST_USER_ID}/permissions`)).toHaveLength(0);
-    expect(calls("GET", `/api/v1/admin/users/${TEST_USER_ID}`)).toHaveLength(1);
+    expect(screen.queryByText(/permissão para esta operação|autenticação está temporariamente/)).not.toBeInTheDocument();
+    expect(calls("DELETE", deletePath)).toHaveLength(1);
+    expect(backend.callsAfter()).toEqual(["GET /api/v1/auth/session"]);
   });
 
-  it("desativar o próprio acesso exige confirmação forte e termina a sessão", async () => {
-    routes[`PATCH /api/v1/admin/users/${TEST_USER_ID}/access`] = () => {
-      routes["GET /api/v1/auth/session"] = ok(anonymousSession);
-      return noContent({}, new URL("http://x"));
-    };
+  it("desativar o próprio acesso: confirmação forte e 401 session_invalid na reavaliação levam ao login", async () => {
+    const patchPath = `/api/v1/admin/users/${TEST_USER_ID}/access`;
+    const backend = revokeSessionsOnMutation();
+    routes[`PATCH ${patchPath}`] = backend.handler;
     await openAdministration();
     const detail = await openUser("Pessoa Operadora");
     fireEvent.click(within(detail).getByRole("button", { name: "Desativar acesso" }));
@@ -486,8 +507,64 @@ describe("alterações no próprio usuário", () => {
     expect(within(dialog).getByRole("button", { name: "Desativar meu acesso" })).toBeDisabled();
     fireEvent.click(within(dialog).getByRole("checkbox"));
     fireEvent.click(within(dialog).getByRole("button", { name: "Desativar meu acesso" }));
+
     expect(await screen.findByText("Sua sessão foi encerrada. Entre novamente.")).toBeInTheDocument();
-    expect(calls("GET", `/api/v1/admin/users/${TEST_USER_ID}`)).toHaveLength(1);
+    expect(screen.getByLabelText("Usuário")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Navegação principal")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(calls("PATCH", patchPath)).toHaveLength(1);
+    expect(backend.callsAfter()).toEqual(["GET /api/v1/auth/session"]);
+  });
+
+  it.each([
+    [401, "session_expired", "Sua sessão expirou. Entre novamente."],
+    [401, "not_authenticated", null],
+  ])("reavaliação com %i %s encerra a sessão com a semântica do bootstrap", async (status, code, notice) => {
+    const backend = revokeSessionsOnMutation(status, code);
+    routes[`DELETE /api/v1/admin/users/${TEST_USER_ID}/permissions/sentinel%3Aaccess`] = backend.handler;
+    await openAdministration();
+    await revokeOwnAccess();
+    expect(await screen.findByLabelText("Usuário")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Navegação principal")).not.toBeInTheDocument();
+    if (notice) expect(screen.getByText(notice)).toBeInTheDocument();
+    else expect(screen.queryByText(/Sua sessão/)).not.toBeInTheDocument();
+    expect(backend.callsAfter()).toEqual(["GET /api/v1/auth/session"]);
+  });
+
+  it("reavaliação com 403 access_disabled mostra acesso negado", async () => {
+    const backend = revokeSessionsOnMutation(403, "access_disabled");
+    routes[`PATCH /api/v1/admin/users/${TEST_USER_ID}/access`] = backend.handler;
+    await openAdministration();
+    const detail = await openUser("Pessoa Operadora");
+    fireEvent.click(within(detail).getByRole("button", { name: "Desativar acesso" }));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("checkbox"));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Desativar meu acesso" }));
+    expect(await screen.findByRole("heading", { name: "Acesso não autorizado" })).toBeInTheDocument();
+    expect(screen.getByText(/Seu acesso ao Sentinel está desativado/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Navegação principal")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["503 auth_unavailable", apiError(503, "auth_unavailable")],
+    ["falha de rede", (() => Promise.reject(new TypeError("private network detail"))) as Handler],
+  ])("falha transitória na reavaliação (%s) não inventa logout", async (_label, sessionFailure) => {
+    routes[`GET /api/v1/admin/users/${TEST_USER_ID}`] = ok(selfAdminUser({ permissions: ["a1:manage", "sentinel:access", "sentinel:admin"] }));
+    routes[`DELETE /api/v1/admin/users/${TEST_USER_ID}/permissions/a1%3Amanage`] = () => {
+      routes["GET /api/v1/auth/session"] = sessionFailure;
+      return noContent({}, new URL("http://x"));
+    };
+    routes[`GET /api/v1/admin/users/${TEST_USER_ID}/permissions`] = ok({ user_id: TEST_USER_ID, permissions: ["sentinel:access", "sentinel:admin"] });
+    await openAdministration();
+    const detail = await openUser("Pessoa Operadora");
+    fireEvent.click(within(detail).getByRole("button", { name: "Revogar Gestão A1 (catálogo)" }));
+    expect(await within(detail).findByText("“Gestão A1 (catálogo)” revogada de Pessoa Operadora.")).toBeInTheDocument();
+    await waitFor(() => expect(calls("GET", "/api/v1/auth/session")).toHaveLength(2));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.queryByText(/Sua sessão/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Usuário")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Administração" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument();
+    expect(calls("DELETE", `/api/v1/admin/users/${TEST_USER_ID}/permissions/a1%3Amanage`)).toHaveLength(1);
   });
 
   it("revogar do próprio usuário capability que não protege a área reconcilia normalmente", async () => {
